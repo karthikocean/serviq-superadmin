@@ -389,11 +389,35 @@ const INITIAL_ORDERS = [
 ]
 
 export default function App() {
+  // Get saved session from localStorage on initial render
+  const savedSession = (() => {
+    try {
+      const item = localStorage.getItem('serviq_session')
+      return item ? JSON.parse(item) : null
+    } catch (e) {
+      return null
+    }
+  })()
+
   // Simulator states
-  const [role, setRole] = useState('login') // 'login', 'admin', 'customer', 'kitchen', 'waiter', 'billing'
-  const [adminTab, setAdminTab] = useState('dashboard') // 'dashboard', 'incoming-orders', 'menu-management', 'billing', 'tables', 'settings'
+  const [role, setRole] = useState(savedSession?.role || 'login') // 'login', 'admin', 'customer', 'kitchen', 'waiter', 'billing'
+  const [adminTab, setAdminTab] = useState(savedSession?.adminTab || 'dashboard') // 'dashboard', 'incoming-orders', 'menu-management', 'billing', 'tables', 'settings'
   const [darkMode, setDarkMode] = useState(false)
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(savedSession?.isSuperAdmin ?? false)
+
+  // Persist session to localStorage on change
+  useEffect(() => {
+    if (role && role !== 'login') {
+      localStorage.setItem('serviq_session', JSON.stringify({
+        role,
+        isSuperAdmin,
+        adminTab
+      }))
+    } else {
+      localStorage.removeItem('serviq_session')
+    }
+  }, [role, isSuperAdmin, adminTab])
+
   const [adminProfileDropdownOpen, setAdminProfileDropdownOpen] = useState(false)
   const [usersDropdownOpen, setUsersDropdownOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -856,7 +880,6 @@ export default function App() {
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                     style={{
                       background: 'transparent',
-                      border: 'none',
                       cursor: 'pointer',
                       color: 'var(--text-main)',
                       display: 'flex',

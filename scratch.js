@@ -12,7 +12,6 @@ const SuperAdminDashboard = () => {
             <div />
           )}
       </div>
-      {/* comment */}
     </>
   );
 };

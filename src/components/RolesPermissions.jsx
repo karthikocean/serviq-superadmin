@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Plus, Unlock, Lock, Edit2, Trash2, AlertTriangle } from 'lucide-react'
 
 export default function RolesPermissions({
@@ -98,7 +98,30 @@ export default function RolesPermissions({
     }
   ])
 
-  const [editingRoleId, setEditingRoleId] = useState(null)
+  const [editingRoleId, setEditingRoleId] = useState(() => {
+    return localStorage.getItem('serviq_editingRoleId') || null
+  })
+
+  useEffect(() => {
+    if (editingRoleId) {
+      localStorage.setItem('serviq_editingRoleId', editingRoleId)
+    } else {
+      localStorage.removeItem('serviq_editingRoleId')
+    }
+  }, [editingRoleId])
+
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = (e) => {
+      if (e.detail?.tab === 'roles') {
+        setEditingRoleId(null)
+        localStorage.removeItem('serviq_editingRoleId')
+      }
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
+
   const [roleFormErrors, setRoleFormErrors] = useState({})
   const [roleFormState, setRoleFormState] = useState({
     name: '',
@@ -114,6 +137,16 @@ export default function RolesPermissions({
       revenue: { view: false, add: false, edit: false, delete: false }
     }
   })
+
+  // Prefill roleFormState when editingRoleId changes or is restored on page refresh
+  useEffect(() => {
+    if (editingRoleId && editingRoleId !== 'new') {
+      const roleToEdit = systemRoles.find(r => r.id === editingRoleId)
+      if (roleToEdit) {
+        setRoleFormState({ ...roleToEdit })
+      }
+    }
+  }, [editingRoleId, systemRoles])
 
   const handleSaveRole = (e) => {
     e.preventDefault()
@@ -134,12 +167,12 @@ export default function RolesPermissions({
       const nextIdNum = systemRoles.length > 0 ? Math.max(...systemRoles.map(r => parseInt(r.id.replace('role-', '')) || 0)) + 1 : 1
       const newId = `role-${nextIdNum}`
       setSystemRoles([...systemRoles, { ...roleFormState, id: newId }])
+      setEditingRoleId(newId)
       showToast('success', 'Custom Role created successfully!')
     } else {
       setSystemRoles(systemRoles.map(r => r.id === editingRoleId ? { ...roleFormState, id: editingRoleId } : r))
       showToast('success', 'Role updated successfully!')
     }
-    setEditingRoleId(null)
   }
 
   const handleDeleteRole = (id) => {
