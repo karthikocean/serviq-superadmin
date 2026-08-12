@@ -451,6 +451,26 @@ export default function SuperAdminDashboard({
     );
   };
 
+  const handleSidebarNav = (targetTab) => {
+    // Reset module edit/view sub-states so clicking sidebar menu item opens the main module list view
+    if (targetTab === 'plans') localStorage.removeItem('serviq_editingPlanId')
+    if (targetTab === 'details') {
+      localStorage.removeItem('serviq_editingRestId')
+      localStorage.removeItem('serviq_viewingRestId')
+      localStorage.removeItem('serviq_showAddRestModal')
+    }
+    if (targetTab === 'admins') {
+      localStorage.removeItem('serviq_editingAdminId')
+      localStorage.removeItem('serviq_showAddAdminModal')
+    }
+    if (targetTab === 'roles') localStorage.removeItem('serviq_editingRoleId')
+    if (targetTab === 'revenue') localStorage.removeItem('serviq_viewingPerfRestId')
+
+    // Broadcast reset event to active component
+    window.dispatchEvent(new CustomEvent('reset_module_view', { detail: { tab: targetTab } }))
+
+    setActiveTab(targetTab)
+  }
 
   return (
     <>
@@ -469,7 +489,7 @@ export default function SuperAdminDashboard({
 
             <ul className="menu-categories-list" style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', padding: 0 }}>
               <li
-                onClick={() => setActiveTab('revenue')}
+                onClick={() => handleSidebarNav('revenue')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -489,7 +509,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('details')}
+                onClick={() => handleSidebarNav('details')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -509,7 +529,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('plans')}
+                onClick={() => handleSidebarNav('plans')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -529,7 +549,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('subscriptions')}
+                onClick={() => handleSidebarNav('subscriptions')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -549,7 +569,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('billing')}
+                onClick={() => handleSidebarNav('billing')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -569,7 +589,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('leads')}
+                onClick={() => handleSidebarNav('leads')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -589,7 +609,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('tickets')}
+                onClick={() => handleSidebarNav('tickets')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -609,7 +629,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('notifications')}
+                onClick={() => handleSidebarNav('notifications')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -629,7 +649,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('reports')}
+                onClick={() => handleSidebarNav('reports')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -691,7 +711,7 @@ export default function SuperAdminDashboard({
                     marginLeft: '20px'
                   }}>
                     <div
-                      onClick={() => setActiveTab('admins')}
+                      onClick={() => handleSidebarNav('admins')}
                       style={{
                         padding: '8px 12px',
                         borderRadius: '6px',
@@ -706,7 +726,7 @@ export default function SuperAdminDashboard({
                       Users
                     </div>
                     <div
-                      onClick={() => setActiveTab('roles')}
+                      onClick={() => handleSidebarNav('roles')}
                       style={{
                         padding: '8px 12px',
                         borderRadius: '6px',
@@ -725,7 +745,7 @@ export default function SuperAdminDashboard({
               </li>
 
               <li
-                onClick={() => setActiveTab('settings')}
+                onClick={() => handleSidebarNav('settings')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -741,7 +761,7 @@ export default function SuperAdminDashboard({
                 }}
               >
                 <Settings style={{ width: '16px', height: '16px' }} />
-                <span>System Settings</span>
+                <span>System Config</span>
               </li>
             </ul>
 

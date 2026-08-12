@@ -133,6 +133,22 @@ export default function Restaurants({
     }
   }, [showAddModal])
 
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = (e) => {
+      if (e.detail?.tab === 'details') {
+        setEditingRestId(null)
+        setViewingRestId(null)
+        setShowAddModal(false)
+        localStorage.removeItem('serviq_editingRestId')
+        localStorage.removeItem('serviq_viewingRestId')
+        localStorage.removeItem('serviq_showAddRestModal')
+      }
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
+
   // Prefill editFormState when editingRestId is restored on page refresh
   useEffect(() => {
     if (editingRestId) {

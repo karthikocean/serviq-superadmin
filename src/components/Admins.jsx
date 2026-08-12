@@ -115,6 +115,20 @@ export default function Admins({
     }
   }, [showAddAdminModal])
 
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = (e) => {
+      if (e.detail?.tab === 'admins') {
+        setEditingAdminId(null)
+        setShowAddAdminModal(false)
+        localStorage.removeItem('serviq_editingAdminId')
+        localStorage.removeItem('serviq_showAddAdminModal')
+      }
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
+
   const [adminFormState, setAdminFormState] = useState({
     name: '',
     email: '',

@@ -105,6 +105,18 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
     }
   }, [editingPlanId])
 
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = (e) => {
+      if (e.detail?.tab === 'plans') {
+        setEditingPlanId(null)
+        localStorage.removeItem('serviq_editingPlanId')
+      }
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
+
   const [planFormState, setPlanFormState] = useState({
     name: '',
     description: '',

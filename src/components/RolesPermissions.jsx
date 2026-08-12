@@ -110,6 +110,18 @@ export default function RolesPermissions({
     }
   }, [editingRoleId])
 
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = (e) => {
+      if (e.detail?.tab === 'roles') {
+        setEditingRoleId(null)
+        localStorage.removeItem('serviq_editingRoleId')
+      }
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
+
   const [roleFormErrors, setRoleFormErrors] = useState({})
   const [roleFormState, setRoleFormState] = useState({
     name: '',
