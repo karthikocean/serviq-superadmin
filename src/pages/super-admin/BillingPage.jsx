@@ -79,13 +79,17 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
-export default function RevenueBilling({
-  restaurants = [],
-  plans = [],
-  invoices = [],
-  onUpdateInvoices,
-  showToast
-}) {
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { usePlans } from '../../hooks/usePlans'
+import { useBilling } from '../../hooks/useBilling'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function BillingPage() {
+  const { restaurants } = useRestaurant()
+  const { plans } = usePlans()
+  const { invoices, setInvoices } = useBilling()
+  const { showToast } = useNotification()
+  const onUpdateInvoices = setInvoices
   const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState(false)
   const [newInvoiceFormState, setNewInvoiceFormState] = useState({
     restaurantName: '',

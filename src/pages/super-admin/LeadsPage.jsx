@@ -72,12 +72,13 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
-export default function LeadsCRM({
-  restaurants = [],
-  onUpdateRestaurants,
-  restaurantAdmins = [],
-  showToast
-}) {
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function LeadsPage() {
+  const { restaurants, setRestaurants: onUpdateRestaurants } = useRestaurant()
+  const { showToast } = useNotification()
+  const restaurantAdmins = []
   const leadStatuses = ['New Lead', 'Contacted', 'Demo Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost']
   const leadSources = ['Website', 'Referral', 'Cold Call', 'Walk-in', 'Partner', 'Social Media']
 

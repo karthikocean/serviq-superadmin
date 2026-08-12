@@ -81,13 +81,13 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
-export default function Admins({
-  restaurants = [],
-  restaurantAdmins = [],
-  onUpdateRestaurantAdmins,
-  showToast,
-  setConfirmModal
-}) {
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function UsersPage() {
+  const { restaurants, restaurantAdmins, updateRestaurantAdmins: onUpdateRestaurantAdmins } = useRestaurant()
+  const { showToast } = useNotification()
+  const [confirmModal, setConfirmModal] = useState(null)
   const [showAddAdminModal, setShowAddAdminModal] = useState(() => {
     return localStorage.getItem('serviq_showAddAdminModal') === 'true'
   })
