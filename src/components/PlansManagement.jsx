@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Plus,
   Edit2,
@@ -93,7 +93,18 @@ const CORE_FEATURES = [
 ]
 
 export default function PlansManagement({ plans, setPlans, showToast }) {
-  const [editingPlanId, setEditingPlanId] = useState(null)
+  const [editingPlanId, setEditingPlanId] = useState(() => {
+    return localStorage.getItem('serviq_editingPlanId') || null
+  })
+
+  useEffect(() => {
+    if (editingPlanId) {
+      localStorage.setItem('serviq_editingPlanId', editingPlanId)
+    } else {
+      localStorage.removeItem('serviq_editingPlanId')
+    }
+  }, [editingPlanId])
+
   const [planFormState, setPlanFormState] = useState({
     name: '',
     description: '',
@@ -106,6 +117,26 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
     status: 'Active'
   })
   const [formErrors, setFormErrors] = useState({})
+
+  // Prefill form when editingPlanId changes or is restored on page refresh
+  useEffect(() => {
+    if (editingPlanId && editingPlanId !== 'new') {
+      const planToEdit = plans.find(p => p.id === editingPlanId)
+      if (planToEdit) {
+        setPlanFormState({
+          name: planToEdit.name || '',
+          description: planToEdit.description || '',
+          monthlyPrice: planToEdit.monthlyPrice || 0,
+          annualPrice: planToEdit.annualPrice || 0,
+          branchLimit: planToEdit.branchLimit || 99999,
+          userLimit: planToEdit.userLimit || 99999,
+          orderLimit: planToEdit.orderLimit || 99999,
+          features: planToEdit.features || [],
+          status: planToEdit.status || 'Active'
+        })
+      }
+    }
+  }, [editingPlanId, plans])
 
   const handleCreatePlan = (e) => {
     e.preventDefault()
@@ -139,7 +170,7 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
     }
 
     setPlans([...plans, newPlan])
-    setEditingPlanId(null)
+    setEditingPlanId(nextPlanId)
     showToast('success', `Subscription plan "${newPlan.name}" created successfully!`)
   }
 
@@ -174,7 +205,6 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
     } : p)
 
     setPlans(updated)
-    setEditingPlanId(null)
     showToast('success', `Plan "${planFormState.name}" updated successfully!`)
   }
 

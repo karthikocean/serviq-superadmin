@@ -156,7 +156,17 @@ export default function SuperAdminDashboard({
   }, [activeTab])
 
   // Edit / View restaurant states
-  const [viewingPerfRestId, setViewingPerfRestId] = useState(null)
+  const [viewingPerfRestId, setViewingPerfRestId] = useState(() => {
+    return localStorage.getItem('serviq_viewingPerfRestId') || null
+  })
+
+  React.useEffect(() => {
+    if (viewingPerfRestId) {
+      localStorage.setItem('serviq_viewingPerfRestId', viewingPerfRestId)
+    } else {
+      localStorage.removeItem('serviq_viewingPerfRestId')
+    }
+  }, [viewingPerfRestId])
   const [plans, setPlans] = useState([
     { id: 'plan-basic', name: 'Basic Plan', description: 'Essential tools for small eateries, QR menu ordering and simple table management.', monthlyPrice: 999, annualPrice: 9999, branchLimit: 1, userLimit: 3, orderLimit: 500, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management'], status: 'Active' },
     { id: 'plan-standard', name: 'Standard Plan', description: 'Includes everything in Basic, plus tableside waiter service and app integrations.', monthlyPrice: 1999, annualPrice: 19999, branchLimit: 2, userLimit: 5, orderLimit: 1000, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management', 'Waiter Management'], status: 'Active' },
@@ -830,7 +840,6 @@ export default function SuperAdminDashboard({
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Monthly Revenue (Est.)</span>
                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>₹{monthlyRevenue.toLocaleString()}</h3>
-                    <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '700' }}>+12.4% vs last month</span>
                   </div>
                 </div>
 
@@ -867,7 +876,6 @@ export default function SuperAdminDashboard({
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Basic Plan</span>
                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.subscriptionPlan?.includes('Basic')).length}</h3>
-                    <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: '700' }}>Active Branches</span>
                   </div>
                 </div>
 
@@ -877,7 +885,6 @@ export default function SuperAdminDashboard({
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Standard Plan</span>
                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.subscriptionPlan?.includes('Standard')).length}</h3>
-                    <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '700' }}>Active Branches</span>
                   </div>
                 </div>
 
@@ -887,7 +894,6 @@ export default function SuperAdminDashboard({
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Premium Plan</span>
                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.subscriptionPlan?.includes('Premium')).length}</h3>
-                    <span style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: '700' }}>Active Branches</span>
                   </div>
                 </div>
 
@@ -1052,7 +1058,6 @@ export default function SuperAdminDashboard({
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '900', color: '#10b981' }}>{standardCount + premiumCount}</h2>
-                      <span style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 10px', borderRadius: '6px', fontWeight: '800' }}>Active Branches</span>
                     </div>
                   </div>
 

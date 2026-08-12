@@ -12,11 +12,33 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
   const pinRefs = [useRef(), useRef(), useRef(), useRef()]
 
   useEffect(() => {
-    // Focus the first PIN input on mount
+    // Focus the first PIN input on mount and wipe any Chrome default autofill
+    const timer = setTimeout(() => {
+      if (phoneInputRef.current) {
+        const currentVal = phoneInputRef.current.value || ''
+        const sanitized = currentVal.replace(/[^0-9]/g, '').slice(0, 10)
+        if (currentVal !== sanitized) {
+          phoneInputRef.current.value = sanitized
+          setPhone(sanitized)
+        }
+      }
+    }, 100)
+
     if (pinRefs[0].current) {
       pinRefs[0].current.focus()
     }
+
+    return () => clearTimeout(timer)
   }, [])
+
+  const phoneInputRef = useRef()
+
+  const handlePhoneChange = (e) => {
+    // Allow typing numbers (0-9) up to max 10 digits
+    const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
+    setPhone(digitsOnly)
+    if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: null }))
+  }
 
   const handlePinChange = (index, value) => {
     // Only allow digits
@@ -37,7 +59,7 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
     if (index < 3 && digit) {
       pinRefs[index + 1].current.focus()
     }
-    if (formErrors.pin) setFormErrors({ ...formErrors, pin: null })
+    if (formErrors.pin) setFormErrors((prev) => ({ ...prev, pin: null }))
   }
 
   const handlePinKeyDown = (index, e) => {
@@ -77,24 +99,34 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
     e.preventDefault()
 
     const errors = {}
-    if (!phone || !phone.trim()) errors.phone = 'Phone Number is Required'
 
+    // Phone validation (Indian mobile number: 10 digits starting with 6, 7, 8, or 9)
+    const cleanedPhone = phone.trim()
+    const isIndianMobile = /^[6-9]\d{9}$/.test(cleanedPhone)
+    if (!cleanedPhone || !isIndianMobile) {
+      errors.phone = 'Enter valid mobile number'
+    }
+
+    // PIN validation
     const combinedPin = pin.join('')
-    if (combinedPin.length < 4) errors.pin = 'Please enter a 4-digit PIN'
+    if (!combinedPin) {
+      errors.pin = 'PIN is required'
+    } else if (combinedPin.length < 4) {
+      errors.pin = 'Please enter a 4-digit PIN'
+    }
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
+      if (errors.phone && phoneInputRef.current) {
+        phoneInputRef.current.focus()
+      } else if (errors.pin) {
+        const emptyIdx = pin.findIndex(d => !d)
+        const targetIdx = emptyIdx !== -1 ? emptyIdx : 0
+        if (pinRefs[targetIdx]?.current) pinRefs[targetIdx].current.focus()
+      }
       return
     }
     setFormErrors({})
-
-    if (combinedPin !== '1234') {
-      showToast('error', 'Invalid security PIN. (Use simulation PIN: 1234)')
-      // Reset PIN inputs and focus first
-      setPin(['', '', '', ''])
-      if (pinRefs[0].current) pinRefs[0].current.focus()
-      return
-    }
 
     setIsLoading(true)
     setTimeout(() => {
@@ -216,24 +248,27 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
         </div>
 
         <form onSubmit={handleSubmit} noValidate autoComplete="off" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Tab Selector Removed - Super Admin Only */}
+          {/* Hidden dummy inputs to capture Chrome aggressive autofill */}
+          <input type="text" name="prevent_autofill_username" tabIndex={-1} autoComplete="username" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0, margin: 0, padding: 0 }} />
+          <input type="password" name="prevent_autofill_password" tabIndex={-1} autoComplete="current-password" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0, margin: 0, padding: 0 }} />
 
           {/* Phone Number Field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '0.82rem', fontWeight: '700', color: formErrors.phone ? '#dc2626' : '#1e293b' }}>Phone Number</label>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Phone style={{ width: '16px', height: '16px', position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: formErrors.phone ? '#dc2626' : '#db2777' }} />
               <input
+                ref={phoneInputRef}
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
                 value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value)
-                  if (formErrors.phone) setFormErrors({ ...formErrors, phone: null })
-                }}
+                onChange={handlePhoneChange}
                 className="phone-input-field"
-                autoComplete="off"
-                name="phone-no-autofill"
-                placeholder="Enter phone number"
+                autoComplete="one-time-code"
+                name="user-phone-number-field"
+                placeholder="Enter Your Number"
                 style={{
                   width: '100%',
                   padding: '10px 12px 10px 38px',
@@ -256,7 +291,7 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
 
           {/* PIN Input Grid */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: '#1e293b' }}>PIN</label>
+            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: formErrors.pin ? '#dc2626' : '#1e293b' }}>PIN</label>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {/* Grid & Forgot PIN link grouped together */}
@@ -267,6 +302,9 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
                       key={idx}
                       ref={pinRefs[idx]}
                       type={showPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoComplete="one-time-code"
                       value={digit}
                       onChange={(e) => handlePinChange(idx, e.target.value)}
                       onKeyDown={(e) => handlePinKeyDown(idx, e)}
@@ -294,7 +332,7 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
                     href="#"
                     onClick={(e) => {
                       e.preventDefault()
-                      showToast('info', 'For simulation mode, the default PIN is 1234')
+                      showToast('info', 'Please enter any 4-digit security PIN to sign in')
                     }}
                     style={{
                       color: '#d37244',

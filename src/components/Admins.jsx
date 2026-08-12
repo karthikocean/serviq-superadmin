@@ -88,12 +88,32 @@ export default function Admins({
   showToast,
   setConfirmModal
 }) {
-  const [showAddAdminModal, setShowAddAdminModal] = useState(false)
-  const [editingAdminId, setEditingAdminId] = useState(null)
+  const [showAddAdminModal, setShowAddAdminModal] = useState(() => {
+    return localStorage.getItem('serviq_showAddAdminModal') === 'true'
+  })
+  const [editingAdminId, setEditingAdminId] = useState(() => {
+    return localStorage.getItem('serviq_editingAdminId') || null
+  })
   const [resettingPasswordAdminId, setResettingPasswordAdminId] = useState(null)
   const [passwordResetValue, setPasswordResetValue] = useState('')
   const [passwordConfirmValue, setPasswordConfirmValue] = useState('')
   const [formErrors, setFormErrors] = useState({})
+
+  useEffect(() => {
+    if (editingAdminId) {
+      localStorage.setItem('serviq_editingAdminId', editingAdminId)
+    } else {
+      localStorage.removeItem('serviq_editingAdminId')
+    }
+  }, [editingAdminId])
+
+  useEffect(() => {
+    if (showAddAdminModal) {
+      localStorage.setItem('serviq_showAddAdminModal', 'true')
+    } else {
+      localStorage.removeItem('serviq_showAddAdminModal')
+    }
+  }, [showAddAdminModal])
 
   const [adminFormState, setAdminFormState] = useState({
     name: '',
@@ -104,6 +124,24 @@ export default function Admins({
     status: 'Active',
     password: ''
   })
+
+  // Prefill adminFormState when editingAdminId changes or is restored on refresh
+  useEffect(() => {
+    if (editingAdminId) {
+      const admin = restaurantAdmins.find(a => a.id === editingAdminId)
+      if (admin) {
+        setAdminFormState({
+          name: admin.name || '',
+          email: admin.email || '',
+          phone: admin.phone || '',
+          restaurantName: admin.restaurantName || '',
+          role: admin.role || 'Branch Admin',
+          status: admin.status || 'Active',
+          password: ''
+        })
+      }
+    }
+  }, [editingAdminId, restaurantAdmins])
 
   // Synchronize new admin initial restaurant assign
   useEffect(() => {
@@ -219,7 +257,6 @@ export default function Admins({
       status: adminFormState.status
     } : a)
     onUpdateRestaurantAdmins(updated)
-    setEditingAdminId(null)
     showToast('success', `User profile for "${adminFormState.name}" updated successfully!`)
   }
 

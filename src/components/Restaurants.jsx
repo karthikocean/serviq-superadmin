@@ -96,12 +96,52 @@ export default function Restaurants({
   showToast,
   setConfirmModal
 }) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [editingRestId, setEditingRestId] = useState(null)
-  const [viewingRestId, setViewingRestId] = useState(null)
+  const [showAddModal, setShowAddModal] = useState(() => {
+    return localStorage.getItem('serviq_showAddRestModal') === 'true'
+  })
+  const [editingRestId, setEditingRestId] = useState(() => {
+    return localStorage.getItem('serviq_editingRestId') || null
+  })
+  const [viewingRestId, setViewingRestId] = useState(() => {
+    return localStorage.getItem('serviq_viewingRestId') || null
+  })
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
   const [editFormState, setEditFormState] = useState(null)
   const [formErrors, setFormErrors] = useState({})
+
+  useEffect(() => {
+    if (editingRestId) {
+      localStorage.setItem('serviq_editingRestId', editingRestId)
+    } else {
+      localStorage.removeItem('serviq_editingRestId')
+    }
+  }, [editingRestId])
+
+  useEffect(() => {
+    if (viewingRestId) {
+      localStorage.setItem('serviq_viewingRestId', viewingRestId)
+    } else {
+      localStorage.removeItem('serviq_viewingRestId')
+    }
+  }, [viewingRestId])
+
+  useEffect(() => {
+    if (showAddModal) {
+      localStorage.setItem('serviq_showAddRestModal', 'true')
+    } else {
+      localStorage.removeItem('serviq_showAddRestModal')
+    }
+  }, [showAddModal])
+
+  // Prefill editFormState when editingRestId is restored on page refresh
+  useEffect(() => {
+    if (editingRestId) {
+      const rest = restaurants.find(r => r.id === editingRestId)
+      if (rest) {
+        setEditFormState({ ...rest })
+      }
+    }
+  }, [editingRestId, restaurants])
 
   const [newRestState, setNewRestState] = useState({
     name: '',
@@ -299,7 +339,6 @@ export default function Restaurants({
       onUpdateRestaurantDetails(editFormState)
     }
 
-    setEditingRestId(null)
     showToast('success', `Branch details for "${editFormState.name}" updated successfully!`)
   }
 
