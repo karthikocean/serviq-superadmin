@@ -185,6 +185,19 @@ export default function SuperAdminDashboard({
   const [confirmModal, setConfirmModal] = useState(null)
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
 
+  const [subscriptionHistory, setSubscriptionHistory] = useState([
+    {
+      id: 'SUB-001',
+      restaurantId: 'R-02',
+      restaurantName: 'Serviq Express Cafe',
+      planName: 'Premium Plan',
+      startDate: '2025-03-22',
+      endDate: '2026-09-22',
+      amount: 50000,
+      status: 'Completed'
+    }
+  ])
+
   const [systemLogs, setSystemLogs] = useState([
     { id: 1, time: '10:04 AM', type: 'info', msg: 'System initialized successfully.' },
     { id: 2, time: '10:15 AM', type: 'success', msg: 'Admin Terminal authenticated from IP 192.168.1.42.' },
@@ -1311,6 +1324,8 @@ export default function SuperAdminDashboard({
                 onUpdateRestaurants={onUpdateRestaurants}
                 plans={plans}
                 showToast={showToast}
+                subscriptionHistory={subscriptionHistory}
+                setSubscriptionHistory={setSubscriptionHistory}
               />
             </div>
           )}

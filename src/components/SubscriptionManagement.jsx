@@ -13,10 +13,12 @@ import {
   Info
 } from 'lucide-react'
 
-export default function SubscriptionManagement({ restaurants, onUpdateRestaurants, plans, showToast }) {
+export default function SubscriptionManagement({ restaurants, onUpdateRestaurants, plans, showToast, subscriptionHistory, setSubscriptionHistory }) {
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
   const [editingSubscriptionRest, setEditingSubscriptionRest] = useState(null)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('current') // 'current' or 'history'
+  const [currentFilter, setCurrentFilter] = useState('All') // 'All', 'Active', 'Expiring Soon', 'Expired', 'Cancelled'
 
   // Form State for Assigning/Editing Subscription
   const [formState, setFormState] = useState({
@@ -113,6 +115,35 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
       return r
     })
 
+    if (editingSubscriptionRest) {
+        // Just update the existing record in history (e.g. latest active)
+        const updatedHistory = subscriptionHistory.map(h => 
+            (h.restaurantId === selectedRest.id && h.status === 'Active') 
+            ? { 
+                ...h, 
+                planName: formState.planName,
+                startDate: formState.startDate,
+                endDate: formState.endDate,
+                amount: formState.planName.includes('Premium') ? 49999 : formState.planName.includes('Standard') ? 19999 : 9999,
+                status: formState.subscriptionStatus 
+              } 
+            : h
+        )
+        setSubscriptionHistory(updatedHistory)
+    } else {
+        const newHistoryRecord = {
+          id: `SUB-${Date.now().toString().slice(-4)}`,
+          restaurantId: selectedRest.id,
+          restaurantName: selectedRest.name,
+          planName: formState.planName,
+          startDate: formState.startDate,
+          endDate: formState.endDate,
+          amount: formState.planName.includes('Premium') ? 49999 : formState.planName.includes('Standard') ? 19999 : 9999,
+          status: formState.subscriptionStatus
+        }
+        setSubscriptionHistory([newHistoryRecord, ...subscriptionHistory])
+    }
+
     onUpdateRestaurants(updated)
     setIsAssignModalOpen(false)
     setEditingSubscriptionRest(null)
@@ -122,6 +153,7 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
     const nextYear = new Date(restaurant.expiryDate || Date.now())
     nextYear.setFullYear(nextYear.getFullYear() + 1)
     const nextYearStr = nextYear.toISOString().split('T')[0]
+    const todayStr = new Date().toISOString().split('T')[0]
 
     const updated = restaurants.map(r => {
       if (r.id === restaurant.id) {
@@ -129,6 +161,7 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
         return {
           ...r,
           subscriptionStatus: 'Active',
+          createdDate: todayStr,
           expiryDate: nextYearStr,
           renewalDate: nextYearStr
         }
@@ -136,6 +169,28 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
       return r
     })
 
+    const latestSub = subscriptionHistory.find(h => h.restaurantId === restaurant.id && h.status === 'Active')
+
+    // Update History
+    const newHistoryRecord = {
+        id: `SUB-${Date.now().toString().slice(-4)}`,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        planName: restaurant.subscriptionPlan,
+        startDate: todayStr,
+        endDate: nextYearStr,
+        amount: restaurant.subscriptionPlan?.includes('Premium') ? 49999 : restaurant.subscriptionPlan?.includes('Standard') ? 19999 : 9999,
+        status: 'Active',
+        previousSubscriptionId: latestSub ? latestSub.id : null
+    }
+
+    const updatedHistory = subscriptionHistory.map(h => 
+        (h.restaurantId === restaurant.id && h.status === 'Active') 
+        ? { ...h, status: 'Completed' } 
+        : h
+    )
+    
+    setSubscriptionHistory([newHistoryRecord, ...updatedHistory])
     onUpdateRestaurants(updated)
   }
 
@@ -151,6 +206,12 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
       return r
     })
 
+    const updatedHistory = subscriptionHistory.map(h => 
+        (h.restaurantId === restaurant.id && h.status === 'Active') 
+        ? { ...h, status: 'Cancelled' } 
+        : h
+    )
+    setSubscriptionHistory(updatedHistory)
     onUpdateRestaurants(updated)
   }
 
@@ -180,6 +241,44 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       
+      {/* Tabs Layout */}
+      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-color)' }}>
+        <button
+          onClick={() => setActiveTab('current')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '12px 16px',
+            fontSize: '0.9rem',
+            fontWeight: '800',
+            color: activeTab === 'current' ? 'var(--primary)' : 'var(--text-muted)',
+            borderBottom: activeTab === 'current' ? '3px solid var(--primary)' : '3px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+        >
+          Current Subscriptions
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '12px 16px',
+            fontSize: '0.9rem',
+            fontWeight: '800',
+            color: activeTab === 'history' ? 'var(--primary)' : 'var(--text-muted)',
+            borderBottom: activeTab === 'history' ? '3px solid var(--primary)' : '3px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+        >
+          Subscription History
+        </button>
+      </div>
+
+      {activeTab === 'current' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top Subscription Metric Widgets Row */}
       {!isAssignModalOpen && !editingSubscriptionRest && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
@@ -428,6 +527,29 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
             </button>
           </div>
 
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+            {['All', 'Active', 'Expiring Soon', 'Expired', 'Cancelled'].map(filter => (
+              <button
+                key={filter}
+                onClick={() => setCurrentFilter(filter)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  border: currentFilter === filter ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                  background: currentFilter === filter ? 'var(--primary)' : 'var(--bg-app)',
+                  color: currentFilter === filter ? '#fff' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+
           <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
             <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -443,7 +565,9 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
                 </tr>
               </thead>
               <tbody>
-                {restaurants.map((rest, idx) => {
+                {restaurants
+                  .filter(rest => currentFilter === 'All' || rest.subscriptionStatus === currentFilter)
+                  .map((rest, idx) => {
                   const isPremium = rest.subscriptionPlan?.toLowerCase().includes('premium')
                   const isStandard = rest.subscriptionPlan?.toLowerCase().includes('standard')
                   const isBasic = rest.subscriptionPlan?.toLowerCase().includes('basic')
@@ -716,6 +840,122 @@ export default function SubscriptionManagement({ restaurants, onUpdateRestaurant
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="glass-card animate-fade-in" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription History</h4>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500' }}>Read-only historical records of all subscriptions.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <input 
+                  type="text" 
+                  placeholder="Search restaurant..." 
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--border-color)',
+                    background: 'var(--bg-app)',
+                    fontSize: '0.75rem',
+                    outline: 'none',
+                    minWidth: '200px'
+                  }}
+                />
+                <select style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid var(--border-color)', background: 'var(--bg-app)', fontSize: '0.75rem', outline: 'none' }}>
+                  <option value="All Plans">All Plans</option>
+                  <option value="Premium">Premium</option>
+                  <option value="Standard">Standard</option>
+                  <option value="Basic">Basic</option>
+                </select>
+                <select style={{ padding: '8px 14px', borderRadius: '8px', border: '1.5px solid var(--border-color)', background: 'var(--bg-app)', fontSize: '0.75rem', outline: 'none' }}>
+                  <option value="All Status">All Status</option>
+                  <option value="Active">Active</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Restaurant</th>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Subscription ID</th>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Plan</th>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Start</th>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>End</th>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Amount</th>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Status</th>
+                    <th style={{ textAlign: 'right', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subscriptionHistory && subscriptionHistory.map((historyRecord, idx) => {
+                    const statusStyles = getStatusColor(historyRecord.status || 'Completed')
+                    return (
+                      <tr key={historyRecord.id || idx} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                          {historyRecord.restaurantName}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontWeight: '600' }}>
+                          {historyRecord.id}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                          {historyRecord.planName}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                          {historyRecord.startDate}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                          {historyRecord.endDate}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                          ₹{(historyRecord.amount || 0).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                          <span style={{
+                            fontSize: '0.7rem',
+                            fontWeight: '800',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            background: historyRecord.status === 'Completed' ? 'rgba(59, 130, 246, 0.1)' : statusStyles.bg,
+                            color: historyRecord.status === 'Completed' ? '#3b82f6' : statusStyles.text,
+                            border: historyRecord.status === 'Completed' ? '1px solid rgba(59, 130, 246, 0.2)' : statusStyles.border,
+                            display: 'inline-block'
+                          }}>{historyRecord.status}</span>
+                        </td>
+                        <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button
+                            className="btn-outline"
+                            style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '700', cursor: 'pointer' }}
+                            onClick={() => {
+                              // We can reuse the view modal or just view details logic
+                              showToast('info', 'Viewing historical record (Read-only)')
+                            }}
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {(!subscriptionHistory || subscriptionHistory.length === 0) && (
+                    <tr>
+                      <td colSpan="8" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600' }}>
+                        No historical records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
