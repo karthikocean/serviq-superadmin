@@ -307,9 +307,44 @@ export default function DashboardPage() {
     })
   }
 
+  const handleDownloadExcel = () => {
+    try {
+      const headers = ['Restaurant', 'Code ID', 'City / Location', 'Operational Status', 'Subscription Plan'];
+      const csvData = restaurants.map(rest => [
+        rest.name,
+        rest.id,
+        rest.city || 'Chennai',
+        rest.status ? rest.status.toUpperCase() : 'ACTIVE',
+        rest.subscriptionPlan || 'Standard Plan'
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
 
-
-
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'top_performing_restaurants.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      if (typeof showToast !== 'undefined') {
+        showToast('success', 'Excel Spreadsheet report generated and downloaded.');
+      } else {
+        console.log('Excel Spreadsheet report generated and downloaded.');
+      }
+    } catch (error) {
+      console.error('Download failed:', error);
+      if (typeof showToast !== 'undefined') {
+        showToast('error', 'Failed to generate Excel report.');
+      }
+    }
+  };
 
   const renderPerformanceModal = () => {
     if (!viewingPerfRestId) return null;
@@ -1134,9 +1169,7 @@ export default function DashboardPage() {
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Financial index rating computed across all active and suspended franchise codes.</span>
                   </div>
                   <button
-                    onClick={() => {
-                      showToast('success', 'Excel Spreadsheet report generated and downloaded (Simulated).')
-                    }}
+                    onClick={handleDownloadExcel}
                     className="btn-outline"
                     style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', padding: '6px 12px', cursor: 'pointer' }}
                   >

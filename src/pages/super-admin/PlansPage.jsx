@@ -127,7 +127,7 @@ export default function PlansPage() {
     description: '',
     monthlyPrice: 0,
     annualPrice: 0,
-    branchLimit: 99999,
+    branchLimit: 3,
     userLimit: 99999,
     orderLimit: 99999,
     features: [],
@@ -145,7 +145,7 @@ export default function PlansPage() {
           description: planToEdit.description || '',
           monthlyPrice: planToEdit.monthlyPrice || 0,
           annualPrice: planToEdit.annualPrice || 0,
-          branchLimit: planToEdit.branchLimit || 99999,
+          branchLimit: planToEdit.branchLimit || 3,
           userLimit: planToEdit.userLimit || 99999,
           orderLimit: planToEdit.orderLimit || 99999,
           features: planToEdit.features || [],
@@ -163,6 +163,7 @@ export default function PlansPage() {
     if (!planFormState.description.trim()) errors.description = 'Plan Description is Required'
     if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
     if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
+    if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
     if (planFormState.features.length === 0) errors.features = 'At least one feature must be selected'
 
     if (Object.keys(errors).length > 0) {
@@ -179,7 +180,7 @@ export default function PlansPage() {
       description: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
-      branchLimit: parseInt(planFormState.branchLimit) || 99999,
+      branchLimit: parseInt(planFormState.branchLimit) || 3,
       userLimit: parseInt(planFormState.userLimit) || 99999,
       orderLimit: parseInt(planFormState.orderLimit) || 99999,
       features: planFormState.features,
@@ -187,7 +188,7 @@ export default function PlansPage() {
     }
 
     setPlans([...plans, newPlan])
-    setEditingPlanId(nextPlanId)
+    setEditingPlanId(null)
     showToast('success', `Subscription plan "${newPlan.name}" created successfully!`)
   }
 
@@ -199,6 +200,7 @@ export default function PlansPage() {
     if (!planFormState.description.trim()) errors.description = 'Plan Description is Required'
     if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
     if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
+    if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
     if (planFormState.features.length === 0) errors.features = 'At least one feature must be selected'
 
     if (Object.keys(errors).length > 0) {
@@ -214,7 +216,7 @@ export default function PlansPage() {
       description: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
-      branchLimit: parseInt(planFormState.branchLimit) || 99999,
+      branchLimit: parseInt(planFormState.branchLimit) || 3,
       userLimit: parseInt(planFormState.userLimit) || 99999,
       orderLimit: parseInt(planFormState.orderLimit) || 99999,
       features: planFormState.features,
@@ -222,6 +224,7 @@ export default function PlansPage() {
     } : p)
 
     setPlans(updated)
+    setEditingPlanId(null)
     showToast('success', `Plan "${planFormState.name}" updated successfully!`)
   }
 
@@ -369,6 +372,18 @@ export default function PlansPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <ValidatedInput
+                label="Maximum Branches"
+                type="number"
+                value={planFormState.branchLimit}
+                onChange={(e) => setPlanFormState({ ...planFormState, branchLimit: e.target.value })}
+                placeholder="e.g. 3"
+                required
+                min="1"
+                error={formErrors.branchLimit}
+                setError={(val) => setFormErrors({ ...formErrors, branchLimit: val })}
+              />
+
               <ValidatedSelect
                 label="Status"
                 value={planFormState.status}
@@ -380,7 +395,6 @@ export default function PlansPage() {
 
               {/* Hidden but preserved limits to maintain data schema compatibility */}
               <div style={{ display: 'none' }}>
-                <input type="hidden" value={planFormState.branchLimit} />
                 <input type="hidden" value={planFormState.userLimit} />
                 <input type="hidden" value={planFormState.orderLimit} />
               </div>
@@ -408,7 +422,7 @@ export default function PlansPage() {
                 description: '',
                 monthlyPrice: '',
                 annualPrice: '',
-                branchLimit: 99999,
+                branchLimit: 3,
                 userLimit: 99999,
                 orderLimit: 99999,
                 features: [],
@@ -429,7 +443,7 @@ export default function PlansPage() {
             const isBasic = plan.name.toLowerCase().includes('basic')
             const isStandard = plan.name.toLowerCase().includes('standard')
             const isPremium = plan.name.toLowerCase().includes('premium')
-            
+
             return (
               <div key={plan.id} className="glass-card" style={{
                 padding: '28px',
@@ -476,7 +490,7 @@ export default function PlansPage() {
                             description: plan.description || '',
                             monthlyPrice: plan.monthlyPrice.toString(),
                             annualPrice: plan.annualPrice.toString(),
-                            branchLimit: (plan.branchLimit || 99999).toString(),
+                            branchLimit: (plan.branchLimit || 3).toString(),
                             userLimit: (plan.userLimit || 99999).toString(),
                             orderLimit: (plan.orderLimit || 99999).toString(),
                             features: plan.features || [],
@@ -507,6 +521,10 @@ export default function PlansPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Annual Rate</span>
                     <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '800' }}>₹{plan.annualPrice.toLocaleString()}<span style={{ fontSize: '0.72rem', fontWeight: '600' }}>/yr</span></span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Branches</span>
+                    <span style={{ fontSize: '0.95rem', color: 'var(--primary)', fontWeight: '900' }}>{plan.branchLimit >= 99999 ? 'Unlimited' : plan.branchLimit}</span>
                   </div>
                 </div>
 
