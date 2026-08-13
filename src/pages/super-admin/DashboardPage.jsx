@@ -846,7 +846,6 @@ export default function DashboardPage() {
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Expiring Subscriptions</span>
                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{expiringSubscriptionsCount} Branches</h3>
-                    <span style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: '700' }}>Awaiting renewal (30d)</span>
                   </div>
                 </div>
 
@@ -858,7 +857,6 @@ export default function DashboardPage() {
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Pending Payments</span>
                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>₹{pendingPaymentsSum.toLocaleString()}</h3>
-                    <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: '700' }}>{pendingPaymentsCount} Invoice(s) Pending</span>
                   </div>
                 </div>
               </div>
@@ -936,12 +934,11 @@ export default function DashboardPage() {
                   }}>Live</span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                   {[
                     { label: 'Open Tickets', value: '12', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.15)' },
                     { label: 'In Progress', value: '8', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.15)' },
                     { label: 'Resolved (30d)', value: '47', color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.15)' },
-                    { label: 'Avg Response', value: '2.4h', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.15)' }
                   ].map((stat, idx) => (
                     <div key={idx} style={{
                       padding: '16px',
@@ -969,7 +966,6 @@ export default function DashboardPage() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '900', color: 'var(--primary)' }}>₹{subscriptionRevenue.toLocaleString()}</h2>
-                      <span style={{ fontSize: '0.75rem', background: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 10px', borderRadius: '6px', fontWeight: '800' }}>+12.5% vs Last Month</span>
                     </div>
                   </div>
 
