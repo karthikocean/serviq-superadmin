@@ -131,8 +131,14 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
     setIsLoading(true)
     setTimeout(() => {
       setIsLoading(false)
-      onLogin(selectedRole)
-    }, 900)
+      if (showToast) {
+        showToast('success', 'Logged in successfully!')
+      }
+      // Delay navigation so the toast is clearly visible on the login page before redirecting
+      setTimeout(() => {
+        onLogin(selectedRole)
+      }, 1500)
+    }, 600)
   }
 
   return (
