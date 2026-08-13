@@ -14,7 +14,12 @@ import {
   ChevronDown
 } from 'lucide-react'
 
-export default function ReportsAnalytics({ restaurants = [], showToast }) {
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function ReportsPage() {
+  const { restaurants } = useRestaurant()
+  const { showToast } = useNotification()
   const [activeReportTab, setActiveReportTab] = useState('revenue')
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [selectedPlan, setSelectedPlan] = useState('All')

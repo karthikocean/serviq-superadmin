@@ -92,7 +92,12 @@ const CORE_FEATURES = [
   'Kitchen Management'
 ]
 
-export default function PlansManagement({ plans, setPlans, showToast }) {
+import { usePlans } from '../../hooks/usePlans'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function PlansPage() {
+  const { plans, setPlans } = usePlans()
+  const { showToast } = useNotification()
   const [editingPlanId, setEditingPlanId] = useState(() => {
     return localStorage.getItem('serviq_editingPlanId') || null
   })

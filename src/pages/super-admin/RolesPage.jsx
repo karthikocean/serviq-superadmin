@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Unlock, Lock, Edit2, Trash2, AlertTriangle } from 'lucide-react'
 
-export default function RolesPermissions({
-  showToast,
-  setConfirmModal
-}) {
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function RolesPage() {
+  const { showToast } = useNotification()
+  const [confirmModal, setConfirmModal] = useState(null)
   const [systemRoles, setSystemRoles] = useState([
     {
       id: 'role-1',

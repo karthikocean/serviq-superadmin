@@ -72,12 +72,13 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
-export default function SystemSettings({
-  restaurantDetails = {},
-  onUpdateRestaurantDetails,
-  showToast,
-  setSystemLogs
-}) {
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function SettingsPage() {
+  const { restaurantDetails = {}, updateRestaurantDetails: onUpdateRestaurantDetails } = useRestaurant()
+  const { showToast } = useNotification()
+  const setSystemLogs = () => {}
   const [formState, setFormState] = useState({ ...restaurantDetails })
   const [formErrors, setFormErrors] = useState({})
 

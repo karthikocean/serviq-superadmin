@@ -40,17 +40,7 @@ import {
   BarChart2
 } from 'lucide-react'
 
-import PlansManagement from './PlansManagement'
-import SubscriptionManagement from './SubscriptionManagement'
-import SupportTicketManagement from './SupportTicketManagement'
-import NotificationsManagement from './NotificationsManagement'
-import ReportsAnalytics from './ReportsAnalytics'
-import Restaurants from './Restaurants'
-import Admins from './Admins' 
-import RevenueBilling from './RevenueBilling'
-import LeadsCRM from './LeadsCRM'
-import RolesPermissions from './RolesPermissions'
-import SystemSettings from './SystemSettings'
+// Unused sub-components removed
 
 // ─── Reusable validated input component (defined outside to prevent remount on re-render) ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -123,30 +113,23 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
-export default function SuperAdminDashboard({
-  restaurantDetails,
-  onUpdateRestaurantDetails,
-  orders = [],
-  tables = [],
-  menuItems = [],
-  staffMembers = [],
-  stats = {},
-  showToast,
-  onUpdateTables,
-  onUpdateOrders,
-  activeTab: propActiveTab = 'details',
-  isMerged = false,
-  restaurants = [],
-  activeRestaurantId,
-  onSetActiveRestaurantId,
-  onUpdateRestaurants,
-  restaurantAdmins = [],
-  onUpdateRestaurantAdmins
-}) {
-  const [activeTabState, setActiveTabState] = useState('details')
-  const activeTab = isMerged ? propActiveTab : activeTabState
-  const setActiveTab = isMerged ? () => { } : setActiveTabState
-  const [usersDropdownOpen, setUsersDropdownOpen] = useState(false)
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useBilling } from '../../hooks/useBilling'
+import { useSubscriptions } from '../../hooks/useSubscriptions'
+
+export default function DashboardPage() {
+  const { restaurants, restaurantDetails = {} } = useRestaurant()
+  const { invoices } = useBilling()
+  const { subscriptionHistory } = useSubscriptions()
+
+  const orders = []
+  const tables = []
+  const menuItems = []
+  const staffMembers = []
+  const stats = { revenue: 12480, totalOrdersCount: 450 }
+  const activeTab = 'revenue'
+  const isMerged = true;
+  const setActiveTab = () => { }
   const [formErrors, setFormErrors] = useState({})
 
   React.useEffect(() => {
@@ -174,29 +157,8 @@ export default function SuperAdminDashboard({
     // { id: 'plan-enterprise', name: 'Enterprise Plan', description: 'Full enterprise control for multi-branch chains, franchise dashboards, and premium SLA support.', monthlyPrice: 9999, annualPrice: 99999, branchLimit: 99999, userLimit: 99999, orderLimit: 99999, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management', 'Waiter Management', 'Kitchen Management', 'Advanced Billing System', 'Live Analytics Deck', 'Multi-Branch Super Deck', '24/7 Dedicated Support'], status: 'Active' }
   ])
 
-  // Revenue & Billing states
-  const [invoices, setInvoices] = useState([
-    { id: 'INV-2026-001', restaurantName: 'Serviq', subscriptionPlan: 'Premium Plan', amount: 4999, taxAmount: 900, paymentMethod: 'UPI', paymentDate: '2026-06-01', dueDate: '2026-07-01', status: 'Paid', transactionId: 'TXN-8472917462' },
-    { id: 'INV-2026-002', restaurantName: 'Sunset Diner', subscriptionPlan: 'Standard Plan', amount: 1999, taxAmount: 360, paymentMethod: 'Credit Card', paymentDate: '2026-05-28', dueDate: '2026-06-28', status: 'Paid', transactionId: 'TXN-1098273645' },
-    { id: 'INV-2026-003', restaurantName: 'Ocean Breeze Grill', subscriptionPlan: 'Premium Plan', amount: 4999, taxAmount: 900, paymentMethod: 'Net Banking', paymentDate: '', dueDate: '2026-06-15', status: 'Pending', transactionId: '—' },
-    { id: 'INV-2026-004', restaurantName: 'Mountain Lodge Cafe', subscriptionPlan: 'Premium Plan', amount: 4999, taxAmount: 900, paymentMethod: 'UPI', paymentDate: '2026-05-15', dueDate: '2026-06-15', status: 'Refunded', transactionId: 'TXN-9018273645' },
-    { id: 'INV-2026-005', restaurantName: 'Downtown Bakery', subscriptionPlan: 'Free Plan', amount: 0, taxAmount: 0, paymentMethod: 'N/A', paymentDate: '2026-05-20', dueDate: '2026-06-20', status: 'Paid', transactionId: 'TXN-SYSTEM-001' }
-  ])
-  const [confirmModal, setConfirmModal] = useState(null)
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
-
-  const [subscriptionHistory, setSubscriptionHistory] = useState([
-    {
-      id: 'SUB-001',
-      restaurantId: 'R-02',
-      restaurantName: 'Serviq Express Cafe',
-      planName: 'Premium Plan',
-      startDate: '2025-03-22',
-      endDate: '2026-09-22',
-      amount: 50000,
-      status: 'Completed'
-    }
-  ])
+  const [confirmModal, setConfirmModal] = useState(null)
 
   const [systemLogs, setSystemLogs] = useState([
     { id: 1, time: '10:04 AM', type: 'info', msg: 'System initialized successfully.' },
@@ -487,7 +449,7 @@ export default function SuperAdminDashboard({
 
   return (
     <>
-      <div className="superadmin-wrapper animate-fade-in" style={{ display: 'grid', gridTemplateColumns: isMerged ? '1fr' : '260px 1fr', gap: '24px', padding: '24px 30px', width: '100%', minHeight: isMerged ? 'none' : 'calc(100vh - 60px)', background: 'rgb(226 232 239 / 26%)', transition: 'background-color var(--transition-normal)' }}>
+      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
 
         {/* Super Admin Control Navigation (Left) */}
         {!isMerged && (

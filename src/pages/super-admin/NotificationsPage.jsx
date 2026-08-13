@@ -16,49 +16,14 @@ import {
   ChevronDown
 } from 'lucide-react'
 
-export default function NotificationsManagement({ restaurants = [], showToast }) {
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'NTF-101',
-      subject: 'Scheduled Platform Maintenance - June 15th',
-      type: 'Maintenance Notice',
-      channel: 'Email',
-      recipients: 'All Restaurants',
-      status: 'Scheduled',
-      scheduledDate: '2026-06-15 02:00 AM',
-      body: 'Our platform will undergo scheduled maintenance to optimize order routing speeds on June 15th between 2:00 AM and 4:00 AM IST. QR menus will remain active, but KDS sync might experience brief interruptions.'
-    },
-    {
-      id: 'NTF-102',
-      subject: 'Urgent: Subscription Expiring Soon',
-      type: 'Subscription Expiry',
-      channel: 'SMS',
-      recipients: 'Spice Garden Bistro',
-      status: 'Sent',
-      scheduledDate: '2026-06-10 10:30 AM',
-      body: 'Your Serviq QR Menu Standard Subscription expires in 3 days. Renew now to avoid interruption of guests scanning menu tables.'
-    },
-    {
-      id: 'NTF-103',
-      subject: 'Introduce UPI Auto-Settlements for Cashiers!',
-      type: 'Feature Updates',
-      channel: 'WhatsApp',
-      recipients: 'Premium Subscribers',
-      status: 'Sent',
-      scheduledDate: '2026-06-08 04:15 PM',
-      body: 'You can now configure instant UPI bank deposits directly in your settlement panel. Go to Settings > Billing to try it out!'
-    },
-    {
-      id: 'NTF-104',
-      subject: 'Monsoon Feast Special Promotional Campaigns',
-      type: 'Promotional Messages',
-      channel: 'Email',
-      recipients: 'All Restaurants',
-      status: 'Draft',
-      scheduledDate: 'Unscheduled',
-      body: 'Get up to 25% discount on custom QR menu banner prints this monsoon season. Order directly from the Serviq print portal.'
-    }
-  ])
+import { useNotifications } from '../../hooks/useNotifications'
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function NotificationsPage() {
+  const { notifications, setNotifications } = useNotifications()
+  const { restaurants } = useRestaurant()
+  const { showToast } = useNotification()
 
   // Form states
   const [showCreateModal, setShowCreateModal] = useState(false)

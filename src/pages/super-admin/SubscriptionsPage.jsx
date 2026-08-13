@@ -13,7 +13,18 @@ import {
   Info
 } from 'lucide-react'
 
-export default function SubscriptionManagement({ restaurants, onUpdateRestaurants, plans, showToast, subscriptionHistory, setSubscriptionHistory }) {
+import { useSubscriptions } from '../../hooks/useSubscriptions'
+import { usePlans } from '../../hooks/usePlans'
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+
+export default function SubscriptionsPage() {
+  const { subscriptionHistory, setSubscriptionHistory } = useSubscriptions()
+  const { plans } = usePlans()
+  const { restaurants, setRestaurants } = useRestaurant()
+  const { showToast } = useNotification()
+  // Mock onUpdateRestaurants for compatibility
+  const onUpdateRestaurants = setRestaurants;
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
   const [editingSubscriptionRest, setEditingSubscriptionRest] = useState(null)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
