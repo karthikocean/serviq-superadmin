@@ -290,7 +290,6 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
                   boxSizing: 'border-box'
                 }}
               />
-              {formErrors.phone && <AlertTriangle style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#dc2626', width: '16px', height: '16px' }} />}
             </div>
             {formErrors.phone && <span style={{ color: '#dc2626', fontSize: '0.7rem', marginTop: '2px', display: 'block' }}>{formErrors.phone}</span>}
           </div>

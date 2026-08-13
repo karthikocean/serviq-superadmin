@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   X
 } from 'lucide-react'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -39,9 +40,6 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
         }}
         {...rest}
       />
-      {error && (
-        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ef4444', pointerEvents: 'none', display: 'flex' }}><AlertTriangle style={{ width: '14px', height: '14px' }} /></span>
-      )}
     </div>
     {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
   </div>
@@ -99,6 +97,25 @@ export default function UsersPage() {
   const [passwordConfirmValue, setPasswordConfirmValue] = useState('')
   const [formErrors, setFormErrors] = useState({})
 
+  // Pagination & Search states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const filteredAdmins = restaurantAdmins.filter(a => {
+    const term = searchTerm.toLowerCase()
+    return !term || 
+      (a.name && a.name.toLowerCase().includes(term)) ||
+      (a.email && a.email.toLowerCase().includes(term)) ||
+      (a.id && a.id.toLowerCase().includes(term)) ||
+      (a.restaurantName && a.restaurantName.toLowerCase().includes(term))
+  })
+
+  const paginatedAdmins = filteredAdmins.slice(
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
+  )
+
   useEffect(() => {
     if (editingAdminId) {
       localStorage.setItem('serviq_editingAdminId', editingAdminId)
@@ -118,7 +135,7 @@ export default function UsersPage() {
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
-      if (e.detail?.tab === 'admins') {
+      if (e.detail?.tab === 'admins' || e.detail?.tab === 'users' || e.detail?.tab === 'all' || !e.detail?.tab) {
         setEditingAdminId(null)
         setShowAddAdminModal(false)
         localStorage.removeItem('serviq_editingAdminId')
@@ -271,6 +288,8 @@ export default function UsersPage() {
       status: adminFormState.status
     } : a)
     onUpdateRestaurantAdmins(updated)
+    setEditingAdminId(null)
+    localStorage.removeItem('serviq_editingAdminId')
     showToast('success', `User profile for "${adminFormState.name}" updated successfully!`)
   }
 
@@ -315,7 +334,11 @@ export default function UsersPage() {
     const nextStatus = target.status === 'Active' ? 'Disabled' : 'Active'
     const updated = restaurantAdmins.map(a => a.id === adminId ? { ...a, status: nextStatus } : a)
     onUpdateRestaurantAdmins(updated)
-    showToast('info', `User "${target.name}" status changed to ${nextStatus.toUpperCase()}`)
+    if (nextStatus === 'Disabled' || nextStatus === 'Inactive' || nextStatus === 'Suspended') {
+      showToast('error', `User "${target.name}" status changed to ${nextStatus.toUpperCase()}`)
+    } else {
+      showToast('success', `User "${target.name}" status updated to ${nextStatus.toUpperCase()}`)
+    }
   }
 
   const handleDeleteAdmin = (adminId) => {
@@ -558,6 +581,14 @@ export default function UsersPage() {
               </button>
             </div>
 
+            <TableTopControls
+              entriesPerPage={entriesPerPage}
+              onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+              searchTerm={searchTerm}
+              onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+              searchPlaceholder="Search users..."
+            />
+
             {/* Data Table */}
             <div className="dish-admin-list" style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
               <table className="menu-data-table">
@@ -576,9 +607,9 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {restaurantAdmins.map((admin, idx) => (
+                  {paginatedAdmins.map((admin, idx) => (
                     <tr key={admin.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '14px 24px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>{idx + 1}</td>
+                      <td style={{ padding: '14px 24px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>{(currentPage - 1) * entriesPerPage + idx + 1}</td>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>{admin.id}</td>
                       <td style={{ padding: '14px 18px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{admin.name}</td>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{admin.email}</td>
@@ -652,6 +683,13 @@ export default function UsersPage() {
                 </tbody>
               </table>
             </div>
+
+            <TableBottomPagination
+              totalEntries={filteredAdmins.length}
+              currentPage={currentPage}
+              entriesPerPage={entriesPerPage}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </div>
       )}
@@ -725,6 +763,113 @@ export default function UsersPage() {
                 <button type="button" className="btn-outline" onClick={() => { setResettingPasswordAdminId(null); setPasswordResetValue(''); setPasswordConfirmValue(''); }} style={{ flex: 1, padding: '10px 24px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', background: '#ffffff', color: '#64748b', border: '1px solid #cbd5e1' }}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal Overlay */}
+      {confirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(9, 13, 22, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1200,
+            padding: '20px'
+          }}
+          onClick={() => setConfirmModal(null)}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              padding: '36px 32px 28px',
+              width: '90%',
+              maxWidth: '420px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Soft Red Circular Icon Container */}
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '20px'
+            }}>
+              <Trash2 style={{ width: '28px', height: '28px', color: '#ef4444' }} />
+            </div>
+
+            {/* Title */}
+            <h3 style={{ margin: '0 0 10px', fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>
+              {confirmModal.title}
+            </h3>
+
+            {/* Subtitle Message */}
+            <p style={{ margin: '0 0 28px', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.5', maxWidth: '340px' }}>
+              {confirmModal.message}
+            </p>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '14px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: confirmModal.confirmColor || '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {confirmModal.confirmText || 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

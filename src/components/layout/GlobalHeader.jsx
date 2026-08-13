@@ -66,7 +66,7 @@ export default function GlobalHeader({ isSidebarCollapsed, setIsSidebarCollapsed
         flexShrink: 0,
         boxSizing: 'border-box'
       }}>
-        <img src="/serviqlogo.png" alt="Serviq Logo" style={{ height: '48px', objectFit: 'contain', filter: 'invert(1) hue-rotate(180deg)' }} />
+        <img src="/serviqlogo.png" alt="Serviq Logo" style={{ height: '68px', objectFit: 'contain', filter: 'invert(1) hue-rotate(180deg)' }} />
       </div>
 
       {/* Content Container spanning the rest of the header */}

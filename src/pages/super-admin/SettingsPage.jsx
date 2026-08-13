@@ -30,9 +30,6 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
         }}
         {...rest}
       />
-      {error && (
-        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ef4444', pointerEvents: 'none', display: 'flex' }}><AlertTriangle style={{ width: '14px', height: '14px' }} /></span>
-      )}
     </div>
     {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
   </div>

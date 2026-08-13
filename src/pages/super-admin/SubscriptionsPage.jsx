@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   X,
   Gem,
@@ -35,7 +35,6 @@ export default function SubscriptionsPage() {
   const [historyPlanFilter, setHistoryPlanFilter] = useState('All Plans')
   const [historyStatusFilter, setHistoryStatusFilter] = useState('All Status')
 
-  // Form State for Assigning/Editing Subscription
   const [formState, setFormState] = useState({
     restaurantId: '',
     planName: 'Basic Plan',
@@ -45,6 +44,18 @@ export default function SubscriptionsPage() {
     subscriptionStatus: 'Active'
   })
   const [formErrors, setFormErrors] = useState({})
+
+  // Listen for sidebar click reset event to open main module list
+  React.useEffect(() => {
+    const handleReset = () => {
+      setViewingSubscriptionRest(null)
+      setEditingSubscriptionRest(null)
+      setIsAssignModalOpen(false)
+      setActiveTab('current')
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
 
   // Compute stats for the top widget row
   const totalSubscribed = restaurants.length
@@ -351,7 +362,7 @@ export default function SubscriptionsPage() {
                   style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
                   onClick={() => { setIsAssignModalOpen(false); setEditingSubscriptionRest(null); }}
                 >
-                  Back to Registry
+                  Back
                 </button>
               </div>
 
@@ -626,30 +637,6 @@ export default function SubscriptionsPage() {
                                   border: planBadgeBorder,
                                   display: 'inline-block'
                                 }}>{rest.subscriptionPlan || 'Free Plan'}</span>
-                                <button
-                                  type="button"
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '4px',
-                                    borderRadius: '4px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'var(--text-muted)',
-                                    transition: 'all 0.2s',
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setViewingSubscriptionRest(rest);
-                                  }}
-                                  title="View Subscription Details"
-                                  onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                                  onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                                >
-                                  <Gem style={{ width: '14px', height: '14px' }} />
-                                </button>
                               </div>
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>

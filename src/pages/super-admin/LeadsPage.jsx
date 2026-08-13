@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Plus, AlertTriangle } from 'lucide-react'
 
 // ─── Reusable validated input component ───
@@ -30,9 +30,6 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
         }}
         {...rest}
       />
-      {error && (
-        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ef4444', pointerEvents: 'none', display: 'flex' }}><AlertTriangle style={{ width: '14px', height: '14px' }} /></span>
-      )}
     </div>
     {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
   </div>
@@ -74,6 +71,7 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 export default function LeadsPage() {
   const { restaurants, setRestaurants: onUpdateRestaurants } = useRestaurant()
@@ -104,6 +102,15 @@ export default function LeadsPage() {
   const [leadStatusFilter, setLeadStatusFilter] = useState('All')
   const [showCreateLeadForm, setShowCreateLeadForm] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = () => {
+      setShowCreateLeadForm(false)
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
 
   const resetLeadForm = () => {
     setLeadFormState({
@@ -231,6 +238,9 @@ export default function LeadsPage() {
     showToast('success', `${lead.businessName} converted to restaurant ${newRestaurantId}.`)
   }
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
+
   const filteredLeads = leads.filter(lead => {
     const query = leadSearchQuery.toLowerCase()
     const matchesSearch =
@@ -241,6 +251,11 @@ export default function LeadsPage() {
     const matchesStatus = leadStatusFilter === 'All' || lead.leadStatus === leadStatusFilter
     return matchesSearch && matchesStatus
   })
+
+  const paginatedLeads = filteredLeads.slice(
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
+  )
 
   const openLeadsCount = leads.filter(lead => !['Won', 'Lost'].includes(lead.leadStatus)).length
   const wonLeadsCount = leads.filter(lead => lead.leadStatus === 'Won').length
@@ -345,7 +360,15 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <div style={{ padding: '20px', overflowX: 'auto' }}>
+        <div style={{ padding: '20px' }}>
+          <TableTopControls
+            entriesPerPage={entriesPerPage}
+            onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+            searchTerm={leadSearchQuery}
+            onSearchChange={(val) => { setLeadSearchQuery(val); setCurrentPage(1); }}
+            searchPlaceholder="Search leads..."
+          />
+          <div style={{ overflowX: 'auto' }}>
           <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
@@ -360,7 +383,7 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredLeads.map(lead => (
+              {paginatedLeads.map(lead => (
                 <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                   <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '220px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
@@ -464,6 +487,14 @@ export default function LeadsPage() {
               )}
             </tbody>
           </table>
+          </div>
+
+          <TableBottomPagination
+            totalEntries={filteredLeads.length}
+            currentPage={currentPage}
+            entriesPerPage={entriesPerPage}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
     </div>

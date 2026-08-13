@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   LifeBuoy,
@@ -19,6 +19,7 @@ import {
 import { useTickets } from '../../hooks/useTickets'
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 export default function TicketsPage() {
   const { tickets, setTickets } = useTickets()
@@ -45,6 +46,17 @@ export default function TicketsPage() {
   const [assignUser, setAssignUser] = useState('')
   const [assignTicketId, setAssignTicketId] = useState(null)
   const [errors, setErrors] = useState({})
+
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = () => {
+      setShowCreateModal(false)
+      setSelectedTicket(null)
+      setAssignTicketId(null)
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
 
   // Constants
   const categories = ['QR Scanning', 'Billing', 'KDS Lag', 'Menu', 'Other']
@@ -99,7 +111,11 @@ export default function TicketsPage() {
 
   const handleUpdateStatus = (ticketId, nextStatus) => {
     setTickets(tickets.map(t => t.id === ticketId ? { ...t, status: nextStatus } : t))
-    showToast('info', `Ticket ${ticketId} status changed to ${nextStatus.toUpperCase()}`)
+    if (nextStatus === 'Closed') {
+      showToast('error', `Ticket ${ticketId} status changed to CLOSED`)
+    } else {
+      showToast('success', `Ticket ${ticketId} status changed to ${nextStatus.toUpperCase()}`)
+    }
   }
 
   const handleAssignTicketSubmit = (e) => {
@@ -110,6 +126,10 @@ export default function TicketsPage() {
     setAssignUser('')
     showToast('success', `Ticket successfully assigned to ${assignUser}`)
   }
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   // Filter logic
   const filteredTickets = tickets.filter(t => {
@@ -122,6 +142,11 @@ export default function TicketsPage() {
     const matchesCategory = categoryFilter === 'All' || t.category === categoryFilter
     return matchesSearch && matchesStatus && matchesPriority && matchesCategory
   })
+
+  const paginatedTickets = filteredTickets.slice(
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
+  )
 
   // Statistics
   const openCount = tickets.filter(t => t.status === 'Open').length
@@ -289,6 +314,14 @@ export default function TicketsPage() {
         </div>
 
         {/* Tickets Table Grid */}
+        <TableTopControls
+          entriesPerPage={entriesPerPage}
+          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+          searchTerm={searchTerm}
+          onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+          searchPlaceholder="Search tickets..."
+          showSearch={false}
+        />
         <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -305,7 +338,7 @@ export default function TicketsPage() {
             </thead>
             <tbody>
               {filteredTickets.length > 0 ? (
-                filteredTickets.map(ticket => {
+                paginatedTickets.map(ticket => {
                   const priorityStyle = getPriorityStyle(ticket.priority)
                   const statusStyle = getStatusStyle(ticket.status)
 
@@ -402,6 +435,13 @@ export default function TicketsPage() {
             </tbody>
           </table>
         </div>
+
+        <TableBottomPagination
+          totalEntries={filteredTickets.length}
+          currentPage={currentPage}
+          entriesPerPage={entriesPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* CREATE TICKET MODAL OVERLAY */}

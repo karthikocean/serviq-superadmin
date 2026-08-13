@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Bell,
@@ -19,6 +19,7 @@ import {
 import { useNotifications } from '../../hooks/useNotifications'
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 export default function NotificationsPage() {
   const { notifications, setNotifications } = useNotifications()
@@ -40,6 +41,16 @@ export default function NotificationsPage() {
   })
   const [errors, setErrors] = useState({})
   const [filterType, setFilterType] = useState('All')
+
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = () => {
+      setShowCreateModal(false)
+      setSelectedNotification(null)
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
 
   // Constants
   const channels = ['Email', 'SMS', 'WhatsApp']
@@ -163,9 +174,17 @@ export default function NotificationsPage() {
   const totalScheduled = notifications.filter(n => n.status === 'Scheduled').length
   const totalDraft = notifications.filter(n => n.status === 'Draft').length
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
+
   const filteredNotifications = filterType === 'All'
     ? notifications
     : notifications.filter(n => n.type === filterType)
+
+  const paginatedNotifications = filteredNotifications.slice(
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
+  )
 
   return (
     <div className="animate-fade-in" style={{
@@ -269,6 +288,13 @@ export default function NotificationsPage() {
         </div>
 
         {/* History Table */}
+        <TableTopControls
+          entriesPerPage={entriesPerPage}
+          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+          searchTerm=""
+          onSearchChange={() => {}}
+          showSearch={false}
+        />
         <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -285,7 +311,7 @@ export default function NotificationsPage() {
             </thead>
             <tbody>
               {filteredNotifications.length > 0 ? (
-                filteredNotifications.map(n => {
+                paginatedNotifications.map(n => {
                   const typeStyle = getTypeStyle(n.type)
                   const chanStyle = getChannelStyle(n.channel)
                   return (
@@ -358,6 +384,13 @@ export default function NotificationsPage() {
             </tbody>
           </table>
         </div>
+
+        <TableBottomPagination
+          totalEntries={filteredNotifications.length}
+          currentPage={currentPage}
+          entriesPerPage={entriesPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* CREATE / SCHEDULE MODAL */}
