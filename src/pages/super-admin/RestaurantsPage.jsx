@@ -17,7 +17,9 @@ import {
   Shield,
   ChevronDown,
   Upload,
+  CreditCard,
 } from 'lucide-react'
+import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 // ─── Reusable validated input component ───
@@ -156,15 +158,24 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 // ─── Custom Image File Upload Button Component ───
 const ImageUploadButton = ({ label, value, onChange, onClear }) => {
   const fileInputRef = useRef(null)
+  const [isUploading, setIsUploading] = useState(false)
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        onChange(reader.result)
+      setIsUploading(true)
+      try {
+        const response = await uploadImage(file)
+        if (response.success && response.url) {
+          onChange(response.url)
+        } else if (response.data && response.data.url) {
+          onChange(response.data.url)
+        }
+      } catch (error) {
+        console.error("Upload failed", error)
+      } finally {
+        setIsUploading(false)
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -178,6 +189,7 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
         accept="image/*"
         onChange={handleFileChange}
         style={{ display: 'none' }}
+        disabled={isUploading}
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -208,7 +220,7 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
           }}
         >
           <Upload style={{ width: '14px', height: '14px' }} />
-          Choose Image File
+          {isUploading ? 'Uploading...' : 'Choose Image File'}
         </button>
 
         {value ? (
@@ -428,9 +440,30 @@ import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 
 export default function RestaurantsPage() {
-  const { restaurants, setRestaurants: onUpdateRestaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant } = useRestaurant()
+  const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
   const [confirmModal, setConfirmModal] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  const [plans, setPlans] = useState([])
+  useEffect(() => {
+    const loadPlans = async () => {
+      try {
+        const response = await getPlans();
+        if (response.success && response.data) {
+          const plansList = response.data.results || response.data;
+          setPlans(plansList);
+          setNewRestState(prev => ({
+            ...prev,
+            planId: plansList.length > 0 ? plansList[0]._id : ''
+          }))
+        }
+      } catch (e) {
+        console.error("Failed to load plans", e)
+      }
+    }
+    loadPlans()
+  }, [])
   
   // mock for compatibility
   const onUpdateRestaurantDetails = (d) => { /* Update active restaurant logic */ }
@@ -518,7 +551,6 @@ export default function RestaurantsPage() {
 
   const [newRestState, setNewRestState] = useState({
     name: '',
-    legalName: '',
     branch: '',
     license: '',
     gstin: '',
@@ -543,7 +575,12 @@ export default function RestaurantsPage() {
     state: '',
     country: '',
     logo: '',
-    banner: ''
+    banner: '',
+    startDate: '',
+    endDate: '',
+    renewalDate: '',
+    planId: '',
+    billingCycle: 'Monthly'
   })
 
   // Synchronize new restaurant default values
@@ -582,13 +619,12 @@ export default function RestaurantsPage() {
   }
 
   // Handle Create Restaurant
-  const handleCreateRestaurant = (e) => {
+  const handleCreateRestaurant = async (e) => {
     e.preventDefault()
 
     const errors = {}
     const requiredFields = {
-      name: 'Tenant',
-      legalName: 'Business Name',
+      name: 'Business Name',
       ownerName: 'Owner Name',
       mobileNumber: 'Mobile Number',
       email: 'Email',
@@ -597,10 +633,7 @@ export default function RestaurantsPage() {
       state: 'State',
       country: 'Country',
       license: 'FSSAI License Number',
-      gstin: 'GSTIN Number',
       pan: 'PAN Number',
-      taxRate: 'Tax Rate (%)',
-      serviceCharge: 'Service Fee (%)',
       openingTime: 'Opening Time',
       closingTime: 'Closing Time',
       password: 'Create Password',
@@ -643,6 +676,21 @@ export default function RestaurantsPage() {
       errors.country = 'Country must contain letters and spaces only'
     }
 
+    const fssaiVal = (newRestState.license || '').trim()
+    if (fssaiVal && !/^1\d{13}$/.test(fssaiVal)) {
+      errors.license = 'FSSAI License Number must contain exactly 14 digits and start with 1.'
+    }
+
+    const gstinVal = (newRestState.gstin || '').trim().toUpperCase()
+    if (gstinVal && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstinVal)) {
+      errors.gstin = 'Invalid GSTIN. Please enter a valid 15-character GSTIN.'
+    }
+
+    const panVal = (newRestState.pan || '').trim().toUpperCase()
+    if (panVal && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panVal)) {
+      errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
+    }
+
     if (newRestState.password && newRestState.confirmPassword && newRestState.password !== newRestState.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
     }
@@ -653,84 +701,112 @@ export default function RestaurantsPage() {
     }
 
     setFormErrors({})
-    const nextIdNum = restaurants.length > 0
-      ? Math.max(...restaurants.map(r => parseInt(r.id.replace('R-', '')) || 0)) + 1
-      : 1
-    const newId = `R-${String(nextIdNum).padStart(2, '0')}`
-    const expiry = new Date()
-    expiry.setFullYear(expiry.getFullYear() + 1)
-    const expiryStr = expiry.toISOString().split('T')[0]
-    const restaurantToAdd = { 
-      ...newRestState, 
-      id: newId,
-      subscriptionStatus: 'Active',
-      expiryDate: expiryStr
-    }
-    onUpdateRestaurants([...restaurants, restaurantToAdd])
-    onSetActiveRestaurantId(newId)
-    setShowAddModal(false)
-    showToast('success', `Branch "${newRestState.name}" registered successfully under code ${newId}!`)
+    setIsSubmitting(true)
+    try {
+      const payload = {
+        restaurantName: newRestState.name,
+        ownerName: newRestState.ownerName,
+        email: newRestState.email,
+        phoneNumber: newRestState.mobileNumber,
+        planId: newRestState.planId || undefined,
+        password: newRestState.password,
+        billingCycle: newRestState.billingCycle || "Monthly",
+        address: newRestState.address,
+        city: newRestState.city,
+        state: newRestState.state,
+        country: newRestState.country,
+        fssaiLicense: newRestState.license,
+        gstinNumber: newRestState.gstin,
+        panNumber: newRestState.pan,
+        openingTime: newRestState.openingTime,
+        closingTime: newRestState.closingTime,
+        logoUrl: newRestState.logo,
+        bannerUrl: newRestState.banner,
+        startDate: newRestState.startDate || undefined,
+        endDate: newRestState.endDate || undefined,
+        renewalDate: newRestState.renewalDate || undefined
+      };
 
-    // Clear state
-    setNewRestState({
-      name: '',
-      legalName: '',
-      branch: '',
-      license: '',
-      gstin: '',
-      pan: '',
-      phone: '',
-      email: '',
-      website: '',
-      address: '',
-      currency: 'INR',
-      taxRate: '',
-      serviceCharge: '',
-      openingTime: '',
-      closingTime: '',
-      status: 'Active',
-      subscriptionPlan: 'Standard',
-      createdDate: new Date().toISOString().split('T')[0],
-      password: '',
-      confirmPassword: '',
-      ownerName: '',
-      mobileNumber: '',
-      city: '',
-      state: '',
-      country: '',
-      logo: '',
-      banner: ''
-    })
+      const response = await createRestaurant(payload);
+      if (response.success) {
+        await fetchRestaurants();
+        setShowAddModal(false);
+        showToast('success', `Branch "${newRestState.name}" registered successfully!`);
+        // Clear state
+        setNewRestState({
+          name: '',
+          branch: '',
+          license: '',
+          gstin: '',
+          pan: '',
+          phone: '',
+          email: '',
+          website: '',
+          address: '',
+          currency: 'INR',
+          taxRate: '',
+          serviceCharge: '',
+          openingTime: '',
+          closingTime: '',
+          status: 'Active',
+          subscriptionPlan: 'Standard',
+          planId: plans.length > 0 ? plans[0]._id : '',
+          createdDate: new Date().toISOString().split('T')[0],
+          password: '',
+          confirmPassword: '',
+          ownerName: '',
+          mobileNumber: '',
+          city: '',
+          state: '',
+          country: '',
+          logo: '',
+          banner: ''
+        })
+      } else {
+        showToast('error', response.message || 'Error creating restaurant');
+      }
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Error creating restaurant');
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Handle Delete Restaurant
   const handleDeleteRestaurant = (id) => {
-    const targetRest = restaurants.find(r => r.id === id)
+    const targetRest = restaurants.find(r => r.id === id || r._id === id)
     if (!targetRest) return
     setConfirmModal({
       title: "Delete Franchise Branch",
       message: `Are you sure you want to permanently delete the branch "${targetRest.name}"? This action cannot be undone.`,
       confirmText: "Confirm Delete",
       confirmColor: "#ef4444",
-      onConfirm: () => {
-        const remaining = restaurants.filter(r => r.id !== id)
-        onUpdateRestaurants(remaining)
-        if (id === activeRestaurantId && remaining.length > 0) {
-          onSetActiveRestaurantId(remaining[0].id)
-          onUpdateRestaurantDetails(remaining[0])
+      onConfirm: async () => {
+        try {
+          const response = await deleteRestaurantApi(targetRest._id);
+          if (response.success) {
+            await fetchRestaurants()
+            if ((id === activeRestaurantId || targetRest._id === activeRestaurantId) && restaurants.length > 1) {
+              const remaining = restaurants.filter(r => r._id !== targetRest._id)
+              onSetActiveRestaurantId(remaining[0]._id)
+            }
+            showToast('error', `Branch "${targetRest.name}" successfully removed.`)
+          } else {
+             showToast('error', response.message || 'Error deleting restaurant');
+          }
+        } catch (err) {
+           showToast('error', err.response?.data?.message || 'Error deleting restaurant');
         }
-        showToast('error', `Branch "${targetRest.name}" successfully removed.`)
       }
     })
   }
 
-  const handleUpdateRestaurantSubmit = (e) => {
+  const handleUpdateRestaurantSubmit = async (e) => {
     e.preventDefault()
 
     const errors = {}
     const requiredFields = {
-      name: 'Tenant',
-      legalName: 'Business Name',
+      name: 'Business Name',
       ownerName: 'Owner Name',
       mobileNumber: 'Mobile Number',
       email: 'Email',
@@ -739,10 +815,7 @@ export default function RestaurantsPage() {
       state: 'State',
       country: 'Country',
       license: 'FSSAI License Number',
-      gstin: 'GSTIN Number',
       pan: 'PAN Number',
-      taxRate: 'Tax Rate (%)',
-      serviceCharge: 'Service Fee (%)',
       openingTime: 'Opening Time',
       closingTime: 'Closing Time',
     }
@@ -783,25 +856,64 @@ export default function RestaurantsPage() {
       errors.country = 'Country must contain letters and spaces only'
     }
 
+    const editFssaiVal = (editFormState.license || '').trim()
+    if (editFssaiVal && !/^1\d{13}$/.test(editFssaiVal)) {
+      errors.license = 'FSSAI License Number must contain exactly 14 digits and start with 1.'
+    }
+
+    const editGstinVal = (editFormState.gstin || '').trim().toUpperCase()
+    if (editGstinVal && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(editGstinVal)) {
+      errors.gstin = 'Invalid GSTIN. Please enter a valid 15-character GSTIN.'
+    }
+
+    const editPanVal = (editFormState.pan || '').trim().toUpperCase()
+    if (editPanVal && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(editPanVal)) {
+      errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
     }
 
     setFormErrors({})
-
-    const updatedRestaurants = restaurants.map(r => r.id === editingRestId ? editFormState : r)
-    onUpdateRestaurants(updatedRestaurants)
-
-    if (editingRestId === activeRestaurantId) {
-      onUpdateRestaurantDetails(editFormState)
+    setIsSubmitting(true)
+    try {
+      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
+      const payload = {
+        restaurantName: editFormState.name,
+        ownerName: editFormState.ownerName,
+        email: editFormState.email,
+        phoneNumber: editFormState.mobileNumber,
+        address: editFormState.address,
+        city: editFormState.city,
+        state: editFormState.state,
+        country: editFormState.country,
+        fssaiLicense: editFormState.license,
+        gstinNumber: editFormState.gstin,
+        panNumber: editFormState.pan,
+        openingTime: editFormState.openingTime,
+        closingTime: editFormState.closingTime,
+        logoUrl: editFormState.logo,
+        bannerUrl: editFormState.banner,
+        websiteDomain: editFormState.website
+      }
+      
+      const response = await updateRestaurantApi(targetRest._id, payload);
+      if (response.success) {
+        await fetchRestaurants();
+        setEditingRestId(null)
+        setEditFormState(null)
+        localStorage.removeItem('serviq_editingRestId')
+        showToast('success', 'Branch updated successfully');
+      } else {
+        showToast('error', response.message || 'Error updating restaurant');
+      }
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Error updating restaurant');
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setEditingRestId(null)
-    setEditFormState(null)
-    localStorage.removeItem('serviq_editingRestId')
-
-    showToast('success', `Branch details for "${editFormState.name}" updated successfully!`)
   }
 
   return (
@@ -849,28 +961,15 @@ export default function RestaurantsPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
-                    label="Tenant"
+                    label="Business Name"
                     type="text"
                     value={newRestState.name}
                     onChange={(e) => setNewRestState({ ...newRestState, name: e.target.value })}
-                    placeholder="Enter Tenant Name"
+                    placeholder="Enter Business Name"
                     required
                     error={formErrors.name}
                     setError={(val) => setFormErrors({ ...formErrors, name: val })}
                   />
-                  <ValidatedInput
-                    label="Business Name"
-                    type="text"
-                    value={newRestState.legalName}
-                    onChange={(e) => setNewRestState({ ...newRestState, legalName: e.target.value })}
-                    placeholder="Enter Business Name"
-                    required
-                    error={formErrors.legalName}
-                    setError={(val) => setFormErrors({ ...formErrors, legalName: val })}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
                     label="Owner Name"
                     type="text"
@@ -883,20 +982,6 @@ export default function RestaurantsPage() {
                     required
                     error={formErrors.ownerName}
                     setError={(val) => setFormErrors({ ...formErrors, ownerName: val })}
-                  />
-                  <ValidatedInput
-                    label="Mobile Number"
-                    type="text"
-                    inputMode="numeric"
-                    value={newRestState.mobileNumber}
-                    onChange={(e) => {
-                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
-                      setNewRestState({ ...newRestState, mobileNumber: digitsOnly, phone: digitsOnly })
-                    }}
-                    placeholder="Enter Mobile Number"
-                    required
-                    error={formErrors.mobileNumber}
-                    setError={(val) => setFormErrors({ ...formErrors, mobileNumber: val })}
                   />
                 </div>
 
@@ -916,13 +1001,18 @@ export default function RestaurantsPage() {
                     setError={(val) => setFormErrors({ ...formErrors, email: val })}
                   />
                   <ValidatedInput
-                    label="Website Domain"
+                    label="Mobile Number"
                     type="text"
-                    value={newRestState.website}
-                    onChange={(e) => setNewRestState({ ...newRestState, website: e.target.value })}
-                    placeholder=" Enter Website Domain"
-                    error={formErrors.website}
-                    setError={(val) => setFormErrors({ ...formErrors, website: val })}
+                    inputMode="numeric"
+                    value={newRestState.mobileNumber}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
+                      setNewRestState({ ...newRestState, mobileNumber: digitsOnly, phone: digitsOnly })
+                    }}
+                    placeholder="Enter Mobile Number"
+                    required
+                    error={formErrors.mobileNumber}
+                    setError={(val) => setFormErrors({ ...formErrors, mobileNumber: val })}
                   />
                 </div>
 
@@ -957,17 +1047,28 @@ export default function RestaurantsPage() {
                     <option value="Suspended">Suspended</option>
                     <option value="Inactive">Inactive</option>
                   </ValidatedSelect>
+                  <ValidatedInput
+                    label="Website Domain"
+                    type="text"
+                    value={newRestState.website}
+                    onChange={(e) => setNewRestState({ ...newRestState, website: e.target.value })}
+                    placeholder=" Enter Website Domain"
+                    error={formErrors.website}
+                    setError={(val) => setFormErrors({ ...formErrors, website: val })}
+                  />
+                </div>
 
-                  <div>
-                    <ValidatedInput
-                      label="Restaurant Logo URL"
-                      type="text"
-                      value={newRestState.logo}
-                      onChange={(e) => setNewRestState({ ...newRestState, logo: e.target.value })}
-                      placeholder="Enter Restaurant Logo URL"
-                      error={formErrors.logo}
-                      setError={(val) => setFormErrors({ ...formErrors, logo: val })}
-                    />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'end' }}>
+                  <ValidatedInput
+                    label="Restaurant Logo URL"
+                    type="text"
+                    value={newRestState.logo}
+                    onChange={(e) => setNewRestState({ ...newRestState, logo: e.target.value })}
+                    placeholder="Enter Restaurant Logo URL"
+                    error={formErrors.logo}
+                    setError={(val) => setFormErrors({ ...formErrors, logo: val })}
+                  />
+                  <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
                       value={newRestState.logo}
                       onChange={(dataUrl) => setNewRestState(prev => ({ ...prev, logo: dataUrl }))}
@@ -1066,7 +1167,17 @@ export default function RestaurantsPage() {
                     label="FSSAI License Number"
                     type="text"
                     value={newRestState.license}
-                    onChange={(e) => setNewRestState({ ...newRestState, license: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 14);
+                      setNewRestState({ ...newRestState, license: val });
+                      if (formErrors.license) setFormErrors({ ...formErrors, license: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^1\d{13}$/.test(val)) {
+                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                      }
+                    }}
                     placeholder="Enter FSSAI License Number"
                     required
                     error={formErrors.license}
@@ -1076,9 +1187,18 @@ export default function RestaurantsPage() {
                     label="GSTIN Number"
                     type="text"
                     value={newRestState.gstin}
-                    onChange={(e) => setNewRestState({ ...newRestState, gstin: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 15);
+                      setNewRestState({ ...newRestState, gstin: val });
+                      if (formErrors.gstin) setFormErrors({ ...formErrors, gstin: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                      }
+                    }}
                     placeholder="Enter GSTIN Number"
-                    required
                     error={formErrors.gstin}
                     setError={(val) => setFormErrors({ ...formErrors, gstin: val })}
                   />
@@ -1086,7 +1206,17 @@ export default function RestaurantsPage() {
                     label="PAN Number"
                     type="text"
                     value={newRestState.pan}
-                    onChange={(e) => setNewRestState({ ...newRestState, pan: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                      setNewRestState({ ...newRestState, pan: val });
+                      if (formErrors.pan) setFormErrors({ ...formErrors, pan: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                      }
+                    }}
                     placeholder="Enter PAN Number"
                     required
                     error={formErrors.pan}
@@ -1094,39 +1224,113 @@ export default function RestaurantsPage() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
-                    label="Tax Rate (%)"
-                    type="text"
-                    inputMode="decimal"
-                    value={newRestState.taxRate}
-                    onChange={(e) => {
-                      const floatOnly = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
-                      setNewRestState({ ...newRestState, taxRate: floatOnly })
-                    }}
-                    placeholder="Enter Tax Rate"
-                    required
-                    error={formErrors.taxRate}
-                    setError={(val) => setFormErrors({ ...formErrors, taxRate: val })}
-                  />
-                  <ValidatedInput
-                    label="Service Fee (%)"
-                    type="text"
-                    inputMode="decimal"
-                    value={newRestState.serviceCharge}
-                    onChange={(e) => {
-                      const floatOnly = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
-                      setNewRestState({ ...newRestState, serviceCharge: floatOnly })
-                    }}
-                    placeholder="Enter Service Fee"
-                    required
-                    error={formErrors.serviceCharge}
-                    setError={(val) => setFormErrors({ ...formErrors, serviceCharge: val })}
-                  />
-                </div>
               </div>
 
-              {/* Card 4: Password Management */}
+              {/* Card 4: Subscription Information */}
+              <div style={{
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
+              }}>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <CreditCard style={{ width: '15px', height: '15px', color: '#F95E10' }} />
+                  Subscription Information
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <ValidatedSelect
+                    label="Choose Plan"
+                    value={newRestState.planId || ''}
+                    onChange={(e) => {
+                      const selectedPlanId = e.target.value;
+                      if (!selectedPlanId) {
+                        setNewRestState(prev => ({ ...prev, planId: '', startDate: '', endDate: '', renewalDate: '' }));
+                        return;
+                      }
+                      
+                      const today = new Date();
+                      const end = new Date(today);
+                      if (newRestState.billingCycle === 'Annually') {
+                        end.setFullYear(end.getFullYear() + 1);
+                      } else {
+                        end.setMonth(end.getMonth() + 1);
+                      }
+                      const formatDate = (date) => date.toISOString().split('T')[0];
+
+                      setNewRestState(prev => ({ 
+                        ...prev, 
+                        planId: selectedPlanId,
+                        startDate: formatDate(today),
+                        endDate: formatDate(end),
+                        renewalDate: formatDate(end)
+                      }));
+                    }}
+                    error={formErrors.planId}
+                    setError={(val) => setFormErrors({ ...formErrors, planId: val })}
+                  >
+                    <option value="">Select a plan</option>
+                    {plans.map(p => (
+                      <option key={p._id} value={p._id}>{p.planName}</option>
+                    ))}
+                  </ValidatedSelect>
+                  
+                  <ValidatedSelect
+                    label="Billing Cycle"
+                    value={newRestState.billingCycle}
+                    onChange={(e) => {
+                      const cycle = e.target.value;
+                      const updates = { billingCycle: cycle };
+                      if (newRestState.planId && newRestState.startDate) {
+                        const start = new Date(newRestState.startDate);
+                        const end = new Date(start);
+                        if (cycle === 'Annually') {
+                          end.setFullYear(end.getFullYear() + 1);
+                        } else {
+                          end.setMonth(end.getMonth() + 1);
+                        }
+                        const formatDate = (date) => date.toISOString().split('T')[0];
+                        updates.endDate = formatDate(end);
+                        updates.renewalDate = formatDate(end);
+                      }
+                      setNewRestState(prev => ({ ...prev, ...updates }));
+                    }}
+                    error={formErrors.billingCycle}
+                    setError={(val) => setFormErrors({ ...formErrors, billingCycle: val })}
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="Annually">Annually</option>
+                  </ValidatedSelect>
+                </div>
+
+                {newRestState.planId && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="animate-fade-in">
+                    <ValidatedInput
+                      label="Start Date"
+                      type="date"
+                      value={newRestState.startDate}
+                      onChange={(e) => setNewRestState({ ...newRestState, startDate: e.target.value })}
+                      error={formErrors.startDate}
+                      setError={(val) => setFormErrors({ ...formErrors, startDate: val })}
+                    />
+                    <ValidatedInput
+                      label="End Date (Renewal Date)"
+                      type="date"
+                      value={newRestState.endDate}
+                      onChange={(e) => {
+                        setNewRestState({ ...newRestState, endDate: e.target.value, renewalDate: e.target.value })
+                      }}
+                      error={formErrors.endDate}
+                      setError={(val) => setFormErrors({ ...formErrors, endDate: val })}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Card 5: Password Management */}
               <div style={{
                 background: 'var(--bg-app)',
                 border: '1px solid var(--border-color)',
@@ -1189,13 +1393,14 @@ export default function RestaurantsPage() {
                     setEditingRestId(null)
                     setFormErrors({})
                     setNewRestState({
-                      name: '', legalName: '', branch: '', license: '', gstin: '', pan: '',
+                      name: '', branch: '', license: '', gstin: '', pan: '',
                       phone: '', email: '', website: '', address: '', currency: 'INR',
                       taxRate: '', serviceCharge: '', openingTime: '', closingTime: '',
                       status: 'Active', subscriptionPlan: 'Standard',
                       createdDate: new Date().toISOString().split('T')[0],
                       password: '', confirmPassword: '', ownerName: '', mobileNumber: '',
-                      city: '', state: '', country: '', logo: '', banner: ''
+                      city: '', state: '', country: '', logo: '', banner: '',
+                      startDate: '', endDate: '', renewalDate: '', planId: '', billingCycle: 'Monthly'
                     })
                     setShowAddModal(true)
                   }}
@@ -1314,18 +1519,17 @@ export default function RestaurantsPage() {
                                   display: 'flex',
                                   alignItems: 'center'
                                 }}
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
-                                  const nextStatus = rest.status === 'Suspended' ? 'Active' : 'Suspended'
-                                  const updated = { ...rest, status: nextStatus }
-                                  onUpdateRestaurants(restaurants.map(r => r.id === rest.id ? updated : r))
-                                  if (rest.id === activeRestaurantId) {
-                                    onUpdateRestaurantDetails(updated)
-                                  }
-                                  if (nextStatus === 'Suspended' || nextStatus === 'Inactive') {
-                                    showToast('error', `Branch "${rest.name}" status updated to ${nextStatus.toUpperCase()}`)
-                                  } else {
-                                    showToast('success', `Branch "${rest.name}" status updated to ${nextStatus.toUpperCase()}`)
+                                  try {
+                                    const nextStatus = rest.status === 'Suspended' ? true : false;
+                                    const response = await updateRestaurantApi(rest._id, { isActive: nextStatus });
+                                    if (response.success) {
+                                       await fetchRestaurants();
+                                       showToast(nextStatus ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatus ? 'ACTIVE' : 'SUSPENDED'}`)
+                                    }
+                                  } catch (err) {
+                                     showToast('error', err.response?.data?.message || 'Error updating status');
                                   }
                                 }}
                                 title={rest.status === 'Suspended' ? "Activate Restaurant" : "Suspend Restaurant"}
@@ -1572,7 +1776,7 @@ export default function RestaurantsPage() {
               <form onSubmit={handleUpdateRestaurantSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
-                    label="Tenant"
+                    label="Business Name"
                     type="text"
                     value={editFormState.name}
                     onChange={(e) => setEditFormState({ ...editFormState, name: e.target.value })}
@@ -1580,18 +1784,6 @@ export default function RestaurantsPage() {
                     error={formErrors.name}
                     setError={(val) => setFormErrors({ ...formErrors, name: val })}
                   />
-                  <ValidatedInput
-                    label="Business Name"
-                    type="text"
-                    value={editFormState.legalName}
-                    onChange={(e) => setEditFormState({ ...editFormState, legalName: e.target.value })}
-                    required
-                    error={formErrors.legalName}
-                    setError={(val) => setFormErrors({ ...formErrors, legalName: val })}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
                     label="Owner Name"
                     type="text"
@@ -1603,19 +1795,6 @@ export default function RestaurantsPage() {
                     required
                     error={formErrors.ownerName}
                     setError={(val) => setFormErrors({ ...formErrors, ownerName: val })}
-                  />
-                  <ValidatedInput
-                    label="Mobile Number"
-                    type="text"
-                    inputMode="numeric"
-                    value={editFormState.mobileNumber}
-                    onChange={(e) => {
-                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
-                      setEditFormState({ ...editFormState, mobileNumber: digitsOnly, phone: digitsOnly })
-                    }}
-                    required
-                    error={formErrors.mobileNumber}
-                    setError={(val) => setFormErrors({ ...formErrors, mobileNumber: val })}
                   />
                 </div>
 
@@ -1633,6 +1812,33 @@ export default function RestaurantsPage() {
                     error={formErrors.email}
                     setError={(val) => setFormErrors({ ...formErrors, email: val })}
                   />
+                  <ValidatedInput
+                    label="Mobile Number"
+                    type="text"
+                    inputMode="numeric"
+                    value={editFormState.mobileNumber}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
+                      setEditFormState({ ...editFormState, mobileNumber: digitsOnly, phone: digitsOnly })
+                    }}
+                    required
+                    error={formErrors.mobileNumber}
+                    setError={(val) => setFormErrors({ ...formErrors, mobileNumber: val })}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <ValidatedSelect
+                    label="Status"
+                    value={editFormState.status}
+                    onChange={(e) => setEditFormState({ ...editFormState, status: e.target.value })}
+                    error={formErrors.status}
+                    setError={(val) => setFormErrors({ ...formErrors, status: val })}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Suspended">Suspended</option>
+                    <option value="Inactive">Inactive</option>
+                  </ValidatedSelect>
                   <ValidatedInput
                     label="Website Domain"
                     type="text"
@@ -1700,7 +1906,17 @@ export default function RestaurantsPage() {
                     label="FSSAI License Number"
                     type="text"
                     value={editFormState.license}
-                    onChange={(e) => setEditFormState({ ...editFormState, license: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 14);
+                      setEditFormState({ ...editFormState, license: val });
+                      if (formErrors.license) setFormErrors({ ...formErrors, license: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^1\d{13}$/.test(val)) {
+                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                      }
+                    }}
                     required
                     error={formErrors.license}
                     setError={(val) => setFormErrors({ ...formErrors, license: val })}
@@ -1709,8 +1925,17 @@ export default function RestaurantsPage() {
                     label="GSTIN Number"
                     type="text"
                     value={editFormState.gstin}
-                    onChange={(e) => setEditFormState({ ...editFormState, gstin: e.target.value })}
-                    required
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 15);
+                      setEditFormState({ ...editFormState, gstin: val });
+                      if (formErrors.gstin) setFormErrors({ ...formErrors, gstin: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                      }
+                    }}
                     error={formErrors.gstin}
                     setError={(val) => setFormErrors({ ...formErrors, gstin: val })}
                   />
@@ -1718,43 +1943,23 @@ export default function RestaurantsPage() {
                     label="PAN Number"
                     type="text"
                     value={editFormState.pan}
-                    onChange={(e) => setEditFormState({ ...editFormState, pan: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                      setEditFormState({ ...editFormState, pan: val });
+                      if (formErrors.pan) setFormErrors({ ...formErrors, pan: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                      }
+                    }}
                     required
                     error={formErrors.pan}
                     setError={(val) => setFormErrors({ ...formErrors, pan: val })}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
-                    label="Tax Rate (%)"
-                    type="text"
-                    inputMode="decimal"
-                    value={editFormState.taxRate}
-                    onChange={(e) => {
-                      const floatOnly = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
-                      setEditFormState({ ...editFormState, taxRate: floatOnly })
-                    }}
-                    placeholder="Enter Tax Rate"
-                    required
-                    error={formErrors.taxRate}
-                    setError={(val) => setFormErrors({ ...formErrors, taxRate: val })}
-                  />
-                  <ValidatedInput
-                    label="Service Fee (%)"
-                    type="text"
-                    inputMode="decimal"
-                    value={editFormState.serviceCharge}
-                    onChange={(e) => {
-                      const floatOnly = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
-                      setEditFormState({ ...editFormState, serviceCharge: floatOnly })
-                    }}
-                    placeholder="Enter Service Fee"
-                    required
-                    error={formErrors.serviceCharge}
-                    setError={(val) => setFormErrors({ ...formErrors, serviceCharge: val })}
-                  />
-                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <TimePickerWithAMPM
@@ -1775,29 +1980,17 @@ export default function RestaurantsPage() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedSelect
-                    label="Status"
-                    value={editFormState.status}
-                    onChange={(e) => setEditFormState({ ...editFormState, status: e.target.value })}
-                    error={formErrors.status}
-                    setError={(val) => setFormErrors({ ...formErrors, status: val })}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
-                    <option value="Inactive">Inactive</option>
-                  </ValidatedSelect>
-
-                  <div>
-                    <ValidatedInput
-                      label="Restaurant Logo URL"
-                      type="text"
-                      value={editFormState.logo || ''}
-                      onChange={(e) => setEditFormState({ ...editFormState, logo: e.target.value })}
-                      placeholder="Enter Restaurant Logo URL"
-                      error={formErrors.logo}
-                      setError={(val) => setFormErrors({ ...formErrors, logo: val })}
-                    />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'end' }}>
+                  <ValidatedInput
+                    label="Restaurant Logo URL"
+                    type="text"
+                    value={editFormState.logo || ''}
+                    onChange={(e) => setEditFormState({ ...editFormState, logo: e.target.value })}
+                    placeholder="Enter Restaurant Logo URL"
+                    error={formErrors.logo}
+                    setError={(val) => setFormErrors({ ...formErrors, logo: val })}
+                  />
+                  <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
                       value={editFormState.logo}
                       onChange={(dataUrl) => setEditFormState(prev => ({ ...prev, logo: dataUrl }))}

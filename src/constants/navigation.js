@@ -13,7 +13,8 @@ import {
   Briefcase,
   LifeBuoy,
   BellRing,
-  BarChart3
+  BarChart3,
+  Tag
 } from 'lucide-react';
 import { ROUTES } from './routes';
 
@@ -21,6 +22,7 @@ import { ROUTES } from './routes';
 
 export const SUPER_ADMIN_NAVIGATION = [
   { label: 'Dashboard', path: ROUTES.SUPER_ADMIN.DASHBOARD, icon: LayoutDashboard },
+  { label: 'Coupons', path: ROUTES.SUPER_ADMIN.COUPONS, icon: Tag },
   { label: 'Restaurant', path: ROUTES.SUPER_ADMIN.RESTAURANTS, icon: Building },
   { label: 'Plans', path: ROUTES.SUPER_ADMIN.PLANS, icon: Layers },
   { label: 'Subscription', path: ROUTES.SUPER_ADMIN.SUBSCRIPTIONS, icon: CheckCircle2 },

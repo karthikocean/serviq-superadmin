@@ -1,40 +1,34 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ROLES } from '../constants/roles';
+import { logout as apiLogout } from '../services/authService';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const savedSession = (() => {
-    try {
-      const item = localStorage.getItem('serviq_session');
-      return item ? JSON.parse(item) : null;
-    } catch (e) {
-      return null;
-    }
-  })();
-
-  const [role, setRole] = useState(savedSession?.role || ROLES.LOGIN);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(savedSession?.isSuperAdmin ?? false);
-
-  useEffect(() => {
-    if (role && role !== ROLES.LOGIN) {
-      localStorage.setItem('serviq_session', JSON.stringify({
-        role,
-        isSuperAdmin
-      }));
-    } else {
-      localStorage.removeItem('serviq_session');
-    }
-  }, [role, isSuperAdmin]);
+  const savedToken = localStorage.getItem('superadmin_token');
+  
+  const [role, setRole] = useState(savedToken ? ROLES.SUPER_ADMIN : ROLES.LOGIN);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(!!savedToken);
 
   const login = () => {
     setRole(ROLES.SUPER_ADMIN);
     setIsSuperAdmin(true);
   };
 
-  const logout = () => {
-    setRole(ROLES.LOGIN);
-    setIsSuperAdmin(false);
+  const logout = async () => {
+    try {
+      if (localStorage.getItem("superadmin_token")) {
+        await apiLogout();
+      }
+    } catch (error) {
+      console.error("Logout API failed:", error);
+    } finally {
+      localStorage.removeItem("superadmin_token");
+      localStorage.removeItem("superadmin_user");
+      localStorage.removeItem("superadmin_roleName");
+      setRole(ROLES.LOGIN);
+      setIsSuperAdmin(false);
+    }
   };
 
   const isAuthenticated = role === ROLES.SUPER_ADMIN;

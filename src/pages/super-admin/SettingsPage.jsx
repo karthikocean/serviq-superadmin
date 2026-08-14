@@ -75,7 +75,7 @@ import { useNotification } from '../../contexts/NotificationContext'
 export default function SettingsPage() {
   const { restaurantDetails = {}, updateRestaurantDetails: onUpdateRestaurantDetails } = useRestaurant()
   const { showToast } = useNotification()
-  const setSystemLogs = () => {}
+  const setSystemLogs = () => { }
   const [formState, setFormState] = useState({ ...restaurantDetails })
   const [formErrors, setFormErrors] = useState({})
 
@@ -222,23 +222,6 @@ export default function SettingsPage() {
             />
           </div>
 
-          {/* Business Credentials */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <ValidatedInput
-              label="FSSAI License Number"
-              name="license"
-              value={formState.license || ''}
-              onChange={handleInputChange}
-              placeholder="14-digit license number"
-            />
-            <ValidatedInput
-              label="GSTIN Identification Number"
-              name="gstin"
-              value={formState.gstin || ''}
-              onChange={handleInputChange}
-              placeholder="e.g. 33AAAAA0000A1Z1"
-            />
-          </div>
 
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
             <button type="submit" className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

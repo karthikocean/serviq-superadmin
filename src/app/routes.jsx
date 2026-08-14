@@ -9,6 +9,7 @@ import ProtectedRoute from '../components/routing/ProtectedRoute';
 // Pages
 import LoginPage from '../pages/auth/LoginPage';
 import DashboardPage from '../pages/super-admin/DashboardPage';
+import CouponsPage from '../pages/super-admin/CouponsPage';
 import RestaurantsPage from '../pages/super-admin/RestaurantsPage';
 import PlansPage from '../pages/super-admin/PlansPage';
 import SubscriptionsPage from '../pages/super-admin/SubscriptionsPage';
@@ -20,6 +21,7 @@ import ReportsPage from '../pages/super-admin/ReportsPage';
 import UsersPage from '../pages/super-admin/UsersPage';
 import RolesPage from '../pages/super-admin/RolesPage';
 import SettingsPage from '../pages/super-admin/SettingsPage';
+import ProfilePage from '../pages/super-admin/ProfilePage';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -60,6 +62,7 @@ export default function AppRoutes() {
       >
         <Route index element={<Navigate to={ROUTES.SUPER_ADMIN.DASHBOARD} replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="coupons" element={<CouponsPage />} />
         <Route path="restaurants" element={<RestaurantsPage />} />
         <Route path="plans" element={<PlansPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
@@ -71,6 +74,7 @@ export default function AppRoutes() {
         <Route path="users" element={<UsersPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
 
       {/* Catch all - Redirect to login */}

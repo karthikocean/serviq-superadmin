@@ -45,8 +45,8 @@ export default function GlobalHeader({ isSidebarCollapsed, setIsSidebarCollapsed
     }
   }, [adminProfileDropdownOpen]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate(ROUTES.LOGIN);
     setAdminProfileDropdownOpen(false);
   };
@@ -155,6 +155,11 @@ export default function GlobalHeader({ isSidebarCollapsed, setIsSidebarCollapsed
                     {!isSuperAdmin && (
                       <div onClick={() => { navigate(ROUTES.ADMIN.SETTINGS); setAdminProfileDropdownOpen(false); }} style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-main)', borderRadius: '6px' }} onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-hover)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
                         <UserCheck style={{ width: '14px', height: '14px' }} /> Profile
+                      </div>
+                    )}
+                    {isSuperAdmin && (
+                      <div onClick={() => { navigate(ROUTES.SUPER_ADMIN.PROFILE); setAdminProfileDropdownOpen(false); }} style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-main)', borderRadius: '6px' }} onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-hover)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
+                        <UserCheck style={{ width: '14px', height: '14px' }} /> My Profile
                       </div>
                     )}
                     <div onClick={handleLogout} style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#ef4444', borderRadius: '6px' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>

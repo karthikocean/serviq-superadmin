@@ -4,6 +4,7 @@ export const ROUTES = {
   SUPER_ADMIN: {
     ROOT: '/super-admin',
     DASHBOARD: '/super-admin/dashboard',
+    COUPONS: '/super-admin/coupons',
     RESTAURANTS: '/super-admin/restaurants',
     PLANS: '/super-admin/plans',
     SUBSCRIPTIONS: '/super-admin/subscriptions',
@@ -14,6 +15,7 @@ export const ROUTES = {
     REPORTS: '/super-admin/reports',
     USERS: '/super-admin/users',
     ROLES: '/super-admin/roles',
-    SETTINGS: '/super-admin/settings'
+    SETTINGS: '/super-admin/settings',
+    PROFILE: '/super-admin/profile'
   }
 };
