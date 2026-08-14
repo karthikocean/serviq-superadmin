@@ -66,6 +66,11 @@ export const updateRestaurant = async (id, data) => {
   return response.data;
 };
 
+export const updateRestaurantStatus = async (id, status) => {
+  const response = await api.put(`/super-admin/restaurants/${id}/status`, { status });
+  return response.data;
+};
+
 export const deleteRestaurant = async (id) => {
   const response = await api.delete(`/super-admin/restaurants/${id}`);
   return response.data;

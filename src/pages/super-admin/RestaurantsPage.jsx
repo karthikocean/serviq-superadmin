@@ -19,7 +19,7 @@ import {
   Upload,
   CreditCard,
 } from 'lucide-react'
-import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
+import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 // ─── Reusable validated input component ───
@@ -1522,11 +1522,11 @@ export default function RestaurantsPage() {
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   try {
-                                    const nextStatus = rest.status === 'Suspended' ? true : false;
-                                    const response = await updateRestaurantApi(rest._id, { isActive: nextStatus });
+                                    const nextStatusStr = rest.status === 'Suspended' ? 'Active' : 'Suspended';
+                                    const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
                                     if (response.success) {
                                        await fetchRestaurants();
-                                       showToast(nextStatus ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatus ? 'ACTIVE' : 'SUSPENDED'}`)
+                                       showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
                                     }
                                   } catch (err) {
                                      showToast('error', err.response?.data?.message || 'Error updating status');
