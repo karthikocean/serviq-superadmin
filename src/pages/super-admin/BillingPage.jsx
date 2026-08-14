@@ -469,7 +469,6 @@ export default function BillingPage() {
             <div style={{ padding: '20px 20px 10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '16px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '900' }}>Revenue & Billing Ledger</h3>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Generate subscription invoices, download PDFs, and process refunds.</span>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>

@@ -263,18 +263,18 @@ export default function LeadsPage() {
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
         {[
           { label: 'Total Leads', value: leads.length, tone: '#0f172a' },
           { label: 'Open Pipeline', value: openLeadsCount, tone: '#f59e0b' },
           { label: 'Follow-ups', value: upcomingFollowUpsCount, tone: '#3b82f6' },
           { label: 'Won / Converted', value: wonLeadsCount, tone: '#10b981' }
         ].map(item => (
-          <div key={item.label} className="glass-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '18px' }}>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase' }}>{item.label}</span>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-              <strong style={{ fontSize: '1.6rem', color: 'var(--text-main)' }}>{item.value}</strong>
-              <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: item.tone }}></span>
+          <div key={item.label} className="glass-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '10px 14px' }}>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+              <strong style={{ fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>{item.value}</strong>
+              <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: item.tone }}></span>
             </div>
           </div>
         ))}

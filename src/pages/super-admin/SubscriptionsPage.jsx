@@ -368,30 +368,58 @@ export default function SubscriptionsPage() {
 
               <form onSubmit={handleSaveSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-                {/* Restaurant Name Dropdown */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Restaurant Name</label>
-                  {editingSubscriptionRest ? (
-                    <input
-                      type="text"
-                      disabled
-                      value={restaurants.find(r => r.id === formState.restaurantId)?.name || ''}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: '1.5px solid var(--border-color)',
-                        background: 'var(--bg-app)',
-                        color: 'var(--text-muted)',
-                        borderRadius: '8px',
-                        fontSize: '0.82rem',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  ) : (
+                {/* Restaurant Name & Plan Name (Horizontal Row) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {/* Restaurant Name Dropdown */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Restaurant Name</label>
+                    {editingSubscriptionRest ? (
+                      <input
+                        type="text"
+                        disabled
+                        value={restaurants.find(r => r.id === formState.restaurantId)?.name || ''}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          border: '1.5px solid var(--border-color)',
+                          background: 'var(--bg-app)',
+                          color: 'var(--text-muted)',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    ) : (
+                      <select
+                        value={formState.restaurantId}
+                        onChange={(e) => setFormState({ ...formState, restaurantId: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          border: '1.5px solid var(--border-color)',
+                          background: 'var(--bg-app)',
+                          color: 'var(--text-main)',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          cursor: 'pointer',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        {restaurants.map(r => (
+                          <option key={r.id} value={r.id}>{r.name} ({r.id})</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Plan Name Selection */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Plan Name</label>
                     <select
-                      value={formState.restaurantId}
-                      onChange={(e) => setFormState({ ...formState, restaurantId: e.target.value })}
+                      value={formState.planName}
+                      onChange={(e) => setFormState({ ...formState, planName: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '9px 12px',
@@ -405,36 +433,11 @@ export default function SubscriptionsPage() {
                         boxSizing: 'border-box'
                       }}
                     >
-                      {restaurants.map(r => (
-                        <option key={r.id} value={r.id}>{r.name} ({r.id})</option>
+                      {plans.filter(p => p.status === 'Active').map(p => (
+                        <option key={p.id} value={p.name}>{p.name}</option>
                       ))}
                     </select>
-                  )}
-                </div>
-
-                {/* Plan Name Selection */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Plan Name</label>
-                  <select
-                    value={formState.planName}
-                    onChange={(e) => setFormState({ ...formState, planName: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      border: '1.5px solid var(--border-color)',
-                      background: 'var(--bg-app)',
-                      color: 'var(--text-main)',
-                      borderRadius: '8px',
-                      fontSize: '0.82rem',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    {plans.filter(p => p.status === 'Active').map(p => (
-                      <option key={p.id} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                  </div>
                 </div>
 
                 {/* Date Inputs */}
@@ -539,7 +542,7 @@ export default function SubscriptionsPage() {
                     className="btn-black"
                     style={{ padding: '10px 24px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer' }}
                   >
-                    {editingSubscriptionRest ? 'Upgrade / Save' : 'Assign Plan'}
+                    {editingSubscriptionRest ? 'Save Changes' : 'Assign Plan'}
                   </button>
                 </div>
               </form>
@@ -549,7 +552,6 @@ export default function SubscriptionsPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)' }}>Franchise Subscriptions & Agreements Registry</h4>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500' }}>Manage start, end, renewal dates and status for all active locations.</p>
                 </div>
                 <button
                   onClick={handleOpenAssignModal}
@@ -861,7 +863,6 @@ export default function SubscriptionsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription History</h4>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500' }}>Read-only historical records of all subscriptions.</p>
               </div>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <input
