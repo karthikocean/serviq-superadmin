@@ -107,19 +107,24 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 )
 
 const CORE_FEATURES = [
-  'QR Ordering',
-  'Menu Management',
-  'Table Management',
-  'Order Management',
-  'Waiter Management',
-  'Kitchen Management'
+  { label: 'QR Ordering', key: 'qr-code-config' },
+  { label: 'Menu Management', key: 'menu' },
+  { label: 'Table Management', key: 'tables' },
+  { label: 'Order Management', key: 'orders' },
+  { label: 'Waiter Management', key: 'waiter-list' },
+  { label: 'Kitchen Management', key: 'kitchen-list' }
 ]
 
-import { usePlans } from '../../hooks/usePlans'
+const initialFeatures = CORE_FEATURES.reduce((acc, feat) => {
+  acc[feat.key] = false;
+  return acc;
+}, {})
+
+import { getAllPlansApi, createPlanApi, updatePlanApi, deletePlanApi } from '../../services/planService'
 import { useNotification } from '../../contexts/NotificationContext'
 
 export default function PlansPage() {
-  const { plans, setPlans } = usePlans()
+  const [plans, setPlans] = useState([])
   const { showToast } = useNotification()
   const [editingPlanId, setEditingPlanId] = useState(() => {
     return localStorage.getItem('serviq_editingPlanId') || null
@@ -145,6 +150,29 @@ export default function PlansPage() {
     return () => window.removeEventListener('reset_module_view', handleReset)
   }, [])
 
+  const fetchPlans = async () => {
+    try {
+      const data = await getAllPlansApi(1, 100);
+      if (data.success) {
+        const formattedPlans = data.data.map(p => ({
+          ...p,
+          id: p._id,
+          name: p.planName,
+          description: p.planDescription,
+          branchLimit: p.maxBranches,
+          status: p.status || (p.isActive ? 'Active' : 'Inactive')
+        }));
+        setPlans(formattedPlans);
+      }
+    } catch (error) {
+      console.error("Error fetching plans:", error);
+    }
+  }
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
   const [planFormState, setPlanFormState] = useState({
     name: '',
     description: '',
@@ -153,7 +181,7 @@ export default function PlansPage() {
     branchLimit: 3,
     userLimit: 99999,
     orderLimit: 99999,
-    features: [],
+    featuresIncluded: { ...initialFeatures },
     status: 'Active'
   })
   const [formErrors, setFormErrors] = useState({})
@@ -171,14 +199,14 @@ export default function PlansPage() {
           branchLimit: planToEdit.branchLimit || 3,
           userLimit: planToEdit.userLimit || 99999,
           orderLimit: planToEdit.orderLimit || 99999,
-          features: planToEdit.features || [],
+          featuresIncluded: planToEdit.featuresIncluded || { ...initialFeatures },
           status: planToEdit.status || 'Active'
         })
       }
     }
   }, [editingPlanId, plans])
 
-  const handleCreatePlan = (e) => {
+  const handleCreatePlan = async (e) => {
     e.preventDefault()
 
     const errors = {}
@@ -187,84 +215,112 @@ export default function PlansPage() {
     if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
     if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
     if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
-    if (planFormState.features.length === 0) errors.features = 'At least one feature must be selected'
+    if (!Object.values(planFormState.featuresIncluded).some(Boolean)) errors.featuresIncluded = 'At least one feature must be selected'
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
     }
 
-    setFormErrors({})
-
-    const nextPlanId = `plan-${planFormState.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
-    const newPlan = {
-      id: nextPlanId,
-      name: planFormState.name,
-      description: planFormState.description,
+    const planData = {
+      planName: planFormState.name,
+      planDescription: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
+      monthlyDiscount: 0, 
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
-      branchLimit: parseInt(planFormState.branchLimit) || 3,
-      userLimit: parseInt(planFormState.userLimit) || 99999,
-      orderLimit: parseInt(planFormState.orderLimit) || 99999,
-      features: planFormState.features,
+      maxBranches: parseInt(planFormState.branchLimit) || 3,
+      featuresIncluded: planFormState.featuresIncluded,
       status: planFormState.status
     }
 
-    setPlans([...plans, newPlan])
-    setEditingPlanId(null)
-    showToast('success', `Subscription plan "${newPlan.name}" created successfully!`)
-  }
-
-  const handleModifyPlan = (e) => {
-    e.preventDefault()
-
-    const errors = {}
-    if (!planFormState.name.trim()) errors.name = 'Plan Name is Required'
-    if (!planFormState.description.trim()) errors.description = 'Plan Description is Required'
-    if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
-    if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
-    if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
-    if (planFormState.features.length === 0) errors.features = 'At least one feature must be selected'
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
-    setFormErrors({})
-
-    const updated = plans.map(p => p.id === editingPlanId ? {
-      ...p,
-      name: planFormState.name,
-      description: planFormState.description,
-      monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
-      annualPrice: parseFloat(planFormState.annualPrice) || 0,
-      branchLimit: parseInt(planFormState.branchLimit) || 3,
-      userLimit: parseInt(planFormState.userLimit) || 99999,
-      orderLimit: parseInt(planFormState.orderLimit) || 99999,
-      features: planFormState.features,
-      status: planFormState.status
-    } : p)
-
-    setPlans(updated)
-    setEditingPlanId(null)
-    showToast('success', `Plan "${planFormState.name}" updated successfully!`)
-  }
-
-  const togglePlanStatus = (planId) => {
-    const updated = plans.map(p => {
-      if (p.id === planId) {
-        const nextStatus = p.status === 'Active' ? 'Inactive' : 'Active'
-        if (nextStatus === 'Inactive' || nextStatus === 'Disabled' || nextStatus === 'Suspended') {
-          showToast('error', `Plan "${p.name}" status set to ${nextStatus.toUpperCase()}`)
-        } else {
-          showToast('success', `Plan "${p.name}" status updated to ${nextStatus.toUpperCase()}`)
-        }
-        return { ...p, status: nextStatus }
+    try {
+      const data = await createPlanApi(planData);
+      if (data.success) {
+        fetchPlans();
+        setEditingPlanId(null);
+        showToast('success', `Subscription plan "${planFormState.name}" created successfully!`);
+      } else {
+        alert(data.message || "Failed to create plan");
       }
-      return p
-    })
-    setPlans(updated)
+    } catch (error) {
+      console.error("Error creating plan:", error);
+      alert(error.response?.data?.message || "An error occurred");
+    }
+  }
+
+  const handleModifyPlan = async (e) => {
+    e.preventDefault()
+
+    const errors = {}
+    if (!planFormState.name.trim()) errors.name = 'Plan Name is Required'
+    if (!planFormState.description.trim()) errors.description = 'Plan Description is Required'
+    if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
+    if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
+    if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
+    if (!Object.values(planFormState.featuresIncluded).some(Boolean)) errors.featuresIncluded = 'At least one feature must be selected'
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+
+    const planData = {
+      planName: planFormState.name,
+      planDescription: planFormState.description,
+      monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
+      monthlyDiscount: 0, 
+      annualPrice: parseFloat(planFormState.annualPrice) || 0,
+      maxBranches: parseInt(planFormState.branchLimit) || 3,
+      featuresIncluded: planFormState.featuresIncluded,
+      status: planFormState.status
+    }
+
+    try {
+      const data = await updatePlanApi(editingPlanId, planData);
+      if (data.success) {
+        fetchPlans();
+        setEditingPlanId(null);
+        showToast('success', `Subscription plan updated successfully!`);
+      } else {
+        alert(data.message || "Failed to update plan");
+      }
+    } catch (error) {
+      console.error("Error updating plan:", error);
+      alert(error.response?.data?.message || "An error occurred");
+    }
+  }
+
+  const togglePlanStatus = async (planId) => {
+    const planToUpdate = plans.find(p => p.id === planId);
+    if (!planToUpdate) return;
+    
+    const nextStatus = planToUpdate.status === 'Active' ? false : true;
+    
+    try {
+      const planData = {
+        planName: planToUpdate.name,
+        planDescription: planToUpdate.description,
+        monthlyPrice: planToUpdate.monthlyPrice,
+        monthlyDiscount: 0,
+        annualPrice: planToUpdate.annualPrice,
+        maxBranches: planToUpdate.branchLimit,
+        featuresIncluded: planToUpdate.featuresIncluded,
+        status: nextStatus ? 'Active' : 'Inactive'
+      }
+      const data = await updatePlanApi(planId, planData);
+      if (data.success) {
+        fetchPlans();
+        const displayStatus = nextStatus ? 'Active' : 'Inactive';
+        if (displayStatus === 'Inactive') {
+          showToast('error', `Plan "${planToUpdate.name}" status set to INACTIVE`)
+        } else {
+          showToast('success', `Plan "${planToUpdate.name}" status updated to ACTIVE`)
+        }
+      }
+    } catch (error) {
+      console.error("Error updating plan status:", error);
+      showToast('error', "Failed to update plan status");
+    }
   }
 
   return (
@@ -359,7 +415,7 @@ export default function PlansPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.features ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.featuresIncluded ? '#ef4444' : 'var(--text-main)' }}>
                 Features Included<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <div style={{
@@ -372,30 +428,30 @@ export default function PlansPage() {
                 border: '1px solid var(--border-color)'
               }}>
                 {CORE_FEATURES.map(feat => {
-                  const isChecked = planFormState.features.includes(feat)
+                  const isChecked = planFormState.featuresIncluded[feat.key] || false
                   return (
-                    <label key={feat} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-main)', cursor: 'pointer' }}>
+                    <label key={feat.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-main)', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={(e) => {
-                          let updated = [...planFormState.features]
-                          if (e.target.checked) {
-                            updated.push(feat)
-                          } else {
-                            updated = updated.filter(f => f !== feat)
-                          }
-                          setPlanFormState({ ...planFormState, features: updated })
-                          if (formErrors.features) setFormErrors({ ...formErrors, features: '' })
+                          setPlanFormState({ 
+                            ...planFormState, 
+                            featuresIncluded: { 
+                              ...planFormState.featuresIncluded, 
+                              [feat.key]: e.target.checked 
+                            } 
+                          })
+                          if (formErrors.featuresIncluded) setFormErrors({ ...formErrors, featuresIncluded: '' })
                         }}
                         style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                       />
-                      {feat}
+                      {feat.label}
                     </label>
                   )
                 })}
               </div>
-              {formErrors.features && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{formErrors.features}</span>}
+              {formErrors.featuresIncluded && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{formErrors.featuresIncluded}</span>}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -452,7 +508,7 @@ export default function PlansPage() {
                 branchLimit: 3,
                 userLimit: 99999,
                 orderLimit: 99999,
-                features: [],
+                featuresIncluded: { ...initialFeatures },
                 status: 'Active'
               })
               setFormErrors({})
@@ -517,7 +573,7 @@ export default function PlansPage() {
                             branchLimit: (plan.branchLimit || 3).toString(),
                             userLimit: (plan.userLimit || 99999).toString(),
                             orderLimit: (plan.orderLimit || 99999).toString(),
-                            features: plan.features || [],
+                            featuresIncluded: plan.featuresIncluded || { ...initialFeatures },
                             status: plan.status
                           })
                           setFormErrors({})
@@ -556,7 +612,7 @@ export default function PlansPage() {
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Includes Features:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {CORE_FEATURES.map((feat, idx) => {
-                      const isIncluded = plan.features?.includes(feat)
+                      const isIncluded = plan.featuresIncluded?.[feat.key]
                       return (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.4 }}>
                           <div style={{
@@ -571,7 +627,7 @@ export default function PlansPage() {
                           }}>
                             {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '8px', height: '8px' }} />}
                           </div>
-                          <span style={{ fontWeight: isIncluded ? '700' : '500', color: isIncluded ? 'var(--text-main)' : 'var(--text-muted)' }}>{feat}</span>
+                          <span style={{ fontWeight: isIncluded ? '700' : '500', color: isIncluded ? 'var(--text-main)' : 'var(--text-muted)' }}>{feat.label}</span>
                         </div>
                       )
                     })}

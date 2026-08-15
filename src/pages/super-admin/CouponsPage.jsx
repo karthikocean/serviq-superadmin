@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tag, Plus, Search, Edit2, Trash2, Eye, X, ArrowLeft } from 'lucide-react';
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination';
 import CustomSelect from '../../components/common/CustomSelect';
+import { getCouponsApi, createCouponApi, updateCouponApi, deleteCouponApi } from '../../services/couponService';
+import { getAllPlansApi } from '../../services/planService';
 
 export default function CouponsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -9,28 +11,67 @@ export default function CouponsPage() {
   const [viewingCouponId, setViewingCouponId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Sample data
-  const [coupons, setCoupons] = useState([
-    { id: 'C-01', code: 'WELCOME20', name: 'Welcome Offer', description: '20% discount for new restaurants', type: 'Percentage', value: 20, maxDiscount: 5000, minAmount: 10000, plans: ['Basic', 'Standard', 'Premium'], startDate: '2026-08-14', endDate: '2026-12-31', limit: 100, used: 45, usagePerRest: 1, usageFor: 'All Restaurants', status: 'Active' },
-    { id: 'C-02', code: 'FLAT500', name: 'Festive Discount', description: 'Flat ₹500 off on Premium plan', type: 'Fixed Amount', value: 500, maxDiscount: null, minAmount: 2000, plans: ['Premium'], startDate: '2026-09-01', endDate: '2026-09-30', limit: 50, used: 50, usagePerRest: 1, usageFor: 'All Restaurants', status: 'Inactive' }
-  ]);
+  const [errors, setErrors] = useState({});
+
+  const [availablePlans, setAvailablePlans] = useState([]);
+
+  const [coupons, setCoupons] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const itemsPerPage = 10;
 
   const defaultFormState = {
     code: '', name: '', description: '', type: 'Percentage', value: '', maxDiscount: '', minAmount: '',
-    plans: [], startDate: '', endDate: '', limit: '', usagePerRest: '', usageFor: 'All Restaurants', status: 'Active'
+    plans: [], startDate: '', endDate: '', limit: '', usagePerRest: '', status: 'Active'
   };
 
   const [formData, setFormData] = useState(defaultFormState);
 
-  const handlePlanToggle = (plan) => {
-    setFormData(prev => {
-      if (prev.plans.includes(plan)) {
-        return { ...prev, plans: prev.plans.filter(p => p !== plan) };
-      } else {
-        return { ...prev, plans: [...prev.plans, plan] };
+  const fetchCoupons = async () => {
+    try {
+      const data = await getCouponsApi(currentPage - 1, itemsPerPage, searchQuery);
+      if (data.success) {
+        const formattedData = data.data.map(c => ({
+          ...c,
+          id: c._id,
+          startDate: c.startDate ? new Date(c.startDate).toISOString().split('T')[0] : '',
+          endDate: c.endDate ? new Date(c.endDate).toISOString().split('T')[0] : '',
+          plans: c.plans || []
+        }));
+        setCoupons(formattedData);
+        setTotalPages(data.totalPages || 1);
+        setTotalItems(data.total || 0);
       }
-    });
+    } catch (error) {
+      console.error("Error fetching coupons:", error);
+    }
   };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const data = await getAllPlansApi(1, 100);
+        if (data.success) {
+          const mappedPlans = data.data.map(p => ({ label: p.planName, value: p._id }));
+          setAvailablePlans(mappedPlans);
+        }
+      } catch (error) {
+        console.error("Error fetching plans:", error);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  useEffect(() => {
+    fetchCoupons();
+  }, [currentPage, searchQuery]);
+
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -38,35 +79,80 @@ export default function CouponsPage() {
       ...prev,
       [name]: value
     }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (editingCouponId) {
-      setCoupons(prev => prev.map(c => c.id === editingCouponId ? { ...c, ...formData } : c));
-    } else {
-      const newCoupon = { id: `C-${String(coupons.length + 1).padStart(2, '0')}`, ...formData, used: 0 };
-      setCoupons([newCoupon, ...coupons]);
+  const validateForm = () => {
+    const errs = {};
+    if (!formData.code.trim()) errs.code = 'Coupon Code is required';
+    if (!formData.name.trim()) errs.name = 'Coupon Name is required';
+    if (!formData.type) errs.type = 'Discount Type is required';
+    if (!formData.value) errs.value = 'Discount Value is required';
+    if (!formData.plans || formData.plans.length === 0) errs.plans = 'At least one Applicable Plan is required';
+    if (!formData.startDate) errs.startDate = 'Start Date is required';
+    if (!formData.endDate) errs.endDate = 'End Date is required';
+    
+    if (formData.startDate && formData.endDate && new Date(formData.startDate) > new Date(formData.endDate)) {
+      errs.endDate = 'End Date must be after Start Date';
     }
-    setShowAddModal(false);
-    setEditingCouponId(null);
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
-  const handleDelete = (id) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    try {
+      const payload = { ...formData };
+      
+      let data;
+      if (editingCouponId) {
+        data = await updateCouponApi(editingCouponId, payload);
+      } else {
+        data = await createCouponApi(payload);
+      }
+      
+      if (data.success) {
+        fetchCoupons();
+        setShowAddModal(false);
+        setEditingCouponId(null);
+        setFormData(defaultFormState);
+      } else {
+        alert(data.message || "Failed to save coupon");
+      }
+    } catch (error) {
+      console.error("Error saving coupon:", error);
+      alert(error.response?.data?.message || "An error occurred");
+    }
+  };
+
+  const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this coupon?")) {
-      setCoupons(prev => prev.filter(c => c.id !== id));
+      try {
+        const data = await deleteCouponApi(id);
+        if (data.success) {
+          fetchCoupons();
+        } else {
+          alert(data.message || "Failed to delete coupon");
+        }
+      } catch (error) {
+        console.error("Error deleting coupon:", error);
+        alert(error.response?.data?.message || "Failed to delete coupon");
+      }
     }
   };
 
   const handleEdit = (coupon) => {
-    setFormData({ ...coupon });
+    setFormData({ 
+      ...coupon,
+      startDate: coupon.startDate ? new Date(coupon.startDate).toISOString().split('T')[0] : '',
+      endDate: coupon.endDate ? new Date(coupon.endDate).toISOString().split('T')[0] : '',
+      plans: coupon.plans ? coupon.plans.map(p => typeof p === 'object' ? p._id : p) : []
+    });
     setEditingCouponId(coupon.id);
+    setShowAddModal(true);
   };
-
-  const filteredCoupons = coupons.filter(c => 
-    c.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const activeCoupon = viewingCouponId ? coupons.find(c => c.id === viewingCouponId) : null;
 
@@ -80,7 +166,7 @@ export default function CouponsPage() {
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '16px' }}>
               <button 
                 type="button" 
-                onClick={() => { setShowAddModal(false); setEditingCouponId(null); }}
+                onClick={() => { setShowAddModal(false); setEditingCouponId(null); setErrors({}); }}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', borderRadius: '50%', transition: 'background 0.2s' }}
                 onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
                 onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
@@ -105,28 +191,28 @@ export default function CouponsPage() {
                 {/* Row 1 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.code ? '#ef4444' : 'var(--text-main)' }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="text" 
                       name="code"
                       value={formData.code}
                       onChange={handleChange}
                       placeholder="e.g. WELCOME20" 
-                      required
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', textTransform: 'uppercase' }}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: errors.code ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: errors.code ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', textTransform: 'uppercase', transition: 'border-color 0.15s' }}
                     />
+                    {errors.code && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.code}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Coupon Name <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.name ? '#ef4444' : 'var(--text-main)' }}>Coupon Name <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="text" 
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
                       placeholder="e.g. Welcome Offer" 
-                      required
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: errors.name ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: errors.name ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
                     />
+                    {errors.name && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.name}</span>}
                   </div>
                 </div>
 
@@ -146,16 +232,19 @@ export default function CouponsPage() {
                 {/* Row 3 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Discount Type <span style={{ color: '#ef4444' }}>*</span></label>
-                    <CustomSelect 
-                      options={['Percentage', 'Fixed Amount']}
-                      value={formData.type}
-                      onChange={(val) => handleChange({ target: { name: 'type', value: val }})}
-                      placeholder="Select Type..."
-                    />
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.type ? '#ef4444' : 'var(--text-main)' }}>Discount Type <span style={{ color: '#ef4444' }}>*</span></label>
+                    <div style={{ border: errors.type ? '1.5px solid #ef4444' : 'none', borderRadius: '8px', transition: 'border-color 0.15s' }}>
+                      <CustomSelect 
+                        options={['Percentage', 'Fixed Amount']}
+                        value={formData.type}
+                        onChange={(val) => { handleChange({ target: { name: 'type', value: val }}); if(errors.type) setErrors(p=>({...p, type: ''})); }}
+                        placeholder="Select Type..."
+                      />
+                    </div>
+                    {errors.type && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.type}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Discount Value <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.value ? '#ef4444' : 'var(--text-main)' }}>Discount Value <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="number" 
                       name="value"
@@ -164,9 +253,9 @@ export default function CouponsPage() {
                       placeholder="e.g. 20" 
                       min="0"
                       onKeyDown={(e) => ['-', '+', 'e', 'E'].includes(e.key) && e.preventDefault()}
-                      required
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: errors.value ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: errors.value ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
                     />
+                    {errors.value && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.value}</span>}
                   </div>
                 </div>
 
@@ -202,39 +291,42 @@ export default function CouponsPage() {
 
                 {/* Applicable Plans */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Applicable Plans <span style={{ color: '#ef4444' }}>*</span></label>
-                  <CustomSelect 
-                    options={['Basic', 'Standard', 'Premium']}
-                    value={formData.plans}
-                    onChange={(val) => setFormData(p => ({ ...p, plans: val }))}
-                    isMulti={true}
-                    placeholder="Select Applicable Plans..."
-                  />
+                  <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.plans ? '#ef4444' : 'var(--text-main)' }}>Applicable Plans <span style={{ color: '#ef4444' }}>*</span></label>
+                  <div style={{ border: errors.plans ? '1.5px solid #ef4444' : 'none', borderRadius: '8px', transition: 'border-color 0.15s' }}>
+                    <CustomSelect 
+                      options={availablePlans}
+                      value={formData.plans}
+                      onChange={(val) => { setFormData(p => ({ ...p, plans: val })); if(errors.plans) setErrors(p=>({...p, plans: ''})); }}
+                      isMulti={true}
+                      placeholder="Select Applicable Plans..."
+                    />
+                  </div>
+                  {errors.plans && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.plans}</span>}
                 </div>
 
                 {/* Row 5 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.startDate ? '#ef4444' : 'var(--text-main)' }}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="date" 
                       name="startDate"
                       value={formData.startDate}
                       onChange={handleChange}
-                      required
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: errors.startDate ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: errors.startDate ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
                     />
+                    {errors.startDate && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.startDate}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>End Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.endDate ? '#ef4444' : 'var(--text-main)' }}>End Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="date" 
                       name="endDate"
                       value={formData.endDate}
                       onChange={handleChange}
-                      required
-                      style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }}
+                      style={{ padding: '10px 14px', borderRadius: '8px', border: errors.endDate ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: errors.endDate ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
                     />
+                    {errors.endDate && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.endDate}</span>}
                   </div>
                 </div>
 
@@ -268,18 +360,8 @@ export default function CouponsPage() {
                   </div>
                 </div>
 
-                {/* Usage For & Status */}
+                {/* Status */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Usage For</label>
-                    <CustomSelect 
-                      options={['All Restaurants', 'Specific Restaurants']}
-                      value={formData.usageFor}
-                      onChange={(val) => handleChange({ target: { name: 'usageFor', value: val }})}
-                      placeholder="Select Usage..."
-                    />
-                  </div>
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Status</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setFormData(p => ({ ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' }))}>
@@ -310,6 +392,7 @@ export default function CouponsPage() {
                     onClick={() => {
                       setShowAddModal(false);
                       setEditingCouponId(null);
+                      setErrors({});
                     }}
                     style={{
                       padding: '10px 20px',
@@ -397,9 +480,11 @@ export default function CouponsPage() {
                 <div>
                   <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700' }}>APPLICABLE PLANS</p>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                    {activeCoupon?.plans?.map(p => (
-                       <span key={p} style={{ padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', fontSize: '0.75rem', fontWeight: '600' }}>{p}</span>
-                    ))}
+                    {activeCoupon?.plans?.map(p => {
+                       const planName = typeof p === 'object' ? p.planName : p;
+                       const planId = typeof p === 'object' ? p._id : p;
+                       return <span key={planId} style={{ padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', fontSize: '0.75rem', fontWeight: '600' }}>{planName}</span>
+                    })}
                   </div>
                 </div>
               </div>
@@ -449,6 +534,7 @@ export default function CouponsPage() {
               <button
                 onClick={() => {
                   setFormData(defaultFormState);
+                  setErrors({});
                   setShowAddModal(true);
                 }}
                 className="btn-black"
@@ -473,13 +559,14 @@ export default function CouponsPage() {
                     <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Coupon Code</th>
                     <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Discount</th>
                     <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Valid Until</th>
+                    <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Plans</th>
                     <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Usage</th>
                     <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Status</th>
                     <th style={{ textAlign: 'right', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCoupons.map((coupon) => (
+                  {coupons.map((coupon) => (
                     <tr key={coupon.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '14px 18px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -492,6 +579,19 @@ export default function CouponsPage() {
                       </td>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
                         {coupon.endDate}
+                      </td>
+                      <td style={{ padding: '14px 18px' }}>
+                        {coupon.plans && coupon.plans.length > 0 ? (
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            {coupon.plans.map(p => {
+                              const planName = typeof p === 'object' ? p.planName : p;
+                              const planId = typeof p === 'object' ? p._id : p;
+                              return <span key={planId} style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(249, 94, 16, 0.1)', color: '#F95E10', fontWeight: '700' }}>{planName}</span>
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>-</span>
+                        )}
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700' }}>
                         {coupon.used} / {coupon.limit || '∞'}
@@ -523,9 +623,9 @@ export default function CouponsPage() {
                       </td>
                     </tr>
                   ))}
-                  {filteredCoupons.length === 0 && (
+                  {coupons.length === 0 && (
                     <tr>
-                      <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         No coupons found.
                       </td>
                     </tr>
@@ -535,10 +635,11 @@ export default function CouponsPage() {
             </div>
 
             <TableBottomPagination
-              currentPage={1}
-              totalPages={1}
-              totalItems={filteredCoupons.length}
-              itemsPerPage={10}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
             />
 
           </div>

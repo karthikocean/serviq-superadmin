@@ -44,6 +44,7 @@ export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append("image", file);
   const response = await api.post("/upload", formData, {
+    baseURL: API_URL.replace(/\/super-admin\/?$/, ""),
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -52,32 +53,32 @@ export const uploadImage = async (file) => {
 };
 
 export const getRestaurants = async (page = 1, limit = 10) => {
-  const response = await api.get(`/super-admin/restaurants?page=${page}&limit=${limit}`);
+  const response = await api.get(`/restaurants?page=${page}&limit=${limit}`);
   return response.data;
 };
 
 export const createRestaurant = async (data) => {
-  const response = await api.post("/super-admin/restaurants", data);
+  const response = await api.post("/restaurants", data);
   return response.data;
 };
 
 export const updateRestaurant = async (id, data) => {
-  const response = await api.put(`/super-admin/restaurants/${id}`, data);
+  const response = await api.put(`/restaurants/${id}`, data);
   return response.data;
 };
 
 export const updateRestaurantStatus = async (id, status) => {
-  const response = await api.put(`/super-admin/restaurants/${id}/status`, { status });
+  const response = await api.put(`/restaurants/${id}/status`, { status });
   return response.data;
 };
 
 export const deleteRestaurant = async (id) => {
-  const response = await api.delete(`/super-admin/restaurants/${id}`);
+  const response = await api.delete(`/restaurants/${id}`);
   return response.data;
 };
 
 export const getPlans = async () => {
-  const response = await api.get("/super-admin/plans");
+  const response = await api.get("/plans");
   return response.data;
 };
 
