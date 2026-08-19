@@ -13,6 +13,7 @@ export default function SuperAdminLayout() {
   const getPageTitle = () => {
     const path = location.pathname;
     if (path.includes('/dashboard')) return 'Dashboard';
+    if (path.includes('/coupons')) return 'Coupons Management';
     if (path.includes('/restaurants')) return 'Restaurant Management';
     if (path.includes('/plans')) return 'Plans Management';
     if (path.includes('/subscriptions')) return 'Subscription Management';
@@ -24,6 +25,7 @@ export default function SuperAdminLayout() {
     if (path.includes('/users')) return 'Platform Admins';
     if (path.includes('/roles')) return 'Roles & Permissions';
     if (path.includes('/settings')) return 'System Settings';
+    if (path.includes('/profile')) return 'My Profile';
     return 'Super Admin';
   };
 

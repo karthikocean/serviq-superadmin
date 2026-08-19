@@ -1,7 +1,127 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, Info, XCircle, X } from 'lucide-react';
 
 const NotificationContext = createContext(null);
+
+// ─── Individual Toast Item with Hover-to-Pause (Sticky) Support & Flex Alignment ───
+const ToastItem = ({ toast, config, onRemove }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const timerRef = useRef(null);
+
+  const startTimer = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onRemove(toast.id);
+    }, 4000);
+  };
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!isHovered) {
+      startTimer();
+    } else {
+      clearTimer();
+    }
+    return () => clearTimer();
+  }, [isHovered]);
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        pointerEvents: 'auto',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '14px',
+        padding: '12px 16px',
+        backgroundColor: config.bg,
+        border: config.border,
+        borderLeft: `4px solid ${config.accent}`,
+        borderRadius: '10px',
+        boxShadow: '0 10px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05)',
+        color: config.textColor,
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+        fontSize: '0.88rem',
+        fontWeight: 600,
+        width: 'fit-content',
+        maxWidth: 'none',
+        whiteSpace: 'nowrap',
+        position: 'relative',
+        overflow: 'hidden',
+        animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        cursor: 'default'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, whiteSpace: 'nowrap' }}>
+        <div style={{
+          width: '28px',
+          height: '28px',
+          borderRadius: '50%',
+          backgroundColor: config.iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}>
+          {config.icon}
+        </div>
+        <span style={{ color: config.textColor, lineHeight: 1.2, whiteSpace: 'nowrap', display: 'inline-block' }}>
+          {toast.message}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onRemove(toast.id)}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '4px',
+          marginLeft: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#64748b',
+          borderRadius: '50%',
+          transition: 'all 0.15s ease',
+          flexShrink: 0
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(0, 0, 0, 0.06)'
+          e.currentTarget.style.color = '#0f172a'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'none'
+          e.currentTarget.style.color = '#64748b'
+        }}
+        aria-label="Close notification"
+      >
+        <X size={15} />
+      </button>
+
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          height: '3px',
+          backgroundColor: config.progressBg,
+          animation: 'toastProgress 4s linear forwards',
+          animationPlayState: isHovered ? 'paused' : 'running'
+        }}
+      />
+    </div>
+  );
+};
 
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -32,9 +152,6 @@ export function NotificationProvider({ children }) {
 
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, type, message: msg }]);
-    setTimeout(() => {
-      removeToast(id);
-    }, 4000);
   };
 
   const showConfirm = (title, message, onConfirm) => {
@@ -146,87 +263,12 @@ export function NotificationProvider({ children }) {
         {toasts.map(toast => {
           const config = getToastStyle(toast.type);
           return (
-            <div
+            <ToastItem
               key={toast.id}
-              style={{
-                pointerEvents: 'auto',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justify: 'space-between',
-                gap: '14px',
-                padding: '12px 16px',
-                backgroundColor: config.bg,
-                border: config.border,
-                borderLeft: `4px solid ${config.accent}`,
-                borderRadius: '10px',
-                boxShadow: '0 10px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05)',
-                color: config.textColor,
-                fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                width: 'fit-content',
-                maxWidth: '380px',
-                position: 'relative',
-                overflow: 'hidden',
-                animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                <div style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  backgroundColor: config.iconBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justify: 'center',
-                  flexShrink: 0
-                }}>
-                  {config.icon}
-                </div>
-                <span style={{ color: config.textColor, lineHeight: 1.3 }}>{toast.message}</span>
-              </div>
-
-              <button
-                onClick={() => removeToast(toast.id)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  marginLeft: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justify: 'center',
-                  color: '#64748b',
-                  borderRadius: '50%',
-                  transition: 'all 0.15s ease',
-                  flexShrink: 0
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.06)'
-                  e.currentTarget.style.color = '#0f172a'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'none'
-                  e.currentTarget.style.color = '#64748b'
-                }}
-                aria-label="Close notification"
-              >
-                <X size={15} />
-              </button>
-
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  height: '3px',
-                  backgroundColor: config.progressBg,
-                  animation: 'toastProgress 4s linear forwards'
-                }}
-              />
-            </div>
+              toast={toast}
+              config={config}
+              onRemove={removeToast}
+            />
           );
         })}
       </div>

@@ -89,12 +89,10 @@ export default function ReportsPage() {
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
       
       {/* High-Level KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
         {[
           { label: 'Cumulative Revenue', value: `₹${totalRevenue.toLocaleString()}`, change: '+24.5%', isUp: true, icon: <DollarSign />, grad: 'linear-gradient(135deg, rgba(16, 185, 129, 0.04), rgba(16, 185, 129, 0.08))', border: 'rgba(16, 185, 129, 0.12)', color: '#10b981' },
-          { label: 'Active Subscriptions', value: subscriptionsList.filter(s => s.status === 'Active').length, change: '+12.3%', isUp: true, icon: <Layers />, grad: 'linear-gradient(135deg, rgba(59, 130, 246, 0.04), rgba(59, 130, 246, 0.08))', border: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6' },
-          { label: 'Franchise Footprint', value: `${restaurantsList.filter(r => r.status === 'Active').length} Active`, change: '6 In Total', isUp: true, icon: <Building />, grad: 'linear-gradient(135deg, rgba(249, 115, 22, 0.04), rgba(249, 115, 22, 0.08))', border: 'rgba(249, 115, 22, 0.12)', color: '#f97316' },
-          { label: 'Network Operations', value: `${totalOrders.toLocaleString()} Orders`, change: `${totalScans.toLocaleString()} Scans`, isUp: true, icon: <QrCode />, grad: 'linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(99, 102, 241, 0.08))', border: 'rgba(99, 102, 241, 0.12)', color: '#6366f1' }
+          { label: 'Active Subscriptions', value: subscriptionsList.filter(s => s.status === 'Active').length, change: '+12.3%', isUp: true, icon: <Layers />, grad: 'linear-gradient(135deg, rgba(59, 130, 246, 0.04), rgba(59, 130, 246, 0.08))', border: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6' }
         ].map((kpi, idx) => (
           <div key={idx} className="glass-card" style={{
             padding: '20px',
@@ -133,9 +131,7 @@ export default function ReportsPage() {
         <div style={{ display: 'flex', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '4px' }}>
           {[
             { id: 'revenue', label: 'Revenue Report' },
-            { id: 'subscriptions', label: 'Subscriptions' },
-            { id: 'restaurants', label: 'Restaurants' },
-            { id: 'usage', label: 'Network Usage' }
+            { id: 'subscriptions', label: 'Subscriptions' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -405,130 +401,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* TAB 3: RESTAURANTS REPORT */}
-      {activeReportTab === 'restaurants' && (
-        <div className="glass-card" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>Franchise Audit Register</h4>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Overview of branch geographic spreads and overall business statuses</span>
-            </div>
-            
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search name or location..."
-                style={{ padding: '8px 10px 8px 30px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.78rem', outline: 'none' }}
-              />
-              <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', width: '13px', height: '13px', color: 'var(--text-muted)' }} />
-            </div>
-          </div>
 
-          <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-            <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                  <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Code</th>
-                  <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Branch Name</th>
-                  <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>City Location</th>
-                  <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Processed Orders</th>
-                  <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Active QR Scans</th>
-                  <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '110px' }}>Franchise status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRest.length > 0 ? (
-                  filteredRest.map(rest => (
-                    <tr key={rest.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800' }}>{rest.id}</td>
-                      <td style={{ padding: '14px 18px', fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{rest.name}</td>
-                      <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>{rest.city}</td>
-                      <td style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700' }}>{rest.orders}</td>
-                      <td style={{ padding: '14px 18px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700' }}>{rest.scans}</td>
-                      <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                        <span style={{
-                          fontSize: '0.68rem',
-                          fontWeight: '800',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          background: rest.status === 'Active' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                          color: rest.status === 'Active' ? '#10b981' : '#ef4444'
-                        }}>{rest.status}</span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" style={{ padding: '40px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No restaurant entries recorded.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: USAGE REPORT */}
-      {activeReportTab === 'usage' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-          
-          {/* QR Scans Traffic */}
-          <div className="glass-card" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>QR Scan Hits Network Traffic</h4>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Scan operations distribution by active restaurant branch</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-              {restaurantsList.map((rest, idx) => {
-                const totalTarget = restaurantsList.reduce((sum, r) => sum + r.scans, 0)
-                const percentage = Math.round((rest.scans / totalTarget) * 100)
-                return (
-                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: '700' }}>
-                      <span style={{ color: 'var(--text-main)' }}>{rest.name}</span>
-                      <span style={{ color: 'var(--text-muted)' }}>{rest.scans.toLocaleString()} scans ({percentage}%)</span>
-                    </div>
-                    <div style={{ width: '100%', height: '6px', background: 'var(--bg-app)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${percentage}%`, height: '100%', background: '#6366f1', borderRadius: '3px' }}></div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Orders Processed Traffic */}
-          <div className="glass-card" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>Simulated Orders Settled</h4>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total order flow volume processed across restaurant branches</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-              {restaurantsList.map((rest, idx) => {
-                const totalTarget = restaurantsList.reduce((sum, r) => sum + r.orders, 0)
-                const percentage = Math.round((rest.orders / totalTarget) * 100)
-                return (
-                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: '700' }}>
-                      <span style={{ color: 'var(--text-main)' }}>{rest.name}</span>
-                      <span style={{ color: 'var(--text-muted)' }}>{rest.orders.toLocaleString()} orders ({percentage}%)</span>
-                    </div>
-                    <div style={{ width: '100%', height: '6px', background: 'var(--bg-app)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${percentage}%`, height: '100%', background: '#f97316', borderRadius: '3px' }}></div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-        </div>
-      )}
 
     </div>
   )

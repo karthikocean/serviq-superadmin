@@ -1,149 +1,78 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { LayoutDashboard, FolderLock, Phone, Eye, EyeOff, Utensils, ChefHat, Pizza, Coffee, Soup, AlertTriangle } from 'lucide-react'
+import { Utensils, ChefHat, Pizza, Coffee, Soup, Eye, EyeOff, Mail, Lock } from 'lucide-react'
+import { login as apiLogin } from '../../services/authService'
 
 export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }) {
   const [selectedRole, setSelectedRole] = useState('superadmin') // Default to superadmin as shown in image
-  const [phone, setPhone] = useState('') // Empty by default
-  const [pin, setPin] = useState(['', '', '', ''])
-  const [showPin, setShowPin] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [formErrors, setFormErrors] = useState({})
 
-  const pinRefs = [useRef(), useRef(), useRef(), useRef()]
+  const emailInputRef = useRef()
+  const passwordInputRef = useRef()
 
   useEffect(() => {
-    // Focus the first PIN input on mount and wipe any Chrome default autofill
-    const timer = setTimeout(() => {
-      if (phoneInputRef.current) {
-        const currentVal = phoneInputRef.current.value || ''
-        const sanitized = currentVal.replace(/[^0-9]/g, '').slice(0, 10)
-        if (currentVal !== sanitized) {
-          phoneInputRef.current.value = sanitized
-          setPhone(sanitized)
-        }
-      }
-    }, 100)
-
-    if (pinRefs[0].current) {
-      pinRefs[0].current.focus()
+    if (emailInputRef.current) {
+      emailInputRef.current.focus()
     }
-
-    return () => clearTimeout(timer)
   }, [])
 
-  const phoneInputRef = useRef()
-
-  const handlePhoneChange = (e) => {
-    // Allow typing numbers (0-9) up to max 10 digits
-    const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
-    setPhone(digitsOnly)
-    if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: null }))
-  }
-
-  const handlePinChange = (index, value) => {
-    // Only allow digits
-    const cleanValue = value.replace(/[^0-9]/g, '')
-    if (!cleanValue) {
-      const newPin = [...pin]
-      newPin[index] = ''
-      setPin(newPin)
-      return
-    }
-
-    const digit = cleanValue[cleanValue.length - 1] // Keep only the last character
-    const newPin = [...pin]
-    newPin[index] = digit
-    setPin(newPin)
-
-    // Auto-focus next input if not the last one
-    if (index < 3 && digit) {
-      pinRefs[index + 1].current.focus()
-    }
-    if (formErrors.pin) setFormErrors((prev) => ({ ...prev, pin: null }))
-  }
-
-  const handlePinKeyDown = (index, e) => {
-    // Handle backspace back-navigation
-    if (e.key === 'Backspace') {
-      if (!pin[index] && index > 0) {
-        const newPin = [...pin]
-        newPin[index - 1] = ''
-        setPin(newPin)
-        pinRefs[index - 1].current.focus()
-      } else {
-        const newPin = [...pin]
-        newPin[index] = ''
-        setPin(newPin)
-      }
-    }
-  }
-
-  const handlePinPaste = (e) => {
-    e.preventDefault()
-    const pastedData = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 4)
-    if (pastedData) {
-      const newPin = [...pin]
-      for (let i = 0; i < 4; i++) {
-        newPin[i] = pastedData[i] || ''
-      }
-      setPin(newPin)
-      // Focus the last filled or first empty
-      const focusIndex = Math.min(pastedData.length, 3)
-      if (pinRefs[focusIndex]?.current) {
-        pinRefs[focusIndex].current.focus()
-      }
-    }
-  }
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     const errors = {}
 
-    // Phone validation (Indian mobile number: 10 digits starting with 6, 7, 8, or 9)
-    const cleanedPhone = phone.trim()
-    const isIndianMobile = /^[6-9]\d{9}$/.test(cleanedPhone)
-    if (!cleanedPhone || !isIndianMobile) {
-      errors.phone = 'Enter valid mobile number'
+    const cleanedEmail = email.trim()
+    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+    if (!cleanedEmail) {
+      errors.email = 'Email is required'
+    } else if (!isEmailValid) {
+      errors.email = 'Enter a valid email address'
     }
 
-    // PIN validation
-    const combinedPin = pin.join('')
-    if (!combinedPin) {
-      errors.pin = 'PIN is required'
-    } else if (combinedPin.length < 4) {
-      errors.pin = 'Please enter a 4-digit PIN'
+    if (!password) {
+      errors.password = 'Password is required'
     }
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
-      if (errors.phone && phoneInputRef.current) {
-        phoneInputRef.current.focus()
-      } else if (errors.pin) {
-        const emptyIdx = pin.findIndex(d => !d)
-        const targetIdx = emptyIdx !== -1 ? emptyIdx : 0
-        if (pinRefs[targetIdx]?.current) pinRefs[targetIdx].current.focus()
+      if (errors.email && emailInputRef.current) {
+        emailInputRef.current.focus()
+      } else if (errors.password && passwordInputRef.current) {
+        passwordInputRef.current.focus()
       }
       return
     }
     setFormErrors({})
 
     setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      if (showToast) {
-        showToast('success', 'Logged in successfully!')
+    
+    const response = await apiLogin({ email: cleanedEmail, password }, showToast)
+    
+    setIsLoading(false)
+
+    if (response.error) {
+      return
+    }
+    
+    if (response.data && response.data.token) {
+      const userData = response.data.admin || response.data.user;
+      localStorage.setItem("superadmin_token", response.data.token);
+      localStorage.setItem("superadmin_user", JSON.stringify(userData));
+      if (userData?.role?.roleName) {
+        localStorage.setItem("superadmin_roleName", userData.role.roleName);
       }
-      // Delay navigation so the toast is clearly visible on the login page before redirecting
-      setTimeout(() => {
-        onLogin(selectedRole)
-      }, 1500)
-    }, 600)
+    }
+
+    setTimeout(() => {
+      onLogin(selectedRole)
+    }, 1500)
   }
 
   return (
     <div className="login-container">
-      {/* Dynamic inline stylesheet to handle spinner and focus styling */}
       <style dangerouslySetInnerHTML={{
         __html: `
         .login-container {
@@ -168,7 +97,7 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
           background: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.35)), url('/log%20in%20.png') no-repeat center center;
           background-size: cover;
           filter: blur(4px);
-          transform: scale(1.03); /* Prevent white edges from blur */
+          transform: scale(1.03); 
           opacity: 0.95;
           z-index: 1;
         }
@@ -207,17 +136,12 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
           to { transform: rotate(360deg); }
         }
         
-        .pin-input-field:focus {
-          border-color: #d27242 !important;
-          box-shadow: 0 0 0 2px rgba(210, 114, 66, 0.15) !important;
-        }
-        
-        .phone-input-field:focus {
+        .input-field:focus {
           box-shadow: 0 0 0 2.5px rgba(224, 231, 255, 0.8) !important;
+          border-color: #d27242 !important;
         }
       ` }} />
 
-      {/* Faint Background Food & Dining Icons */}
       <Utensils className="bg-icon" style={{ top: '15%', left: '8%', transform: 'rotate(-25deg)', width: '64px', height: '64px' }} />
       <Soup className="bg-icon" style={{ top: '48%', left: '6%', transform: 'rotate(15deg)', width: '56px', height: '56px' }} />
       <Coffee className="bg-icon" style={{ bottom: '15%', left: '12%', transform: 'rotate(-10deg)', width: '48px', height: '48px' }} />
@@ -225,9 +149,7 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
       <Pizza className="bg-icon" style={{ top: '50%', right: '7%', transform: 'rotate(-15deg)', width: '52px', height: '52px' }} />
       <Soup className="bg-icon" style={{ bottom: '18%', right: '11%', transform: 'rotate(10deg)', width: '58px', height: '58px' }} />
 
-      {/* Main card */}
       <div className="login-card">
-        {/* Brand/Logo Section */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <div style={{
             background: '#d37244',
@@ -245,7 +167,6 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
           <span style={{ fontSize: '1.5rem', fontWeight: '800', color: '#d37244', letterSpacing: '-0.5px' }}>Serviq</span>
         </div>
 
-        {/* Title */}
         <div style={{ textAlign: 'center', marginTop: '-4px' }}>
           <h2 style={{ fontSize: '1.45rem', fontWeight: '800', color: '#1e293b', margin: 0 }}>Sign In</h2>
           <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '6px', lineHeight: '1.3' }}>
@@ -254,108 +175,79 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
         </div>
 
         <form onSubmit={handleSubmit} noValidate autoComplete="off" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Hidden dummy inputs to capture Chrome aggressive autofill */}
-          <input type="text" name="prevent_autofill_username" tabIndex={-1} autoComplete="username" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0, margin: 0, padding: 0 }} />
-          <input type="password" name="prevent_autofill_password" tabIndex={-1} autoComplete="current-password" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, width: 0, margin: 0, padding: 0 }} />
-
-          {/* Phone Number Field */}
+          
+          {/* Email Field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: formErrors.phone ? '#dc2626' : '#1e293b' }}>Phone Number</label>
+            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: formErrors.email ? '#dc2626' : '#1e293b' }}>Email</label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Phone style={{ width: '16px', height: '16px', position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: formErrors.phone ? '#dc2626' : '#db2777' }} />
+              <Mail style={{ width: '16px', height: '16px', position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: formErrors.email ? '#dc2626' : '#db2777' }} />
               <input
-                ref={phoneInputRef}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={10}
-                value={phone}
-                onChange={handlePhoneChange}
-                className="phone-input-field"
-                autoComplete="one-time-code"
-                name="user-phone-number-field"
-                placeholder="Enter Your Number"
+                ref={emailInputRef}
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: null }))
+                }}
+                className="input-field"
+                name="user-email-field"
+                placeholder="Enter Your Email"
                 style={{
                   width: '100%',
                   padding: '10px 12px 10px 38px',
-                  paddingRight: formErrors.phone ? '36px' : '12px',
                   borderRadius: '10px',
-                  border: formErrors.phone ? '1px solid #dc2626' : 'none',
-                  background: '#eef2ff',
-                  color: formErrors.phone ? '#dc2626' : '#1e293b',
+                  border: formErrors.email ? '1px solid #dc2626' : '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: formErrors.email ? '#dc2626' : '#1e293b',
                   fontSize: '0.92rem',
-                  fontWeight: '600',
+                  fontWeight: '500',
                   outline: 'none',
-                  transition: 'box-shadow 0.2s',
+                  transition: 'box-shadow 0.2s, border-color 0.2s',
                   boxSizing: 'border-box'
                 }}
               />
-              {formErrors.phone && <AlertTriangle style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#dc2626', width: '16px', height: '16px' }} />}
             </div>
-            {formErrors.phone && <span style={{ color: '#dc2626', fontSize: '0.7rem', marginTop: '2px', display: 'block' }}>{formErrors.phone}</span>}
+            {formErrors.email && <span style={{ color: '#dc2626', fontSize: '0.7rem', marginTop: '2px', display: 'block' }}>{formErrors.email}</span>}
           </div>
 
-          {/* PIN Input Grid */}
+          {/* Password Field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: formErrors.pin ? '#dc2626' : '#1e293b' }}>PIN</label>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {/* Grid & Forgot PIN link grouped together */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }} onPaste={handlePinPaste}>
-                  {pin.map((digit, idx) => (
-                    <input
-                      key={idx}
-                      ref={pinRefs[idx]}
-                      type={showPin ? 'text' : 'password'}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      autoComplete="one-time-code"
-                      value={digit}
-                      onChange={(e) => handlePinChange(idx, e.target.value)}
-                      onKeyDown={(e) => handlePinKeyDown(idx, e)}
-                      maxLength={1}
-                      className="pin-input-field"
-                      style={{
-                        width: '100%',
-                        height: '46px',
-                        borderRadius: '10px',
-                        border: formErrors.pin ? '1.5px solid #dc2626' : '1.5px solid #d27242',
-                        background: '#ffffff',
-                        color: formErrors.pin ? '#dc2626' : '#1e293b',
-                        fontSize: '1.3rem',
-                        fontWeight: '700',
-                        textAlign: 'center',
-                        outline: 'none',
-                        transition: 'all 0.2s'
-                      }}
-                    />
-                  ))}
-                </div>
-                {formErrors.pin && <span style={{ color: '#dc2626', fontSize: '0.7rem', marginTop: '4px', display: 'block' }}>{formErrors.pin}</span>}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      showToast('info', 'Please enter any 4-digit security PIN to sign in')
-                    }}
-                    style={{
-                      color: '#d37244',
-                      fontWeight: '700',
-                      textDecoration: 'none',
-                      fontSize: '0.78rem'
-                    }}
-                  >
-                    Forgot PIN?
-                  </a>
-                </div>
-              </div>
-
+            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: formErrors.password ? '#dc2626' : '#1e293b' }}>Password</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Lock style={{ width: '16px', height: '16px', position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: formErrors.password ? '#dc2626' : '#db2777' }} />
+              <input
+                ref={passwordInputRef}
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (formErrors.password) setFormErrors((prev) => ({ ...prev, password: null }))
+                }}
+                className="input-field"
+                name="user-password-field"
+                placeholder="Enter Your Password"
+                style={{
+                  width: '100%',
+                  padding: '10px 38px 10px 38px',
+                  borderRadius: '10px',
+                  border: formErrors.password ? '1px solid #dc2626' : '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                  color: formErrors.password ? '#dc2626' : '#1e293b',
+                  fontSize: '0.92rem',
+                  fontWeight: '500',
+                  outline: 'none',
+                  transition: 'box-shadow 0.2s, border-color 0.2s',
+                  boxSizing: 'border-box'
+                }}
+              />
               <button
                 type="button"
-                onClick={() => setShowPin(!showPin)}
+                onClick={() => setShowPassword(!showPassword)}
                 style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
                   color: '#64748b',
@@ -363,17 +255,33 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '6px',
-                  alignSelf: 'flex-start',
-                  marginTop: '8px'
+                  padding: '0'
                 }}
               >
-                {showPin ? <EyeOff style={{ width: '18px', height: '18px' }} /> : <Eye style={{ width: '18px', height: '18px' }} />}
+                {showPassword ? <EyeOff style={{ width: '16px', height: '16px' }} /> : <Eye style={{ width: '16px', height: '16px' }} />}
               </button>
+            </div>
+            {formErrors.password && <span style={{ color: '#dc2626', fontSize: '0.7rem', marginTop: '2px', display: 'block' }}>{formErrors.password}</span>}
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault()
+                  showToast('info', 'Please contact the administrator to reset your password.')
+                }}
+                style={{
+                  color: '#d37244',
+                  fontWeight: '700',
+                  textDecoration: 'none',
+                  fontSize: '0.78rem'
+                }}
+              >
+                Forgot Password?
+              </a>
             </div>
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={isLoading}
@@ -414,7 +322,6 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
           </button>
         </form>
 
-        {/* Footer info inside card */}
         <div style={{ textAlign: 'center', fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
           Powered by Serviq
         </div>

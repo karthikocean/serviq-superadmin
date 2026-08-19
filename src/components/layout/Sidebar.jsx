@@ -10,13 +10,39 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
 
   const isUsersRolesActive = location.pathname.includes('/users') || location.pathname.includes('/roles');
 
+  const clearActionStates = () => {
+    localStorage.removeItem('serviq_editingRestId');
+    localStorage.removeItem('serviq_viewingRestId');
+    localStorage.removeItem('serviq_showAddRestModal');
+    localStorage.removeItem('serviq_editingAdminId');
+    localStorage.removeItem('serviq_showAddAdminModal');
+    localStorage.removeItem('serviq_editingRoleId');
+    localStorage.removeItem('serviq_editingPlanId');
+    localStorage.removeItem('serviq_viewingPerfRestId');
+
+    sessionStorage.removeItem('serviq_billing_action');
+    sessionStorage.removeItem('serviq_restaurants_action');
+    sessionStorage.removeItem('serviq_plans_action');
+    sessionStorage.removeItem('serviq_subscriptions_action');
+    sessionStorage.removeItem('serviq_leads_action');
+    sessionStorage.removeItem('serviq_tickets_action');
+    sessionStorage.removeItem('serviq_notifications_action');
+    sessionStorage.removeItem('serviq_users_action');
+
+    window.dispatchEvent(new CustomEvent('reset_module_view', { detail: { tab: 'all' } }));
+  };
+
   return (
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div>
         <ul className="sidebar-nav">
               {SUPER_ADMIN_NAVIGATION.map((item, index) => (
                 <li key={index}>
-                  <NavLink to={item.path} className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                  <NavLink 
+                    to={item.path} 
+                    onClick={clearActionStates}
+                    className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
+                  >
                     <item.icon style={{ width: '18px', height: '18px' }} /> <span>{item.label}</span>
                   </NavLink>
                 </li>
@@ -65,6 +91,7 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
                   }}>
                     <NavLink
                       to={ROUTES.SUPER_ADMIN.USERS}
+                      onClick={clearActionStates}
                       className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
                       style={({ isActive }) => ({
                         padding: '8px 12px',
@@ -76,6 +103,7 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
                     </NavLink>
                     <NavLink
                       to={ROUTES.SUPER_ADMIN.ROLES}
+                      onClick={clearActionStates}
                       className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
                       style={({ isActive }) => ({
                         padding: '8px 12px',
@@ -90,7 +118,11 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
               </li>
 
               <li>
-                <NavLink to={ROUTES.SUPER_ADMIN.SETTINGS} className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
+                <NavLink 
+                  to={ROUTES.SUPER_ADMIN.SETTINGS} 
+                  onClick={clearActionStates}
+                  className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
+                >
                   <Settings style={{ width: '18px', height: '18px' }} /> <span>System Settings</span>
                 </NavLink>
               </li>

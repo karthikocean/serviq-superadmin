@@ -1,4 +1,4 @@
-import React, { useState } from 'react' // Trigger rebuild
+import React, { useState, useEffect } from 'react'
 import {
   Building,
   Briefcase,
@@ -71,9 +71,6 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
         }}
         {...rest}
       />
-      {error && (
-        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ef4444', pointerEvents: 'none', display: 'flex' }}><AlertTriangle style={{ width: '14px', height: '14px' }} /></span>
-      )}
     </div>
     {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
   </div>
@@ -150,11 +147,21 @@ export default function DashboardPage() {
       localStorage.removeItem('serviq_viewingPerfRestId')
     }
   }, [viewingPerfRestId])
+
+  // Listen for sidebar click reset event to open main module list
+  React.useEffect(() => {
+    const handleReset = () => {
+      setViewingPerfRestId(null)
+      setViewingSubscriptionRest(null)
+      localStorage.removeItem('serviq_viewingPerfRestId')
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
   const [plans, setPlans] = useState([
     { id: 'plan-basic', name: 'Basic Plan', description: 'Essential tools for small eateries, QR menu ordering and simple table management.', monthlyPrice: 999, annualPrice: 9999, branchLimit: 1, userLimit: 3, orderLimit: 500, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management'], status: 'Active' },
     { id: 'plan-standard', name: 'Standard Plan', description: 'Includes everything in Basic, plus tableside waiter service and app integrations.', monthlyPrice: 1999, annualPrice: 19999, branchLimit: 2, userLimit: 5, orderLimit: 1000, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management', 'Waiter Management'], status: 'Active' },
     { id: 'plan-premium', name: 'Premium Plan', description: 'Advanced operations with integrated Kitchen KDS displays and advanced billing.', monthlyPrice: 4999, annualPrice: 49999, branchLimit: 5, userLimit: 15, orderLimit: 5000, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management', 'Waiter Management', 'Kitchen Management'], status: 'Active' },
-    // { id: 'plan-enterprise', name: 'Enterprise Plan', description: 'Full enterprise control for multi-branch chains, franchise dashboards, and premium SLA support.', monthlyPrice: 9999, annualPrice: 99999, branchLimit: 99999, userLimit: 99999, orderLimit: 99999, features: ['QR Ordering', 'Menu Management', 'Table Management', 'Order Management', 'Waiter Management', 'Kitchen Management', 'Advanced Billing System', 'Live Analytics Deck', 'Multi-Branch Super Deck', '24/7 Dedicated Support'], status: 'Active' }
   ])
 
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
@@ -956,7 +963,7 @@ export default function DashboardPage() {
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600' }}>Track and manage all restaurant support requests</span>
                     </div>
                   </div>
-                  <span style={{
+                  {/* <span style={{
                     fontSize: '0.65rem',
                     fontWeight: '800',
                     padding: '3px 10px',
@@ -966,7 +973,7 @@ export default function DashboardPage() {
                     border: '1px solid rgba(249, 115, 22, 0.2)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.3px'
-                  }}>Live</span>
+                  }}>Live</span> */}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
@@ -1082,9 +1089,9 @@ export default function DashboardPage() {
                       <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900' }}>Subscription Plan Distribution</h3>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Active branch plan types and percentages</span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    {/* <div style={{ textAlign: 'right' }}>
                       <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '900', color: '#10b981' }}>{standardCount + premiumCount}</h2>
-                    </div>
+                    </div> */}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '32px', flex: 1, padding: '10px 0', marginTop: 'auto' }}>
@@ -1179,12 +1186,13 @@ export default function DashboardPage() {
 
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Restaurant</th>
-                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Code ID</th>
-                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>City / Location</th>
-                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Operational Status</th>
-                      <th style={{ textAlign: 'right', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Subscription Plan</th>
+                    <tr style={{ background: 'var(--primary, #f95e10)', borderBottom: '1px solid var(--border-color)', color: '#ffffff' }}>
+                      <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: '0.75rem', color: '#ffffff', textTransform: 'uppercase', fontWeight: '800', width: '70px' }}>S.NO</th>
+                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem',width: "25%", color: '#ffffff', textTransform: 'uppercase', fontWeight: '800' }}>RESTAURANT</th>
+                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: '#ffffff', textTransform: 'uppercase', fontWeight: '800' }}>ID</th>
+                      <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: '#ffffff', textTransform: 'uppercase', fontWeight: '800' }}>LOCATION</th>
+                      <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: '#ffffff', textTransform: 'uppercase', fontWeight: '800' }}>STATUS</th>
+                      <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: '#ffffff', textTransform: 'uppercase', fontWeight: '800' }}>PLAN</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1195,20 +1203,22 @@ export default function DashboardPage() {
                       const rankIcon = i === 0 ? <Award style={{ width: '16px', height: '16px', color: '#7c3aed' }} /> : i === 1 ? <Award style={{ width: '16px', height: '16px', color: '#3b82f6' }} /> : i === 2 ? <Award style={{ width: '16px', height: '16px', color: '#10b981' }} /> : <Star style={{ width: '14px', height: '14px', color: '#f59e0b' }} />
 
                       return (
-                        <tr key={rest.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s', ':hover': { backgroundColor: 'var(--bg-app)' } }}>
-                          <td style={{ padding: '14px 18px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <img src={rest.logo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=60&auto=format&fit=crop&q=60'} alt={rest.name} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                        <tr key={rest.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                          <td style={{ padding: '14px 16px', textAlign: 'center', verticalAlign: 'middle', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-muted)' }}>{i + 1}</td>
+                          <td style={{ padding: '14px 18px', textAlign: 'left', verticalAlign: 'middle', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <img src={rest.logo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=60&auto=format&fit=crop&q=60'} alt={rest.name} style={{ width: '30px', height: '30px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
                               <span>{rest.name}</span>
                             </div>
                           </td>
-                          <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontWeight: '700' }}>{rest.id}</td>
-                          <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600' }}>{rest.city || 'Chennai'}</td>
-                          <td style={{ padding: '14px 18px' }}>
+                          <td style={{ padding: '14px 18px', textAlign: 'left', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontWeight: '700' }}>{rest.id}</td>
+                          <td style={{ padding: '14px 18px', textAlign: 'left', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600' }}>{rest.city || 'Chennai'}</td>
+                          <td style={{ padding: '14px 18px', textAlign: 'center', verticalAlign: 'middle' }}>
                             <span style={{
+                              display: 'inline-block',
                               fontSize: '0.65rem',
                               fontWeight: '800',
-                              padding: '3px 8px',
+                              padding: '4px 10px',
                               borderRadius: '4px',
                               background: rest.status === 'Active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                               color: rest.status === 'Active' ? '#10b981' : '#ef4444'
@@ -1216,16 +1226,17 @@ export default function DashboardPage() {
                               {rest.status ? rest.status.toUpperCase() : 'ACTIVE'}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                          <td style={{ padding: '14px 18px', textAlign: 'center', verticalAlign: 'middle' }}>
                             <span style={{
+                              display: 'inline-block',
                               fontSize: '0.75rem',
                               fontWeight: '800',
-                              padding: '4px 10px',
+                              padding: '4px 12px',
                               borderRadius: '6px',
                               background: rest.subscriptionPlan?.includes('Enterprise') ? 'rgba(124, 58, 237, 0.1)' : rest.subscriptionPlan?.includes('Premium') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                               color: rest.subscriptionPlan?.includes('Enterprise') ? '#7c3aed' : rest.subscriptionPlan?.includes('Premium') ? '#3b82f6' : '#10b981'
                             }}>
-                              {rest.subscriptionPlan || 'Standard Plan'}
+                              {rest.subscriptionPlan ? rest.subscriptionPlan.replace(' Plan', '') : 'Standard'}
                             </span>
                           </td>
                         </tr>
@@ -1376,6 +1387,7 @@ export default function DashboardPage() {
       {renderPerformanceModal()}
 
       {/* Confirm Action Modal Overlay */}
+      {/* Delete Confirmation Modal Overlay */}
       {confirmModal && (
         <div
           style={{
@@ -1390,7 +1402,7 @@ export default function DashboardPage() {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 1100,
+            zIndex: 1200,
             padding: '20px'
           }}
           onClick={() => setConfirmModal(null)}
@@ -1399,58 +1411,83 @@ export default function DashboardPage() {
             className="animate-fade-in"
             style={{
               background: '#ffffff',
-              borderRadius: '20px',
+              borderRadius: '24px',
               padding: '36px 32px 28px',
               width: '90%',
-              maxWidth: '440px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+              maxWidth: '420px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               textAlign: 'center'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 12px', fontSize: '1.15rem', fontWeight: '800', color: '#0f172a' }}>
+            {/* Top Soft Red Circular Icon Container */}
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '20px'
+            }}>
+              <Trash2 style={{ width: '28px', height: '28px', color: '#ef4444' }} />
+            </div>
+
+            {/* Title */}
+            <h3 style={{ margin: '0 0 10px', fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>
               {confirmModal.title}
             </h3>
-            <p style={{ margin: '0 0 28px', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.6' }}>
+
+            {/* Subtitle Message */}
+            <p style={{ margin: '0 0 28px', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.5', maxWidth: '340px' }}>
               {confirmModal.message}
             </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '14px', width: '100%' }}>
               <button
+                type="button"
                 onClick={() => setConfirmModal(null)}
                 style={{
                   flex: 1,
-                  padding: '10px 24px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
                   background: '#ffffff',
-                  color: '#64748b',
-                  fontWeight: '600',
-                  fontSize: '0.85rem',
+                  color: '#334155',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
                   cursor: 'pointer',
-                  transition: 'background 0.18s'
+                  transition: 'all 0.15s'
                 }}
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={() => {
-                  confirmModal.onConfirm();
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
                   setConfirmModal(null);
                 }}
                 style={{
                   flex: 1,
-                  padding: '10px 24px',
-                  borderRadius: '8px',
+                  padding: '12px 20px',
+                  borderRadius: '12px',
                   border: 'none',
-                  background: confirmModal.confirmColor || '#ef4444',
+                  background: confirmModal.confirmColor || '#dc2626',
                   color: '#ffffff',
-                  fontWeight: '600',
-                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
                   cursor: 'pointer',
-                  transition: 'background 0.18s'
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                  transition: 'all 0.15s'
                 }}
               >
-                {confirmModal.confirmText}
+                {confirmModal.confirmText || 'Delete'}
               </button>
             </div>
           </div>

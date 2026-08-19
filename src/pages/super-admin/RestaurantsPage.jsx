@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Building,
   AlertTriangle,
@@ -10,48 +10,116 @@ import {
   Lock,
   Unlock,
   Eye,
+  EyeOff,
   Edit2,
   Trash2,
   Plus,
-  Shield
+  Shield,
+  ChevronDown,
+  Upload,
+  CreditCard,
 } from 'lucide-react'
+import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 // ─── Reusable validated input component ───
-const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => {
-          onChange(e)
-          if (error && setError) setError('')
-        }}
-        required={required}
-        style={{
-          width: '100%',
-          padding: '9px 12px',
-          border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-          background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-          color: 'var(--text-main)',
-          borderRadius: '8px',
-          fontSize: '0.82rem',
-          outline: 'none',
-          boxSizing: 'border-box',
-          transition: 'border-color 0.15s'
-        }}
-        {...rest}
-      />
-      {error && (
-        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ef4444', pointerEvents: 'none', display: 'flex' }}><AlertTriangle style={{ width: '14px', height: '14px' }} /></span>
-      )}
+const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
+  const [isFocused, setIsFocused] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+
+  const isNumeric = type === 'number' || allowOnlyNumbers || allowDecimal
+  const inputType = type === 'password' ? (showPassword ? 'text' : 'password') : (isNumeric ? 'text' : type)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+        {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+      </label>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input
+          type={inputType}
+          inputMode={isNumeric ? (allowDecimal ? 'decimal' : 'numeric') : undefined}
+          value={value}
+          onChange={(e) => {
+            if (isNumeric) {
+              const rawVal = e.target.value;
+              const regex = allowDecimal ? /[^0-9.]/g : /[^0-9]/g;
+              let cleaned = rawVal.replace(regex, '');
+              if (allowDecimal) {
+                const parts = cleaned.split('.');
+                if (parts.length > 2) {
+                  cleaned = parts[0] + '.' + parts.slice(1).join('');
+                }
+              }
+              e.target.value = cleaned;
+            }
+            onChange(e)
+            if (error && setError) setError('')
+          }}
+          onKeyDown={(e) => {
+            if (isNumeric) {
+              if (['e', 'E', '+', '-'].includes(e.key)) {
+                e.preventDefault()
+              }
+            }
+            if (rest.onKeyDown) rest.onKeyDown(e)
+          }}
+          onFocus={(e) => {
+            setIsFocused(true)
+            if (preventAutofill) e.target.removeAttribute('readOnly')
+          }}
+          readOnly={preventAutofill && !isFocused}
+          placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
+          name={name}
+          style={{
+            width: '100%',
+            padding: type === 'password' ? '9px 38px 9px 12px' : '9px 12px',
+            border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
+            background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
+            color: 'var(--text-main)',
+            borderRadius: '8px',
+            fontSize: '0.82rem',
+            outline: 'none',
+            boxSizing: 'border-box',
+            transition: 'border-color 0.15s'
+          }}
+          {...rest}
+        />
+        {type === 'password' && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute',
+              right: error ? '30px' : '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2
+            }}
+            title={showPassword ? "Hide Password" : "Show Password"}
+          >
+            {showPassword ? (
+              <EyeOff style={{ width: '16px', height: '16px' }} />
+            ) : (
+              <Eye style={{ width: '16px', height: '16px' }} />
+            )}
+          </button>
+        )}
+      </div>
+      {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
     </div>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+  )
+}
 
 // ─── Reusable validated select component ───
 const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
@@ -87,60 +155,360 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
+// ─── Custom Image File Upload Button Component ───
+const ImageUploadButton = ({ label, value, onChange, onClear }) => {
+  const fileInputRef = useRef(null)
+  const [isUploading, setIsUploading] = useState(false)
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setIsUploading(true)
+      try {
+        const response = await uploadImage(file)
+        if (response.success && response.url) {
+          onChange(response.url)
+        } else if (response.data && response.data.url) {
+          onChange(response.data.url)
+        }
+      } catch (error) {
+        console.error("Upload failed", error)
+      } finally {
+        setIsUploading(false)
+      }
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)' }}>{label}</label>
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+        disabled={isUploading}
+      />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: '8px',
+            background: 'var(--bg-app)',
+            border: '1px dashed var(--border-color)',
+            color: 'var(--text-main)',
+            fontSize: '0.78rem',
+            fontWeight: '700',
+            cursor: 'pointer',
+            transition: 'all 0.15s'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.borderColor = 'var(--primary, #f95e10)'
+            e.currentTarget.style.color = 'var(--primary, #f95e10)'
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-color)'
+            e.currentTarget.style.color = 'var(--text-main)'
+          }}
+        >
+          <Upload style={{ width: '14px', height: '14px' }} />
+          {isUploading ? 'Uploading...' : 'Choose Image File'}
+        </button>
+
+        {value ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img
+              src={value}
+              alt="Preview"
+              style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }}
+            />
+            <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
+            <button
+              type="button"
+              onClick={onClear}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+              title="Remove image"
+            >
+              <X style={{ width: '14px', height: '14px' }} />
+            </button>
+          </div>
+        ) : (
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No file chosen</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Reusable 12-hour Time Picker component with custom dropdown opening BELOW input ───
+const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const parseValue = (val) => {
+    if (!val || String(val).trim() === '') return { time: '', period: 'AM', isSelected: false }
+    const parts = String(val).trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return { time: parts[0], period: parts[1].toUpperCase() === 'PM' ? 'PM' : 'AM', isSelected: true }
+    }
+    // If format is "11:00" without AM/PM or HH:MM
+    if (val.includes(':')) {
+      const [hStr, mStr] = val.split(':')
+      let h = parseInt(hStr) || 11
+      const period = h >= 12 ? 'PM' : 'AM'
+      if (h === 0) h = 12
+      else if (h > 12) h = h - 12
+      const formattedH = String(h).padStart(2, '0')
+      const formattedM = mStr ? mStr.slice(0, 2) : '00'
+      return { time: `${formattedH}:${formattedM}`, period, isSelected: true }
+    }
+    return { time: '', period: 'AM', isSelected: false }
+  }
+
+  const { time, period, isSelected } = parseValue(value)
+
+  const handleSelectTime = (selectedTime) => {
+    const combined = `${selectedTime} ${period}`
+    onChange(combined)
+    setIsOpen(false)
+    if (error && setError) setError('')
+  }
+
+  const handlePeriodToggle = (newPeriod) => {
+    const currentTime = isSelected ? time : '11:00'
+    const combined = `${currentTime} ${newPeriod}`
+    onChange(combined)
+    if (error && setError) setError('')
+  }
+
+  const timeOptions = [
+    '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '12:00', '12:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30'
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }} ref={dropdownRef}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+        {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+      </label>
+      <div style={{ display: 'flex', gap: '6px' }}>
+        {/* Custom time trigger input */}
+        <div
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '9px 12px',
+            border: `1.5px solid ${isOpen ? 'var(--primary, #f95e10)' : error ? '#ef4444' : 'var(--border-color)'}`,
+            background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
+            color: 'var(--text-main)',
+            borderRadius: '8px',
+            fontSize: '0.82rem',
+            fontWeight: '700',
+            cursor: 'pointer',
+            userSelect: 'none',
+            boxSizing: 'border-box',
+            boxShadow: isOpen ? '0 0 0 3px rgba(249, 94, 16, 0.15)' : 'none',
+            transition: 'all 0.15s'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Clock style={{ width: '14px', height: '14px', color: 'var(--text-muted)' }} />
+            <span style={{ color: isSelected ? 'var(--text-main)' : 'var(--text-muted)' }}>
+              {isSelected ? time : 'Select Time'}
+            </span>
+          </div>
+          <ChevronDown style={{ width: '14px', height: '14px', color: 'var(--text-muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+        </div>
+
+        {/* AM / PM Toggle */}
+        <div style={{ display: 'flex', border: '1.5px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', background: 'var(--bg-app)' }}>
+          <button
+            type="button"
+            onClick={() => handlePeriodToggle('AM')}
+            style={{
+              padding: '0 10px',
+              border: 'none',
+              background: period === 'AM' ? 'var(--primary, #f95e10)' : 'transparent',
+              color: period === 'AM' ? '#ffffff' : 'var(--text-muted)',
+              fontWeight: '800',
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }}
+          >
+            AM
+          </button>
+          <button
+            type="button"
+            onClick={() => handlePeriodToggle('PM')}
+            style={{
+              padding: '0 10px',
+              border: 'none',
+              background: period === 'PM' ? 'var(--primary, #f95e10)' : 'transparent',
+              color: period === 'PM' ? '#ffffff' : 'var(--text-muted)',
+              fontWeight: '800',
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }}
+          >
+            PM
+          </button>
+        </div>
+      </div>
+
+      {/* Custom Floating Dropdown Menu opening ALWAYS BELOW the input field */}
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: '85px',
+          marginTop: '4px',
+          maxHeight: '200px',
+          overflowY: 'auto',
+          background: '#ffffff',
+          border: '1px solid var(--border-color)',
+          borderRadius: '10px',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+          zIndex: 9999,
+          padding: '6px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px'
+        }}>
+          {timeOptions.map(t => {
+            const isSelected = t === time
+            return (
+              <div
+                key={t}
+                onClick={() => handleSelectTime(t)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: isSelected ? '800' : '600',
+                  color: isSelected ? 'var(--primary, #f95e10)' : 'var(--text-main)',
+                  background: isSelected ? 'rgba(249, 94, 16, 0.08)' : 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  transition: 'background 0.15s'
+                }}
+                onMouseOver={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'var(--bg-app)'
+                }}
+                onMouseOut={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <span>{t}</span>
+                {isSelected && <span style={{ fontSize: '0.75rem', color: 'var(--primary, #f95e10)' }}>✓</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
+    </div>
+  )
+}
+
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 
 export default function RestaurantsPage() {
-  const { restaurants, setRestaurants: onUpdateRestaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant } = useRestaurant()
+  const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
   const [confirmModal, setConfirmModal] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  const [plans, setPlans] = useState([])
+  useEffect(() => {
+    const loadPlans = async () => {
+      try {
+        const response = await getPlans();
+        if (response.success && response.data) {
+          const plansList = response.data.results || response.data;
+          setPlans(plansList);
+          setNewRestState(prev => ({
+            ...prev,
+            planId: plansList.length > 0 ? plansList[0]._id : ''
+          }))
+        }
+      } catch (e) {
+        console.error("Failed to load plans", e)
+      }
+    }
+    loadPlans()
+  }, [])
   
   // mock for compatibility
   const onUpdateRestaurantDetails = (d) => { /* Update active restaurant logic */ }
-  const [showAddModal, setShowAddModal] = useState(() => {
-    return localStorage.getItem('serviq_showAddRestModal') === 'true'
-  })
-  const [editingRestId, setEditingRestId] = useState(() => {
-    return localStorage.getItem('serviq_editingRestId') || null
-  })
-  const [viewingRestId, setViewingRestId] = useState(() => {
-    return localStorage.getItem('serviq_viewingRestId') || null
-  })
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [editingRestId, setEditingRestId] = useState(null)
+  const [viewingRestId, setViewingRestId] = useState(null)
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
   const [editFormState, setEditFormState] = useState(null)
   const [formErrors, setFormErrors] = useState({})
 
-  useEffect(() => {
-    if (editingRestId) {
-      localStorage.setItem('serviq_editingRestId', editingRestId)
-    } else {
-      localStorage.removeItem('serviq_editingRestId')
-    }
-  }, [editingRestId])
+  // Pagination & Search states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
+  const [searchTerm, setSearchTerm] = useState('')
 
-  useEffect(() => {
-    if (viewingRestId) {
-      localStorage.setItem('serviq_viewingRestId', viewingRestId)
-    } else {
-      localStorage.removeItem('serviq_viewingRestId')
-    }
-  }, [viewingRestId])
+  const filteredRestaurants = restaurants.filter(r => {
+    const term = searchTerm.toLowerCase()
+    return !term || 
+      (r.name && r.name.toLowerCase().includes(term)) ||
+      (r.ownerName && r.ownerName.toLowerCase().includes(term)) ||
+      (r.id && r.id.toLowerCase().includes(term)) ||
+      (r.email && r.email.toLowerCase().includes(term))
+  })
 
+  const paginatedRestaurants = filteredRestaurants.slice(
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
+  )
+
+  // Clear any stale localStorage form state on mount
   useEffect(() => {
-    if (showAddModal) {
-      localStorage.setItem('serviq_showAddRestModal', 'true')
-    } else {
-      localStorage.removeItem('serviq_showAddRestModal')
-    }
-  }, [showAddModal])
+    localStorage.removeItem('serviq_editingRestId')
+    localStorage.removeItem('serviq_viewingRestId')
+    localStorage.removeItem('serviq_showAddRestModal')
+  }, [])
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
-      if (e.detail?.tab === 'details') {
+      if (e.detail?.tab === 'details' || e.detail?.tab === 'restaurants' || e.detail?.tab === 'all' || !e.detail?.tab) {
         setEditingRestId(null)
         setViewingRestId(null)
         setShowAddModal(false)
+        setViewingSubscriptionRest(null)
+        setFormErrors({})
         localStorage.removeItem('serviq_editingRestId')
         localStorage.removeItem('serviq_viewingRestId')
         localStorage.removeItem('serviq_showAddRestModal')
@@ -153,16 +521,36 @@ export default function RestaurantsPage() {
   // Prefill editFormState when editingRestId is restored on page refresh
   useEffect(() => {
     if (editingRestId) {
+      setFormErrors({})
       const rest = restaurants.find(r => r.id === editingRestId)
       if (rest) {
-        setEditFormState({ ...rest })
+        const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : 'AAAAA1111A')
+        setEditFormState({
+          ...rest,
+          ownerName: rest.ownerName || 'Rajesh Kumar',
+          mobileNumber: rest.mobileNumber || rest.phone || '',
+          email: rest.email || '',
+          website: rest.website || '',
+          address: rest.address || '',
+          city: rest.city || 'Chennai',
+          state: rest.state || 'Tamil Nadu',
+          country: rest.country || 'India',
+          license: rest.license || '',
+          gstin: rest.gstin || '',
+          pan: defaultPan,
+          taxRate: rest.taxRate !== undefined ? rest.taxRate : '',
+          serviceCharge: rest.serviceCharge !== undefined ? rest.serviceCharge : '',
+          openingTime: rest.openingTime || '',
+          closingTime: rest.closingTime || '',
+          status: rest.status || 'Active',
+          logo: rest.logo || ''
+        })
       }
     }
   }, [editingRestId, restaurants])
 
   const [newRestState, setNewRestState] = useState({
     name: '',
-    legalName: '',
     branch: '',
     license: '',
     gstin: '',
@@ -172,10 +560,10 @@ export default function RestaurantsPage() {
     website: '',
     address: '',
     currency: 'INR',
-    taxRate: 5,
-    serviceCharge: 5,
-    openingTime: '11:00 AM',
-    closingTime: '11:00 PM',
+    taxRate: '',
+    serviceCharge: '',
+    openingTime: '',
+    closingTime: '',
     status: 'Active',
     subscriptionPlan: 'Standard',
     createdDate: new Date().toISOString().split('T')[0],
@@ -187,7 +575,12 @@ export default function RestaurantsPage() {
     state: '',
     country: '',
     logo: '',
-    banner: ''
+    banner: '',
+    startDate: '',
+    endDate: '',
+    renewalDate: '',
+    planId: '',
+    billingCycle: 'Monthly'
   })
 
   // Synchronize new restaurant default values
@@ -201,17 +594,37 @@ export default function RestaurantsPage() {
   const handleEditClick = (rest) => {
     setViewingRestId(null)
     setEditingRestId(rest.id)
-    setEditFormState({ ...rest })
+    setFormErrors({})
+    const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : 'AAAAA1111A')
+    setEditFormState({
+      ...rest,
+      ownerName: rest.ownerName || 'Rajesh Kumar',
+      mobileNumber: rest.mobileNumber || rest.phone || '',
+      email: rest.email || '',
+      website: rest.website || '',
+      address: rest.address || '',
+      city: rest.city || 'Chennai',
+      state: rest.state || 'Tamil Nadu',
+      country: rest.country || 'India',
+      license: rest.license || '',
+      gstin: rest.gstin || '',
+      pan: defaultPan,
+      taxRate: rest.taxRate !== undefined ? rest.taxRate : '',
+      serviceCharge: rest.serviceCharge !== undefined ? rest.serviceCharge : '',
+      openingTime: rest.openingTime || '',
+      closingTime: rest.closingTime || '',
+      status: rest.status || 'Active',
+      logo: rest.logo || ''
+    })
   }
 
   // Handle Create Restaurant
-  const handleCreateRestaurant = (e) => {
+  const handleCreateRestaurant = async (e) => {
     e.preventDefault()
 
     const errors = {}
     const requiredFields = {
-      name: 'Tenant',
-      legalName: 'Business Name',
+      name: 'Business Name',
       ownerName: 'Owner Name',
       mobileNumber: 'Mobile Number',
       email: 'Email',
@@ -220,7 +633,6 @@ export default function RestaurantsPage() {
       state: 'State',
       country: 'Country',
       license: 'FSSAI License Number',
-      gstin: 'GSTIN Number',
       pan: 'PAN Number',
       openingTime: 'Opening Time',
       closingTime: 'Closing Time',
@@ -234,6 +646,51 @@ export default function RestaurantsPage() {
       }
     }
 
+    // Owner Name: letters and spaces only
+    if (newRestState.ownerName && !/^[a-zA-Z\s]+$/.test(newRestState.ownerName.trim())) {
+      errors.ownerName = 'Owner Name must contain letters and spaces only'
+    }
+
+    // Mobile Number: 10-digit Indian number starting with 6-9, no duplicates
+    const mob = (newRestState.mobileNumber || '').trim()
+    if (mob && !/^[6-9]\d{9}$/.test(mob)) {
+      errors.mobileNumber = 'Enter a valid 10-digit mobile number'
+    } else if (mob && restaurants.some(r => r.mobileNumber === mob || r.phone === mob)) {
+      errors.mobileNumber = 'Mobile number already registered by another restaurant'
+    }
+
+    // Email: mandatory @ symbol
+    const emailVal = (newRestState.email || '').trim()
+    if (emailVal && (!emailVal.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal))) {
+      errors.email = 'Valid email address containing "@" is required'
+    }
+
+    // City, State, Country: letters and spaces only
+    if (newRestState.city && !/^[a-zA-Z\s]+$/.test(newRestState.city.trim())) {
+      errors.city = 'City must contain letters and spaces only'
+    }
+    if (newRestState.state && !/^[a-zA-Z\s]+$/.test(newRestState.state.trim())) {
+      errors.state = 'State must contain letters and spaces only'
+    }
+    if (newRestState.country && !/^[a-zA-Z\s]+$/.test(newRestState.country.trim())) {
+      errors.country = 'Country must contain letters and spaces only'
+    }
+
+    const fssaiVal = (newRestState.license || '').trim()
+    if (fssaiVal && !/^1\d{13}$/.test(fssaiVal)) {
+      errors.license = 'FSSAI License Number must contain exactly 14 digits and start with 1.'
+    }
+
+    const gstinVal = (newRestState.gstin || '').trim().toUpperCase()
+    if (gstinVal && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstinVal)) {
+      errors.gstin = 'Invalid GSTIN. Please enter a valid 15-character GSTIN.'
+    }
+
+    const panVal = (newRestState.pan || '').trim().toUpperCase()
+    if (panVal && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panVal)) {
+      errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
+    }
+
     if (newRestState.password && newRestState.confirmPassword && newRestState.password !== newRestState.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
     }
@@ -244,84 +701,112 @@ export default function RestaurantsPage() {
     }
 
     setFormErrors({})
-    const nextIdNum = restaurants.length > 0
-      ? Math.max(...restaurants.map(r => parseInt(r.id.replace('R-', '')) || 0)) + 1
-      : 1
-    const newId = `R-${String(nextIdNum).padStart(2, '0')}`
-    const expiry = new Date()
-    expiry.setFullYear(expiry.getFullYear() + 1)
-    const expiryStr = expiry.toISOString().split('T')[0]
-    const restaurantToAdd = { 
-      ...newRestState, 
-      id: newId,
-      subscriptionStatus: 'Active',
-      expiryDate: expiryStr
-    }
-    onUpdateRestaurants([...restaurants, restaurantToAdd])
-    onSetActiveRestaurantId(newId)
-    setShowAddModal(false)
-    showToast('success', `Branch "${newRestState.name}" registered successfully under code ${newId}!`)
+    setIsSubmitting(true)
+    try {
+      const payload = {
+        restaurantName: newRestState.name,
+        ownerName: newRestState.ownerName,
+        email: newRestState.email,
+        phoneNumber: newRestState.mobileNumber,
+        planId: newRestState.planId || undefined,
+        password: newRestState.password,
+        billingCycle: newRestState.billingCycle || "Monthly",
+        address: newRestState.address,
+        city: newRestState.city,
+        state: newRestState.state,
+        country: newRestState.country,
+        fssaiLicense: newRestState.license,
+        gstinNumber: newRestState.gstin,
+        panNumber: newRestState.pan,
+        openingTime: newRestState.openingTime,
+        closingTime: newRestState.closingTime,
+        logoUrl: newRestState.logo,
+        bannerUrl: newRestState.banner,
+        startDate: newRestState.startDate || undefined,
+        endDate: newRestState.endDate || undefined,
+        renewalDate: newRestState.renewalDate || undefined
+      };
 
-    // Clear state
-    setNewRestState({
-      name: '',
-      legalName: '',
-      branch: '',
-      license: '',
-      gstin: '',
-      pan: '',
-      phone: '',
-      email: '',
-      website: '',
-      address: '',
-      currency: 'INR',
-      taxRate: 5,
-      serviceCharge: 5,
-      openingTime: '11:00 AM',
-      closingTime: '11:00 PM',
-      status: 'Active',
-      subscriptionPlan: 'Standard',
-      createdDate: new Date().toISOString().split('T')[0],
-      password: '',
-      confirmPassword: '',
-      ownerName: '',
-      mobileNumber: '',
-      city: '',
-      state: '',
-      country: '',
-      logo: '',
-      banner: ''
-    })
+      const response = await createRestaurant(payload);
+      if (response.success) {
+        await fetchRestaurants();
+        setShowAddModal(false);
+        showToast('success', `Branch "${newRestState.name}" registered successfully!`);
+        // Clear state
+        setNewRestState({
+          name: '',
+          branch: '',
+          license: '',
+          gstin: '',
+          pan: '',
+          phone: '',
+          email: '',
+          website: '',
+          address: '',
+          currency: 'INR',
+          taxRate: '',
+          serviceCharge: '',
+          openingTime: '',
+          closingTime: '',
+          status: 'Active',
+          subscriptionPlan: 'Standard',
+          planId: plans.length > 0 ? plans[0]._id : '',
+          createdDate: new Date().toISOString().split('T')[0],
+          password: '',
+          confirmPassword: '',
+          ownerName: '',
+          mobileNumber: '',
+          city: '',
+          state: '',
+          country: '',
+          logo: '',
+          banner: ''
+        })
+      } else {
+        showToast('error', response.message || 'Error creating restaurant');
+      }
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Error creating restaurant');
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Handle Delete Restaurant
   const handleDeleteRestaurant = (id) => {
-    const targetRest = restaurants.find(r => r.id === id)
+    const targetRest = restaurants.find(r => r.id === id || r._id === id)
     if (!targetRest) return
     setConfirmModal({
       title: "Delete Franchise Branch",
       message: `Are you sure you want to permanently delete the branch "${targetRest.name}"? This action cannot be undone.`,
       confirmText: "Confirm Delete",
       confirmColor: "#ef4444",
-      onConfirm: () => {
-        const remaining = restaurants.filter(r => r.id !== id)
-        onUpdateRestaurants(remaining)
-        if (id === activeRestaurantId && remaining.length > 0) {
-          onSetActiveRestaurantId(remaining[0].id)
-          onUpdateRestaurantDetails(remaining[0])
+      onConfirm: async () => {
+        try {
+          const response = await deleteRestaurantApi(targetRest._id);
+          if (response.success) {
+            await fetchRestaurants()
+            if ((id === activeRestaurantId || targetRest._id === activeRestaurantId) && restaurants.length > 1) {
+              const remaining = restaurants.filter(r => r._id !== targetRest._id)
+              onSetActiveRestaurantId(remaining[0]._id)
+            }
+            showToast('error', `Branch "${targetRest.name}" successfully removed.`)
+          } else {
+             showToast('error', response.message || 'Error deleting restaurant');
+          }
+        } catch (err) {
+           showToast('error', err.response?.data?.message || 'Error deleting restaurant');
         }
-        showToast('error', `Branch "${targetRest.name}" successfully removed.`)
       }
     })
   }
 
-  const handleUpdateRestaurantSubmit = (e) => {
+  const handleUpdateRestaurantSubmit = async (e) => {
     e.preventDefault()
 
     const errors = {}
     const requiredFields = {
-      name: 'Tenant',
-      legalName: 'Business Name',
+      name: 'Business Name',
       ownerName: 'Owner Name',
       mobileNumber: 'Mobile Number',
       email: 'Email',
@@ -330,7 +815,6 @@ export default function RestaurantsPage() {
       state: 'State',
       country: 'Country',
       license: 'FSSAI License Number',
-      gstin: 'GSTIN Number',
       pan: 'PAN Number',
       openingTime: 'Opening Time',
       closingTime: 'Closing Time',
@@ -342,21 +826,94 @@ export default function RestaurantsPage() {
       }
     }
 
+    // Owner Name: letters and spaces only
+    if (editFormState.ownerName && !/^[a-zA-Z\s]+$/.test(editFormState.ownerName.trim())) {
+      errors.ownerName = 'Owner Name must contain letters and spaces only'
+    }
+
+    // Mobile Number: 10-digit Indian number starting with 6-9, no duplicates
+    const mob = (editFormState.mobileNumber || editFormState.phone || '').trim()
+    if (mob && !/^[6-9]\d{9}$/.test(mob)) {
+      errors.mobileNumber = 'Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)'
+    } else if (mob && restaurants.some(r => r.id !== editingRestId && (r.mobileNumber === mob || r.phone === mob))) {
+      errors.mobileNumber = 'Mobile number already registered by another restaurant'
+    }
+
+    // Email: mandatory @ symbol
+    const emailVal = (editFormState.email || '').trim()
+    if (emailVal && (!emailVal.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal))) {
+      errors.email = 'Valid email address containing "@" is required'
+    }
+
+    // City, State, Country: letters and spaces only
+    if (editFormState.city && !/^[a-zA-Z\s]+$/.test(editFormState.city.trim())) {
+      errors.city = 'City must contain letters and spaces only'
+    }
+    if (editFormState.state && !/^[a-zA-Z\s]+$/.test(editFormState.state.trim())) {
+      errors.state = 'State must contain letters and spaces only'
+    }
+    if (editFormState.country && !/^[a-zA-Z\s]+$/.test(editFormState.country.trim())) {
+      errors.country = 'Country must contain letters and spaces only'
+    }
+
+    const editFssaiVal = (editFormState.license || '').trim()
+    if (editFssaiVal && !/^1\d{13}$/.test(editFssaiVal)) {
+      errors.license = 'FSSAI License Number must contain exactly 14 digits and start with 1.'
+    }
+
+    const editGstinVal = (editFormState.gstin || '').trim().toUpperCase()
+    if (editGstinVal && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(editGstinVal)) {
+      errors.gstin = 'Invalid GSTIN. Please enter a valid 15-character GSTIN.'
+    }
+
+    const editPanVal = (editFormState.pan || '').trim().toUpperCase()
+    if (editPanVal && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(editPanVal)) {
+      errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
     }
 
     setFormErrors({})
-
-    const updatedRestaurants = restaurants.map(r => r.id === editingRestId ? editFormState : r)
-    onUpdateRestaurants(updatedRestaurants)
-
-    if (editingRestId === activeRestaurantId) {
-      onUpdateRestaurantDetails(editFormState)
+    setIsSubmitting(true)
+    try {
+      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
+      const payload = {
+        restaurantName: editFormState.name,
+        ownerName: editFormState.ownerName,
+        email: editFormState.email,
+        phoneNumber: editFormState.mobileNumber,
+        address: editFormState.address,
+        city: editFormState.city,
+        state: editFormState.state,
+        country: editFormState.country,
+        fssaiLicense: editFormState.license,
+        gstinNumber: editFormState.gstin,
+        panNumber: editFormState.pan,
+        openingTime: editFormState.openingTime,
+        closingTime: editFormState.closingTime,
+        logoUrl: editFormState.logo,
+        bannerUrl: editFormState.banner,
+        websiteDomain: editFormState.website
+      }
+      
+      const response = await updateRestaurantApi(targetRest._id, payload);
+      if (response.success) {
+        await fetchRestaurants();
+        setEditingRestId(null)
+        setEditFormState(null)
+        localStorage.removeItem('serviq_editingRestId')
+        showToast('success', 'Branch updated successfully');
+      } else {
+        showToast('error', response.message || 'Error updating restaurant');
+      }
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Error updating restaurant');
+    } finally {
+      setIsSubmitting(false)
     }
-
-    showToast('success', `Branch details for "${editFormState.name}" updated successfully!`)
   }
 
   return (
@@ -377,13 +934,16 @@ export default function RestaurantsPage() {
               <button
                 className="btn-outline"
                 style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
-                onClick={() => setShowAddModal(false)}
+                onClick={() => { setShowAddModal(false); setFormErrors({}); }}
               >
-                Back to Registry
+                Back
               </button>
             </div>
 
-            <form onSubmit={handleCreateRestaurant} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <form onSubmit={handleCreateRestaurant} autoComplete="off" noValidate style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Chrome AutoFill Trap */}
+              <input type="text" name="chrome_fake_user" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+              <input type="password" name="chrome_fake_pass" style={{ display: 'none' }} tabIndex={-1} autoComplete="new-password" />
               {/* Card 1: Restaurant Information */}
               <div style={{
                 background: 'var(--bg-app)',
@@ -401,44 +961,55 @@ export default function RestaurantsPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
-                    label="Tenant"
+                    label="Business Name"
                     type="text"
                     value={newRestState.name}
                     onChange={(e) => setNewRestState({ ...newRestState, name: e.target.value })}
-                    placeholder="e.g. serveiq_main"
+                    placeholder="Enter Business Name"
                     required
                     error={formErrors.name}
                     setError={(val) => setFormErrors({ ...formErrors, name: val })}
                   />
                   <ValidatedInput
-                    label="Business Name"
+                    label="Owner Name"
                     type="text"
-                    value={newRestState.legalName}
-                    onChange={(e) => setNewRestState({ ...newRestState, legalName: e.target.value })}
-                    placeholder="e.g. Serviq Hospitality Pvt. Ltd."
+                    value={newRestState.ownerName}
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setNewRestState({ ...newRestState, ownerName: lettersOnly })
+                    }}
+                    placeholder="Enter Owner Name"
                     required
-                    error={formErrors.legalName}
-                    setError={(val) => setFormErrors({ ...formErrors, legalName: val })}
+                    error={formErrors.ownerName}
+                    setError={(val) => setFormErrors({ ...formErrors, ownerName: val })}
                   />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
-                    label="Owner Name"
+                    label="Email"
                     type="text"
-                    value={newRestState.ownerName}
-                    onChange={(e) => setNewRestState({ ...newRestState, ownerName: e.target.value })}
-                    placeholder="e.g. Rajesh Kumar"
+                    inputMode="email"
+                    value={newRestState.email}
+                    onChange={(e) => setNewRestState({ ...newRestState, email: e.target.value })}
+                    placeholder="Enter Email"
                     required
-                    error={formErrors.ownerName}
-                    setError={(val) => setFormErrors({ ...formErrors, ownerName: val })}
+                    preventAutofill={true}
+                    autoComplete="new-password"
+                    name="new_tenant_email_no_autofill"
+                    error={formErrors.email}
+                    setError={(val) => setFormErrors({ ...formErrors, email: val })}
                   />
                   <ValidatedInput
                     label="Mobile Number"
                     type="text"
+                    inputMode="numeric"
                     value={newRestState.mobileNumber}
-                    onChange={(e) => setNewRestState({ ...newRestState, mobileNumber: e.target.value, phone: e.target.value })}
-                    placeholder="e.g. +91 98765 43210"
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
+                      setNewRestState({ ...newRestState, mobileNumber: digitsOnly, phone: digitsOnly })
+                    }}
+                    placeholder="Enter Mobile Number"
                     required
                     error={formErrors.mobileNumber}
                     setError={(val) => setFormErrors({ ...formErrors, mobileNumber: val })}
@@ -446,69 +1017,25 @@ export default function RestaurantsPage() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
-                    label="Email"
-                    type="email"
-                    value={newRestState.email}
-                    onChange={(e) => setNewRestState({ ...newRestState, email: e.target.value })}
-                    placeholder="e.g. contact@serviqbistro.com"
-                    required
-                    error={formErrors.email}
-                    setError={(val) => setFormErrors({ ...formErrors, email: val })}
-                  />
-                  <ValidatedInput
-                    label="Website Domain"
-                    type="text"
-                    value={newRestState.website}
-                    onChange={(e) => setNewRestState({ ...newRestState, website: e.target.value })}
-                    placeholder="e.g. https://serviqbistro.com"
-                    error={formErrors.website}
-                    setError={(val) => setFormErrors({ ...formErrors, website: val })}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
+                  <TimePickerWithAMPM
                     label="Opening Time"
-                    type="text"
                     value={newRestState.openingTime}
-                    onChange={(e) => setNewRestState({ ...newRestState, openingTime: e.target.value })}
-                    placeholder="e.g. 11:00 AM"
+                    onChange={(val) => setNewRestState({ ...newRestState, openingTime: val })}
                     required
                     error={formErrors.openingTime}
                     setError={(val) => setFormErrors({ ...formErrors, openingTime: val })}
                   />
-                  <ValidatedInput
+                  <TimePickerWithAMPM
                     label="Closing Time"
-                    type="text"
                     value={newRestState.closingTime}
-                    onChange={(e) => setNewRestState({ ...newRestState, closingTime: e.target.value })}
-                    placeholder="e.g. 11:00 PM"
+                    onChange={(val) => setNewRestState({ ...newRestState, closingTime: val })}
                     required
                     error={formErrors.closingTime}
                     setError={(val) => setFormErrors({ ...formErrors, closingTime: val })}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
-                    label="Tax Rate (%)"
-                    type="number"
-                    value={newRestState.taxRate}
-                    onChange={(e) => setNewRestState({ ...newRestState, taxRate: parseFloat(e.target.value) || 0 })}
-                    min="0" max="30" step="0.5" required
-                    error={formErrors.taxRate}
-                    setError={(val) => setFormErrors({ ...formErrors, taxRate: val })}
-                  />
-                  <ValidatedInput
-                    label="Service Fee (%)"
-                    type="number"
-                    value={newRestState.serviceCharge}
-                    onChange={(e) => setNewRestState({ ...newRestState, serviceCharge: parseFloat(e.target.value) || 0 })}
-                    min="0" max="20" step="0.5" required
-                    error={formErrors.serviceCharge}
-                    setError={(val) => setFormErrors({ ...formErrors, serviceCharge: val })}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedSelect
                     label="Initial Status"
                     value={newRestState.status}
@@ -520,27 +1047,34 @@ export default function RestaurantsPage() {
                     <option value="Suspended">Suspended</option>
                     <option value="Inactive">Inactive</option>
                   </ValidatedSelect>
+                  <ValidatedInput
+                    label="Website Domain"
+                    type="text"
+                    value={newRestState.website}
+                    onChange={(e) => setNewRestState({ ...newRestState, website: e.target.value })}
+                    placeholder=" Enter Website Domain"
+                    error={formErrors.website}
+                    setError={(val) => setFormErrors({ ...formErrors, website: val })}
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'end' }}>
                   <ValidatedInput
                     label="Restaurant Logo URL"
                     type="text"
                     value={newRestState.logo}
                     onChange={(e) => setNewRestState({ ...newRestState, logo: e.target.value })}
-                    placeholder="https://images.unsplash.com/... (Logo)"
+                    placeholder="Enter Restaurant Logo URL"
                     error={formErrors.logo}
                     setError={(val) => setFormErrors({ ...formErrors, logo: val })}
                   />
-                  <ValidatedInput
-                    label="Restaurant Banner URL"
-                    type="text"
-                    value={newRestState.banner}
-                    onChange={(e) => setNewRestState({ ...newRestState, banner: e.target.value })}
-                    placeholder="https://images.unsplash.com/... (Banner)"
-                    error={formErrors.banner}
-                    setError={(val) => setFormErrors({ ...formErrors, banner: val })}
-                  />
+                  <div style={{ paddingBottom: '2px' }}>
+                    <ImageUploadButton
+                      value={newRestState.logo}
+                      onChange={(dataUrl) => setNewRestState(prev => ({ ...prev, logo: dataUrl }))}
+                      onClear={() => setNewRestState(prev => ({ ...prev, logo: '' }))}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -564,7 +1098,7 @@ export default function RestaurantsPage() {
                   type="text"
                   value={newRestState.address}
                   onChange={(e) => setNewRestState({ ...newRestState, address: e.target.value })}
-                  placeholder="e.g. 12, Khader Nawaz Khan Road, Nungambakkam"
+                  placeholder="Enter Your Address"
                   required
                   error={formErrors.address}
                   setError={(val) => setFormErrors({ ...formErrors, address: val })}
@@ -575,8 +1109,11 @@ export default function RestaurantsPage() {
                     label="City"
                     type="text"
                     value={newRestState.city}
-                    onChange={(e) => setNewRestState({ ...newRestState, city: e.target.value, branch: `${e.target.value}` })}
-                    placeholder="e.g. Chennai"
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setNewRestState({ ...newRestState, city: lettersOnly, branch: lettersOnly })
+                    }}
+                    placeholder="Enter City"
                     required
                     error={formErrors.city}
                     setError={(val) => setFormErrors({ ...formErrors, city: val })}
@@ -585,8 +1122,11 @@ export default function RestaurantsPage() {
                     label="State"
                     type="text"
                     value={newRestState.state}
-                    onChange={(e) => setNewRestState({ ...newRestState, state: e.target.value })}
-                    placeholder="e.g. Tamil Nadu"
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setNewRestState({ ...newRestState, state: lettersOnly })
+                    }}
+                    placeholder="Enter State"
                     required
                     error={formErrors.state}
                     setError={(val) => setFormErrors({ ...formErrors, state: val })}
@@ -595,8 +1135,11 @@ export default function RestaurantsPage() {
                     label="Country"
                     type="text"
                     value={newRestState.country}
-                    onChange={(e) => setNewRestState({ ...newRestState, country: e.target.value })}
-                    placeholder="e.g. India"
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setNewRestState({ ...newRestState, country: lettersOnly })
+                    }}
+                    placeholder="Enter Country"
                     required
                     error={formErrors.country}
                     setError={(val) => setFormErrors({ ...formErrors, country: val })}
@@ -624,8 +1167,18 @@ export default function RestaurantsPage() {
                     label="FSSAI License Number"
                     type="text"
                     value={newRestState.license}
-                    onChange={(e) => setNewRestState({ ...newRestState, license: e.target.value })}
-                    placeholder="FSSAI-12345678901234"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 14);
+                      setNewRestState({ ...newRestState, license: val });
+                      if (formErrors.license) setFormErrors({ ...formErrors, license: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^1\d{13}$/.test(val)) {
+                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                      }
+                    }}
+                    placeholder="Enter FSSAI License Number"
                     required
                     error={formErrors.license}
                     setError={(val) => setFormErrors({ ...formErrors, license: val })}
@@ -634,9 +1187,18 @@ export default function RestaurantsPage() {
                     label="GSTIN Number"
                     type="text"
                     value={newRestState.gstin}
-                    onChange={(e) => setNewRestState({ ...newRestState, gstin: e.target.value })}
-                    placeholder="33AAAAA1111A1Z1"
-                    required
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 15);
+                      setNewRestState({ ...newRestState, gstin: val });
+                      if (formErrors.gstin) setFormErrors({ ...formErrors, gstin: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                      }
+                    }}
+                    placeholder="Enter GSTIN Number"
                     error={formErrors.gstin}
                     setError={(val) => setFormErrors({ ...formErrors, gstin: val })}
                   />
@@ -644,16 +1206,131 @@ export default function RestaurantsPage() {
                     label="PAN Number"
                     type="text"
                     value={newRestState.pan}
-                    onChange={(e) => setNewRestState({ ...newRestState, pan: e.target.value })}
-                    placeholder="ABCDE1234F"
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                      setNewRestState({ ...newRestState, pan: val });
+                      if (formErrors.pan) setFormErrors({ ...formErrors, pan: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                      }
+                    }}
+                    placeholder="Enter PAN Number"
                     required
                     error={formErrors.pan}
                     setError={(val) => setFormErrors({ ...formErrors, pan: val })}
                   />
                 </div>
+
               </div>
 
-              {/* Card 4: Password Management */}
+              {/* Card 4: Subscription Information */}
+              <div style={{
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
+              }}>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <CreditCard style={{ width: '15px', height: '15px', color: '#F95E10' }} />
+                  Subscription Information
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <ValidatedSelect
+                    label="Choose Plan"
+                    value={newRestState.planId || ''}
+                    onChange={(e) => {
+                      const selectedPlanId = e.target.value;
+                      if (!selectedPlanId) {
+                        setNewRestState(prev => ({ ...prev, planId: '', startDate: '', endDate: '', renewalDate: '' }));
+                        return;
+                      }
+                      
+                      const today = new Date();
+                      const end = new Date(today);
+                      if (newRestState.billingCycle === 'Annually') {
+                        end.setFullYear(end.getFullYear() + 1);
+                      } else {
+                        end.setMonth(end.getMonth() + 1);
+                      }
+                      const formatDate = (date) => date.toISOString().split('T')[0];
+
+                      setNewRestState(prev => ({ 
+                        ...prev, 
+                        planId: selectedPlanId,
+                        startDate: formatDate(today),
+                        endDate: formatDate(end),
+                        renewalDate: formatDate(end)
+                      }));
+                    }}
+                    error={formErrors.planId}
+                    setError={(val) => setFormErrors({ ...formErrors, planId: val })}
+                  >
+                    <option value="">Select a plan</option>
+                    {plans.map(p => (
+                      <option key={p._id} value={p._id}>{p.planName}</option>
+                    ))}
+                  </ValidatedSelect>
+                  
+                  <ValidatedSelect
+                    label="Billing Cycle"
+                    value={newRestState.billingCycle}
+                    onChange={(e) => {
+                      const cycle = e.target.value;
+                      const updates = { billingCycle: cycle };
+                      if (newRestState.planId && newRestState.startDate) {
+                        const start = new Date(newRestState.startDate);
+                        const end = new Date(start);
+                        if (cycle === 'Annually') {
+                          end.setFullYear(end.getFullYear() + 1);
+                        } else {
+                          end.setMonth(end.getMonth() + 1);
+                        }
+                        const formatDate = (date) => date.toISOString().split('T')[0];
+                        updates.endDate = formatDate(end);
+                        updates.renewalDate = formatDate(end);
+                      }
+                      setNewRestState(prev => ({ ...prev, ...updates }));
+                    }}
+                    error={formErrors.billingCycle}
+                    setError={(val) => setFormErrors({ ...formErrors, billingCycle: val })}
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="Annually">Annually</option>
+                  </ValidatedSelect>
+                </div>
+
+                {newRestState.planId && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="animate-fade-in">
+                    <ValidatedInput
+                      label="Start Date"
+                      type="date"
+                      value={newRestState.startDate}
+                      onChange={(e) => setNewRestState({ ...newRestState, startDate: e.target.value })}
+                      error={formErrors.startDate}
+                      setError={(val) => setFormErrors({ ...formErrors, startDate: val })}
+                    />
+                    <ValidatedInput
+                      label="End Date (Renewal Date)"
+                      type="date"
+                      value={newRestState.endDate}
+                      onChange={(e) => {
+                        setNewRestState({ ...newRestState, endDate: e.target.value, renewalDate: e.target.value })
+                      }}
+                      error={formErrors.endDate}
+                      setError={(val) => setFormErrors({ ...formErrors, endDate: val })}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Card 5: Password Management */}
               <div style={{
                 background: 'var(--bg-app)',
                 border: '1px solid var(--border-color)',
@@ -675,7 +1352,7 @@ export default function RestaurantsPage() {
                     value={newRestState.password || ''}
                     onChange={(e) => setNewRestState({ ...newRestState, password: e.target.value })}
                     required
-                    placeholder="Enter account password"
+                    placeholder="Enter password"
                     error={formErrors.password}
                     setError={(val) => setFormErrors({ ...formErrors, password: val })}
                   />
@@ -686,7 +1363,7 @@ export default function RestaurantsPage() {
                     value={newRestState.confirmPassword || ''}
                     onChange={(e) => setNewRestState({ ...newRestState, confirmPassword: e.target.value })}
                     required
-                    placeholder="Re-enter account password"
+                    placeholder="Re-Enter password"
                     error={formErrors.confirmPassword}
                     setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                   />
@@ -711,13 +1388,35 @@ export default function RestaurantsPage() {
                   <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Restaurant Management</h3>
                 </div>
                 <button
-                  onClick={() => { setViewingRestId(null); setEditingRestId(null); setShowAddModal(true); }}
+                  onClick={() => {
+                    setViewingRestId(null)
+                    setEditingRestId(null)
+                    setFormErrors({})
+                    setNewRestState({
+                      name: '', branch: '', license: '', gstin: '', pan: '',
+                      phone: '', email: '', website: '', address: '', currency: 'INR',
+                      taxRate: '', serviceCharge: '', openingTime: '', closingTime: '',
+                      status: 'Active', subscriptionPlan: 'Standard',
+                      createdDate: new Date().toISOString().split('T')[0],
+                      password: '', confirmPassword: '', ownerName: '', mobileNumber: '',
+                      city: '', state: '', country: '', logo: '', banner: '',
+                      startDate: '', endDate: '', renewalDate: '', planId: '', billingCycle: 'Monthly'
+                    })
+                    setShowAddModal(true)
+                  }}
                   className="btn-black"
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
                 >
                   <Plus style={{ width: '16px', height: '16px' }} /> Register
                 </button>
               </div>
+              <TableTopControls
+                entriesPerPage={entriesPerPage}
+                onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+                searchTerm={searchTerm}
+                onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+                searchPlaceholder="Search restaurants..."
+              />
 
               <div className="dish-admin-list" style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
                 <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', background: '#ffffff' }}>
@@ -728,15 +1427,16 @@ export default function RestaurantsPage() {
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Restaurant Name</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Owner Name</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Email</th>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Subscription Plan</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Subscription Plan</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Phone Number</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '120px', whiteSpace: 'nowrap' }}>Status</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'right', padding: '12px 60px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '220px', whiteSpace: 'nowrap' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {restaurants.map((rest, index) => {
+                    {paginatedRestaurants.map((rest, index) => {
                       const isActive = rest.id === activeRestaurantId
+                      const serialNum = (currentPage - 1) * entriesPerPage + index + 1
 
                       return (
                         <tr
@@ -750,7 +1450,7 @@ export default function RestaurantsPage() {
                           }}
                         >
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                            {index + 1}
+                            {serialNum}
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                             {rest.id}
@@ -773,7 +1473,7 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>
                             {rest.email || '—'}
                           </td>
-                          <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '14px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             <span style={{
                               fontSize: '0.7rem',
                               fontWeight: '800',
@@ -819,15 +1519,18 @@ export default function RestaurantsPage() {
                                   display: 'flex',
                                   alignItems: 'center'
                                 }}
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
-                                  const nextStatus = rest.status === 'Suspended' ? 'Active' : 'Suspended'
-                                  const updated = { ...rest, status: nextStatus }
-                                  onUpdateRestaurants(restaurants.map(r => r.id === rest.id ? updated : r))
-                                  if (rest.id === activeRestaurantId) {
-                                    onUpdateRestaurantDetails(updated)
+                                  try {
+                                    const nextStatusStr = rest.status === 'Suspended' ? 'Active' : 'Suspended';
+                                    const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
+                                    if (response.success) {
+                                       await fetchRestaurants();
+                                       showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                                    }
+                                  } catch (err) {
+                                     showToast('error', err.response?.data?.message || 'Error updating status');
                                   }
-                                  showToast('info', `Branch "${rest.name}" status updated to ${nextStatus.toUpperCase()}`)
                                 }}
                                 title={rest.status === 'Suspended' ? "Activate Restaurant" : "Suspend Restaurant"}
                               >
@@ -838,15 +1541,7 @@ export default function RestaurantsPage() {
                                 )}
                               </button>
 
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                                onClick={(e) => { e.stopPropagation(); setViewingSubscriptionRest(rest); }}
-                                title="View Subscription Details"
-                                onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
-                                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                              >
-                                <Gem style={{ width: '16px', height: '16px' }} />
-                              </button>
+                              
 
                               <button
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
@@ -887,6 +1582,12 @@ export default function RestaurantsPage() {
                   </tbody>
                 </table>
               </div>
+              <TableBottomPagination
+                totalEntries={filteredRestaurants.length}
+                currentPage={currentPage}
+                entriesPerPage={entriesPerPage}
+                onPageChange={setCurrentPage}
+              />
             </div>
           )}
 
@@ -962,7 +1663,7 @@ export default function RestaurantsPage() {
                   {/* Corporate Credentials */}
                   <div style={{ padding: '14px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
                     <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Corporate Credentials
+                      Corporate Credentials & Contact
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
@@ -970,8 +1671,20 @@ export default function RestaurantsPage() {
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700' }}>{viewedRest.ownerName || 'Rajesh Kumar'}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Mobile Number</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700' }}>{viewedRest.mobileNumber || viewedRest.phone || 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Email Address</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700' }}>{viewedRest.email || 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Business Name</span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={viewedRest.legalName}>{viewedRest.legalName}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Website Domain</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '700' }}>{viewedRest.website || 'N/A'}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>FSSAI Food License Number</span>
@@ -1054,16 +1767,16 @@ export default function RestaurantsPage() {
                 <button
                   className="btn-outline"
                   style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
-                  onClick={() => setEditingRestId(null)}
+                  onClick={() => { setEditingRestId(null); setFormErrors({}); }}
                 >
-                  Back to Registry
+                  Back
                 </button>
               </div>
 
               <form onSubmit={handleUpdateRestaurantSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
-                    label="Tenant"
+                    label="Business Name"
                     type="text"
                     value={editFormState.name}
                     onChange={(e) => setEditFormState({ ...editFormState, name: e.target.value })}
@@ -1072,31 +1785,42 @@ export default function RestaurantsPage() {
                     setError={(val) => setFormErrors({ ...formErrors, name: val })}
                   />
                   <ValidatedInput
-                    label="Business Name"
+                    label="Owner Name"
                     type="text"
-                    value={editFormState.legalName}
-                    onChange={(e) => setEditFormState({ ...editFormState, legalName: e.target.value })}
+                    value={editFormState.ownerName}
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setEditFormState({ ...editFormState, ownerName: lettersOnly })
+                    }}
                     required
-                    error={formErrors.legalName}
-                    setError={(val) => setFormErrors({ ...formErrors, legalName: val })}
+                    error={formErrors.ownerName}
+                    setError={(val) => setFormErrors({ ...formErrors, ownerName: val })}
                   />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
-                    label="Owner Name"
+                    label="Email"
                     type="text"
-                    value={editFormState.ownerName}
-                    onChange={(e) => setEditFormState({ ...editFormState, ownerName: e.target.value })}
+                    inputMode="email"
+                    value={editFormState.email}
+                    onChange={(e) => setEditFormState({ ...editFormState, email: e.target.value })}
                     required
-                    error={formErrors.ownerName}
-                    setError={(val) => setFormErrors({ ...formErrors, ownerName: val })}
+                    preventAutofill={true}
+                    autoComplete="new-password"
+                    name="edit_tenant_email_no_autofill"
+                    error={formErrors.email}
+                    setError={(val) => setFormErrors({ ...formErrors, email: val })}
                   />
                   <ValidatedInput
                     label="Mobile Number"
                     type="text"
+                    inputMode="numeric"
                     value={editFormState.mobileNumber}
-                    onChange={(e) => setEditFormState({ ...editFormState, mobileNumber: e.target.value, phone: e.target.value })}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '').slice(0, 10)
+                      setEditFormState({ ...editFormState, mobileNumber: digitsOnly, phone: digitsOnly })
+                    }}
                     required
                     error={formErrors.mobileNumber}
                     setError={(val) => setFormErrors({ ...formErrors, mobileNumber: val })}
@@ -1104,15 +1828,17 @@ export default function RestaurantsPage() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
-                    label="Email"
-                    type="email"
-                    value={editFormState.email}
-                    onChange={(e) => setEditFormState({ ...editFormState, email: e.target.value })}
-                    required
-                    error={formErrors.email}
-                    setError={(val) => setFormErrors({ ...formErrors, email: val })}
-                  />
+                  <ValidatedSelect
+                    label="Status"
+                    value={editFormState.status}
+                    onChange={(e) => setEditFormState({ ...editFormState, status: e.target.value })}
+                    error={formErrors.status}
+                    setError={(val) => setFormErrors({ ...formErrors, status: val })}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Suspended">Suspended</option>
+                    <option value="Inactive">Inactive</option>
+                  </ValidatedSelect>
                   <ValidatedInput
                     label="Website Domain"
                     type="text"
@@ -1138,7 +1864,11 @@ export default function RestaurantsPage() {
                     label="City"
                     type="text"
                     value={editFormState.city}
-                    onChange={(e) => setEditFormState({ ...editFormState, city: e.target.value, branch: `${e.target.value}` })}
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setEditFormState({ ...editFormState, city: lettersOnly, branch: lettersOnly })
+                    }}
+                    placeholder="e.g. Chennai"
                     required
                     error={formErrors.city}
                     setError={(val) => setFormErrors({ ...formErrors, city: val })}
@@ -1147,7 +1877,11 @@ export default function RestaurantsPage() {
                     label="State"
                     type="text"
                     value={editFormState.state}
-                    onChange={(e) => setEditFormState({ ...editFormState, state: e.target.value })}
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setEditFormState({ ...editFormState, state: lettersOnly })
+                    }}
+                    placeholder="e.g. Tamil Nadu"
                     required
                     error={formErrors.state}
                     setError={(val) => setFormErrors({ ...formErrors, state: val })}
@@ -1156,7 +1890,11 @@ export default function RestaurantsPage() {
                     label="Country"
                     type="text"
                     value={editFormState.country}
-                    onChange={(e) => setEditFormState({ ...editFormState, country: e.target.value })}
+                    onChange={(e) => {
+                      const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '')
+                      setEditFormState({ ...editFormState, country: lettersOnly })
+                    }}
+                    placeholder="e.g. India"
                     required
                     error={formErrors.country}
                     setError={(val) => setFormErrors({ ...formErrors, country: val })}
@@ -1168,7 +1906,17 @@ export default function RestaurantsPage() {
                     label="FSSAI License Number"
                     type="text"
                     value={editFormState.license}
-                    onChange={(e) => setEditFormState({ ...editFormState, license: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 14);
+                      setEditFormState({ ...editFormState, license: val });
+                      if (formErrors.license) setFormErrors({ ...formErrors, license: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^1\d{13}$/.test(val)) {
+                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                      }
+                    }}
                     required
                     error={formErrors.license}
                     setError={(val) => setFormErrors({ ...formErrors, license: val })}
@@ -1177,8 +1925,17 @@ export default function RestaurantsPage() {
                     label="GSTIN Number"
                     type="text"
                     value={editFormState.gstin}
-                    onChange={(e) => setEditFormState({ ...editFormState, gstin: e.target.value })}
-                    required
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 15);
+                      setEditFormState({ ...editFormState, gstin: val });
+                      if (formErrors.gstin) setFormErrors({ ...formErrors, gstin: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                      }
+                    }}
                     error={formErrors.gstin}
                     setError={(val) => setFormErrors({ ...formErrors, gstin: val })}
                   />
@@ -1186,85 +1943,60 @@ export default function RestaurantsPage() {
                     label="PAN Number"
                     type="text"
                     value={editFormState.pan}
-                    onChange={(e) => setEditFormState({ ...editFormState, pan: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                      setEditFormState({ ...editFormState, pan: val });
+                      if (formErrors.pan) setFormErrors({ ...formErrors, pan: null });
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
+                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                      }
+                    }}
                     required
                     error={formErrors.pan}
                     setError={(val) => setFormErrors({ ...formErrors, pan: val })}
                   />
                 </div>
 
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
+                  <TimePickerWithAMPM
                     label="Opening Time"
-                    type="text"
                     value={editFormState.openingTime}
-                    onChange={(e) => setEditFormState({ ...editFormState, openingTime: e.target.value })}
+                    onChange={(val) => setEditFormState({ ...editFormState, openingTime: val })}
                     required
                     error={formErrors.openingTime}
                     setError={(val) => setFormErrors({ ...formErrors, openingTime: val })}
                   />
-                  <ValidatedInput
+                  <TimePickerWithAMPM
                     label="Closing Time"
-                    type="text"
                     value={editFormState.closingTime}
-                    onChange={(e) => setEditFormState({ ...editFormState, closingTime: e.target.value })}
+                    onChange={(val) => setEditFormState({ ...editFormState, closingTime: val })}
                     required
                     error={formErrors.closingTime}
                     setError={(val) => setFormErrors({ ...formErrors, closingTime: val })}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                  <ValidatedInput
-                    label="Tax Rate (%)"
-                    type="number"
-                    value={editFormState.taxRate}
-                    onChange={(e) => setEditFormState({ ...editFormState, taxRate: parseFloat(e.target.value) || 0 })}
-                    min="0" max="30" step="0.5" required
-                    error={formErrors.taxRate}
-                    setError={(val) => setFormErrors({ ...formErrors, taxRate: val })}
-                  />
-                  <ValidatedInput
-                    label="Service Fee (%)"
-                    type="number"
-                    value={editFormState.serviceCharge}
-                    onChange={(e) => setEditFormState({ ...editFormState, serviceCharge: parseFloat(e.target.value) || 0 })}
-                    min="0" max="20" step="0.5" required
-                    error={formErrors.serviceCharge}
-                    setError={(val) => setFormErrors({ ...formErrors, serviceCharge: val })}
-                  />
-                  <ValidatedSelect
-                    label="Status"
-                    value={editFormState.status}
-                    onChange={(e) => setEditFormState({ ...editFormState, status: e.target.value })}
-                    error={formErrors.status}
-                    setError={(val) => setFormErrors({ ...formErrors, status: val })}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
-                    <option value="Inactive">Inactive</option>
-                  </ValidatedSelect>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'end' }}>
                   <ValidatedInput
                     label="Restaurant Logo URL"
                     type="text"
                     value={editFormState.logo || ''}
                     onChange={(e) => setEditFormState({ ...editFormState, logo: e.target.value })}
-                    placeholder="https://images.unsplash.com/... (Logo)"
+                    placeholder="Enter Restaurant Logo URL"
                     error={formErrors.logo}
                     setError={(val) => setFormErrors({ ...formErrors, logo: val })}
                   />
-                  <ValidatedInput
-                    label="Restaurant Banner URL"
-                    type="text"
-                    value={editFormState.banner || ''}
-                    onChange={(e) => setEditFormState({ ...editFormState, banner: e.target.value })}
-                    placeholder="https://images.unsplash.com/... (Banner)"
-                    error={formErrors.banner}
-                    setError={(val) => setFormErrors({ ...formErrors, banner: val })}
-                  />
+                  <div style={{ paddingBottom: '2px' }}>
+                    <ImageUploadButton
+                      value={editFormState.logo}
+                      onChange={(dataUrl) => setEditFormState(prev => ({ ...prev, logo: dataUrl }))}
+                      onClear={() => setEditFormState(prev => ({ ...prev, logo: '' }))}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--border-color)' }}>
@@ -1370,6 +2102,113 @@ export default function RestaurantsPage() {
                 onClick={() => setViewingSubscriptionRest(null)}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal Overlay */}
+      {confirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(9, 13, 22, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1200,
+            padding: '20px'
+          }}
+          onClick={() => setConfirmModal(null)}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              padding: '36px 32px 28px',
+              width: '90%',
+              maxWidth: '420px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Soft Red Circular Icon Container */}
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '20px'
+            }}>
+              <Trash2 style={{ width: '28px', height: '28px', color: '#ef4444' }} />
+            </div>
+
+            {/* Title */}
+            <h3 style={{ margin: '0 0 10px', fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>
+              {confirmModal.title}
+            </h3>
+
+            {/* Subtitle Message */}
+            <p style={{ margin: '0 0 28px', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.5', maxWidth: '340px' }}>
+              {confirmModal.message}
+            </p>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '14px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: confirmModal.confirmColor || '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {confirmModal.confirmText || 'Delete'}
               </button>
             </div>
           </div>

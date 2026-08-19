@@ -37,9 +37,6 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
         }}
         {...rest}
       />
-      {error && (
-        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#ef4444', pointerEvents: 'none', display: 'flex' }}><AlertTriangle style={{ width: '14px', height: '14px' }} /></span>
-      )}
     </div>
     {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
   </div>
@@ -79,18 +76,50 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
+import { useSearchParams } from 'react-router-dom'
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { usePlans } from '../../hooks/usePlans'
 import { useBilling } from '../../hooks/useBilling'
 import { useNotification } from '../../contexts/NotificationContext'
 
 export default function BillingPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const { restaurants } = useRestaurant()
   const { plans } = usePlans()
   const { invoices, setInvoices } = useBilling()
   const { showToast } = useNotification()
   const onUpdateInvoices = setInvoices
-  const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState(false)
+
+  const [showGenerateInvoiceModal, setShowGenerateInvoiceModalState] = useState(() => {
+    return searchParams.get('action') === 'generate' || sessionStorage.getItem('serviq_billing_action') === 'generate'
+  })
+
+  const setShowGenerateInvoiceModal = (val) => {
+    setShowGenerateInvoiceModalState(val)
+    if (val) {
+      sessionStorage.setItem('serviq_billing_action', 'generate')
+      setSearchParams({ action: 'generate' }, { replace: true })
+    } else {
+      sessionStorage.removeItem('serviq_billing_action')
+      setSearchParams({}, { replace: true })
+    }
+  }
+
+  useEffect(() => {
+    const action = searchParams.get('action')
+    if (action === 'generate') {
+      setShowGenerateInvoiceModalState(true)
+      sessionStorage.setItem('serviq_billing_action', 'generate')
+    } else if (action === null) {
+      const storedAction = sessionStorage.getItem('serviq_billing_action')
+      if (storedAction === 'generate') {
+        setShowGenerateInvoiceModalState(true)
+        setSearchParams({ action: 'generate' }, { replace: true })
+      } else {
+        setShowGenerateInvoiceModalState(false)
+      }
+    }
+  }, [searchParams])
   const [newInvoiceFormState, setNewInvoiceFormState] = useState({
     restaurantName: '',
     subscriptionPlan: 'Standard Plan',
@@ -108,6 +137,19 @@ export default function BillingPage() {
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('')
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All')
   const [formErrors, setFormErrors] = useState({})
+
+  // Listen for sidebar click reset event to open main module list
+  useEffect(() => {
+    const handleReset = () => {
+      setShowGenerateInvoiceModalState(false)
+      setViewingInvoice(null)
+      setRefundModalInvoice(null)
+      sessionStorage.removeItem('serviq_billing_action')
+      setSearchParams({}, { replace: true })
+    }
+    window.addEventListener('reset_module_view', handleReset)
+    return () => window.removeEventListener('reset_module_view', handleReset)
+  }, [])
 
   // Synchronize new invoice default restaurant selection
   useEffect(() => {
@@ -131,6 +173,12 @@ export default function BillingPage() {
     for (const [field, label] of Object.entries(requiredFields)) {
       if (!newInvoiceFormState[field] || String(newInvoiceFormState[field]).trim() === '') {
         errors[field] = `${label} is Required`
+      }
+    }
+
+    if (newInvoiceFormState.paymentDate && newInvoiceFormState.dueDate) {
+      if (new Date(newInvoiceFormState.dueDate) < new Date(newInvoiceFormState.paymentDate)) {
+        errors.dueDate = 'Due Date cannot be earlier than Payment Date'
       }
     }
 
@@ -234,25 +282,25 @@ export default function BillingPage() {
                 style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700' }}
                 onClick={() => setShowGenerateInvoiceModal(false)}
               >
-                Back to Ledger
+                Back
               </button>
             </div>
 
             <form onSubmit={handleGenerateInvoiceSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <ValidatedSelect
-                label="Restaurant Name"
-                value={newInvoiceFormState.restaurantName}
-                onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, restaurantName: e.target.value })}
-                required
-                error={formErrors.restaurantName}
-                setError={(val) => setFormErrors({ ...formErrors, restaurantName: val })}
-              >
-                {restaurants.map(rest => (
-                  <option key={rest.id} value={rest.name}>{rest.name}</option>
-                ))}
-              </ValidatedSelect>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <ValidatedSelect
+                  label="Restaurant Name"
+                  value={newInvoiceFormState.restaurantName}
+                  onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, restaurantName: e.target.value })}
+                  required
+                  error={formErrors.restaurantName}
+                  setError={(val) => setFormErrors({ ...formErrors, restaurantName: val })}
+                >
+                  {restaurants.map(rest => (
+                    <option key={rest.id} value={rest.name}>{rest.name}</option>
+                  ))}
+                </ValidatedSelect>
+
                 <ValidatedSelect
                   label="Subscription Plan"
                   value={newInvoiceFormState.subscriptionPlan}
@@ -275,49 +323,42 @@ export default function BillingPage() {
                     <option key={p.id} value={p.name}>{p.name}</option>
                   ))}
                 </ValidatedSelect>
-
-                <ValidatedInput
-                  label="Amount (₹)"
-                  type="number"
-                  value={newInvoiceFormState.amount}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || 0
-                    setNewInvoiceFormState({
-                      ...newInvoiceFormState,
-                      amount: val,
-                      taxAmount: Math.round(val * 0.18)
-                    })
-                  }}
-                  placeholder="e.g. 4999"
-                  required
-                  min="0"
-                  error={formErrors.amount}
-                  setError={(val) => setFormErrors({ ...formErrors, amount: val })}
-                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <ValidatedInput
-                  label="Tax Amount (GST 18% Incl.) (₹)"
-                  type="number"
-                  value={newInvoiceFormState.taxAmount}
-                  onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, taxAmount: parseFloat(e.target.value) || 0 })}
-                  placeholder="e.g. 900"
+                  label="Amount (₹)"
+                  type="text"
+                  inputMode="numeric"
+                  value={newInvoiceFormState.amount}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
+                    const numVal = parseFloat(cleaned) || 0
+                    setNewInvoiceFormState({
+                      ...newInvoiceFormState,
+                      amount: cleaned,
+                      taxAmount: cleaned ? Math.round(numVal * 0.18) : ''
+                    })
+                  }}
+                  placeholder="e.g. 1999"
                   required
-                  min="0"
-                  error={formErrors.taxAmount}
-                  setError={(val) => setFormErrors({ ...formErrors, taxAmount: val })}
+                  error={formErrors.amount}
+                  setError={(val) => setFormErrors({ ...formErrors, amount: val })}
                 />
 
                 <ValidatedInput
-                  label="Transaction ID"
+                  label="Tax Amount (GST 18% Incl.) (₹)"
                   type="text"
-                  value={newInvoiceFormState.transactionId}
-                  onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, transactionId: e.target.value })}
-                  placeholder="e.g. TXN-129847184"
-                  disabled={newInvoiceFormState.status === 'Pending'}
-                  error={formErrors.transactionId}
-                  setError={(val) => setFormErrors({ ...formErrors, transactionId: val })}
+                  inputMode="numeric"
+                  value={newInvoiceFormState.taxAmount}
+                  onChange={(e) => {
+                    const onlyNums = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
+                    setNewInvoiceFormState({ ...newInvoiceFormState, taxAmount: onlyNums })
+                  }}
+                  placeholder="e.g. 360"
+                  required
+                  error={formErrors.taxAmount}
+                  setError={(val) => setFormErrors({ ...formErrors, taxAmount: val })}
                 />
               </div>
 
@@ -364,7 +405,19 @@ export default function BillingPage() {
                   label="Payment Date"
                   type="date"
                   value={newInvoiceFormState.paymentDate}
-                  onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, paymentDate: e.target.value })}
+                  onChange={(e) => {
+                    const newPayDate = e.target.value
+                    let currentDueDate = newInvoiceFormState.dueDate
+                    if (currentDueDate && newPayDate && currentDueDate < newPayDate) {
+                      currentDueDate = newPayDate
+                    }
+                    setNewInvoiceFormState({
+                      ...newInvoiceFormState,
+                      paymentDate: newPayDate,
+                      dueDate: currentDueDate
+                    })
+                    if (formErrors.dueDate) setFormErrors({ ...formErrors, dueDate: '' })
+                  }}
                   disabled={newInvoiceFormState.status === 'Pending'}
                   error={formErrors.paymentDate}
                   setError={(val) => setFormErrors({ ...formErrors, paymentDate: val })}
@@ -374,10 +427,32 @@ export default function BillingPage() {
                   label="Due Date"
                   type="date"
                   value={newInvoiceFormState.dueDate}
-                  onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, dueDate: e.target.value })}
+                  min={newInvoiceFormState.paymentDate || undefined}
+                  onChange={(e) => {
+                    const selectedDueDate = e.target.value
+                    if (newInvoiceFormState.paymentDate && selectedDueDate && selectedDueDate < newInvoiceFormState.paymentDate) {
+                      setFormErrors({ ...formErrors, dueDate: 'Due Date cannot be earlier than Payment Date' })
+                    } else {
+                      if (formErrors.dueDate) setFormErrors({ ...formErrors, dueDate: '' })
+                      setNewInvoiceFormState({ ...newInvoiceFormState, dueDate: selectedDueDate })
+                    }
+                  }}
                   required
                   error={formErrors.dueDate}
                   setError={(val) => setFormErrors({ ...formErrors, dueDate: val })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <ValidatedInput
+                  label="Transaction ID"
+                  type="text"
+                  value={newInvoiceFormState.transactionId}
+                  onChange={(e) => setNewInvoiceFormState({ ...newInvoiceFormState, transactionId: e.target.value })}
+                  placeholder="e.g. TXN-129847184"
+                  disabled={newInvoiceFormState.status === 'Pending'}
+                  error={formErrors.transactionId}
+                  setError={(val) => setFormErrors({ ...formErrors, transactionId: val })}
                 />
               </div>
 
@@ -394,13 +469,12 @@ export default function BillingPage() {
             <div style={{ padding: '20px 20px 10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '16px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '900' }}>Revenue & Billing Ledger</h3>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Generate subscription invoices, download PDFs, and process refunds.</span>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="Search Invoice or Branch..."
+                  placeholder="Search..."
                   value={invoiceSearchQuery}
                   onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                   style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.75rem', width: '180px' }}

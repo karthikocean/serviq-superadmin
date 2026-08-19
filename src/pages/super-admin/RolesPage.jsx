@@ -114,7 +114,7 @@ export default function RolesPage() {
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
-      if (e.detail?.tab === 'roles') {
+      if (e.detail?.tab === 'roles' || e.detail?.tab === 'all' || !e.detail?.tab) {
         setEditingRoleId(null)
         localStorage.removeItem('serviq_editingRoleId')
       }
@@ -168,10 +168,13 @@ export default function RolesPage() {
       const nextIdNum = systemRoles.length > 0 ? Math.max(...systemRoles.map(r => parseInt(r.id.replace('role-', '')) || 0)) + 1 : 1
       const newId = `role-${nextIdNum}`
       setSystemRoles([...systemRoles, { ...roleFormState, id: newId }])
-      setEditingRoleId(newId)
+      setEditingRoleId(null)
+      localStorage.removeItem('serviq_editingRoleId')
       showToast('success', 'Custom Role created successfully!')
     } else {
       setSystemRoles(systemRoles.map(r => r.id === editingRoleId ? { ...roleFormState, id: editingRoleId } : r))
+      setEditingRoleId(null)
+      localStorage.removeItem('serviq_editingRoleId')
       showToast('success', 'Role updated successfully!')
     }
   }
@@ -195,7 +198,11 @@ export default function RolesPage() {
     const nextStatus = target.status === 'Active' ? 'Disabled' : 'Active'
     const updated = systemRoles.map(r => r.id === roleId ? { ...r, status: nextStatus } : r)
     setSystemRoles(updated)
-    showToast('info', `Role "${target.name}" status changed to ${nextStatus.toUpperCase()}`)
+    if (nextStatus === 'Disabled' || nextStatus === 'Inactive' || nextStatus === 'Suspended') {
+      showToast('error', `Role "${target.name}" status changed to ${nextStatus.toUpperCase()}`)
+    } else {
+      showToast('success', `Role "${target.name}" status updated to ${nextStatus.toUpperCase()}`)
+    }
   }
 
   const handlePermChange = (module, action, checked) => {
@@ -287,9 +294,6 @@ export default function RolesPage() {
                     boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
                   }}
                 />
-                {roleFormErrors.name && (
-                  <AlertTriangle style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#dc2626', width: '18px', height: '18px' }} />
-                )}
               </div>
               {roleFormErrors.name && (
                 <span style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '6px', display: 'block' }}>{roleFormErrors.name}</span>
@@ -557,6 +561,113 @@ export default function RolesPage() {
           </table>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal Overlay */}
+      {confirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(9, 13, 22, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1200,
+            padding: '20px'
+          }}
+          onClick={() => setConfirmModal(null)}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              padding: '36px 32px 28px',
+              width: '90%',
+              maxWidth: '420px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Soft Red Circular Icon Container */}
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '20px'
+            }}>
+              <Trash2 style={{ width: '28px', height: '28px', color: '#ef4444' }} />
+            </div>
+
+            {/* Title */}
+            <h3 style={{ margin: '0 0 10px', fontSize: '1.25rem', fontWeight: '800', color: '#0f172a' }}>
+              {confirmModal.title}
+            </h3>
+
+            {/* Subtitle Message */}
+            <p style={{ margin: '0 0 28px', fontSize: '0.9rem', color: '#64748b', lineHeight: '1.5', maxWidth: '340px' }}>
+              {confirmModal.message}
+            </p>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '14px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: confirmModal.confirmColor || '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {confirmModal.confirmText || 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
