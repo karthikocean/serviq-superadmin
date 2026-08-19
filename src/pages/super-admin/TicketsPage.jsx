@@ -16,13 +16,14 @@ import {
   ChevronDown
 } from 'lucide-react'
 
-import { useTickets } from '../../hooks/useTickets'
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import { getTickets, createTicket, updateTicketStatus, assignTicket } from '../../services/ticketService'
 
 export default function TicketsPage() {
-  const { tickets, setTickets } = useTickets()
+  const [tickets, setTickets] = useState([])
+  const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
 
@@ -33,24 +34,13 @@ export default function TicketsPage() {
   const [categoryFilter, setCategoryFilter] = useState('All')
 
   // Modals & Forms State
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState(null)
-  const [newTicket, setNewTicket] = useState({
-    restaurantName: '',
-    subject: '',
-    category: 'QR Scanning',
-    priority: 'Medium',
-    assignedUser: 'Unassigned',
-    description: ''
-  })
   const [assignUser, setAssignUser] = useState('')
   const [assignTicketId, setAssignTicketId] = useState(null)
-  const [errors, setErrors] = useState({})
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = () => {
-      setShowCreateModal(false)
       setSelectedTicket(null)
       setAssignTicketId(null)
     }
@@ -64,89 +54,73 @@ export default function TicketsPage() {
   const statuses = ['Open', 'In Progress', 'Resolved', 'Closed']
   const supportStaff = ['Admin User', 'Jane Doe (Support)', 'John Smith (Dev)', 'Platform Super']
 
-  // Handlers
-  const handleCreateTicketSubmit = (e) => {
-    e.preventDefault()
-    const errs = {}
-    if (!newTicket.restaurantName) errs.restaurantName = 'Restaurant Name is required'
-    if (!newTicket.subject.trim()) errs.subject = 'Subject is required'
-    if (!newTicket.description.trim()) errs.description = 'Description is required'
-
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs)
-      return
-    }
-
-    // Generate unique Ticket ID
-    const nextNum = tickets.length > 0 
-      ? Math.max(...tickets.map(t => parseInt(t.id.replace('TKT-', '')) || 0)) + 1 
-      : 1001
-    const newId = `TKT-${nextNum}`
-
-    const ticketToAdd = {
-      ...newTicket,
-      id: newId,
-      status: 'Open',
-      createdDate: new Date().toISOString().split('T')[0]
-    }
-
-    setTickets([ticketToAdd, ...tickets])
-    setShowCreateModal(false)
-    setNewTicket({
-      restaurantName: restaurants[0]?.name || '',
-      subject: '',
-      category: 'QR Scanning',
-      priority: 'Medium',
-      assignedUser: 'Unassigned',
-      description: ''
-    })
-    setErrors({})
-    showToast('success', `Support Ticket ${newId} created successfully!`)
-  }
-
-  const handleQuickResolve = (ticketId) => {
-    setTickets(tickets.map(t => t.id === ticketId ? { ...t, status: 'Resolved' } : t))
-    showToast('success', `Ticket ${ticketId} has been marked as RESOLVED.`)
-  }
-
-  const handleUpdateStatus = (ticketId, nextStatus) => {
-    setTickets(tickets.map(t => t.id === ticketId ? { ...t, status: nextStatus } : t))
-    if (nextStatus === 'Closed') {
-      showToast('error', `Ticket ${ticketId} status changed to CLOSED`)
-    } else {
-      showToast('success', `Ticket ${ticketId} status changed to ${nextStatus.toUpperCase()}`)
-    }
-  }
-
-  const handleAssignTicketSubmit = (e) => {
-    e.preventDefault()
-    if (!assignUser) return
-    setTickets(tickets.map(t => t.id === assignTicketId ? { ...t, assignedUser: assignUser } : t))
-    setAssignTicketId(null)
-    setAssignUser('')
-    showToast('success', `Ticket successfully assigned to ${assignUser}`)
-  }
-
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
-  // Filter logic
-  const filteredTickets = tickets.filter(t => {
-    const matchesSearch = t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.restaurantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'All' || t.status === statusFilter
-    const matchesPriority = priorityFilter === 'All' || t.priority === priorityFilter
-    const matchesCategory = categoryFilter === 'All' || t.category === categoryFilter
-    return matchesSearch && matchesStatus && matchesPriority && matchesCategory
-  })
+  // Handlers
+  const fetchTickets = async () => {
+    try {
+      const data = await getTickets({
+        page: currentPage,
+        limit: entriesPerPage,
+        searchTerm,
+        statusFilter,
+        priorityFilter,
+        categoryFilter
+      })
+      setTickets(data.data || [])
+      setTotalRecords(data.pagination?.totalItems || 0)
+    } catch (error) {
+      console.error(error)
+      showToast('error', 'Failed to fetch tickets')
+    }
+  }
 
-  const paginatedTickets = filteredTickets.slice(
-    (currentPage - 1) * entriesPerPage,
-    currentPage * entriesPerPage
-  )
+  useEffect(() => {
+    fetchTickets()
+  }, [currentPage, entriesPerPage, searchTerm, statusFilter, priorityFilter, categoryFilter])
+
+
+
+  const handleQuickResolve = async (ticketId) => {
+    try {
+      await updateTicketStatus(ticketId, 'Resolved')
+      showToast('success', `Ticket has been marked as RESOLVED.`)
+      fetchTickets()
+      if (selectedTicket && selectedTicket._id === ticketId) {
+        setSelectedTicket(null)
+      }
+    } catch (error) {
+      showToast('error', 'Failed to resolve ticket')
+    }
+  }
+
+  const handleUpdateStatus = async (ticketId, nextStatus) => {
+    try {
+      await updateTicketStatus(ticketId, nextStatus)
+      showToast('success', `Ticket status changed to ${nextStatus.toUpperCase()}`)
+      fetchTickets()
+    } catch (error) {
+      showToast('error', 'Failed to update ticket status')
+    }
+  }
+
+  const handleAssignTicketSubmit = async (e) => {
+    e.preventDefault()
+    if (!assignUser) return
+    try {
+      await assignTicket(assignTicketId, assignUser)
+      setAssignTicketId(null)
+      setAssignUser('')
+      showToast('success', `Ticket successfully assigned to ${assignUser}`)
+      fetchTickets()
+    } catch (error) {
+      showToast('error', 'Failed to assign ticket')
+    }
+  }
+
+
+  const paginatedTickets = tickets
 
   // Statistics
   const openCount = tickets.filter(t => t.status === 'Open').length
@@ -178,8 +152,7 @@ export default function TicketsPage() {
       gap: '24px',
       width: '100%',
       boxSizing: 'border-box',
-      position: (showCreateModal || selectedTicket || assignTicketId) ? 'relative' : 'static',
-      zIndex: (showCreateModal || selectedTicket || assignTicketId) ? 100000 : 'auto'
+      position: 'relative'
     }}>
       
       {/* Overview Cards */}
@@ -235,24 +208,7 @@ export default function TicketsPage() {
           <div>
             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Support Ticket Management</h3>
           </div>
-          <button
-            onClick={() => {
-              setErrors({})
-              setNewTicket({
-                restaurantName: restaurants[0]?.name || '',
-                subject: '',
-                category: 'QR Scanning',
-                priority: 'Medium',
-                assignedUser: 'Unassigned',
-                description: ''
-              })
-              setShowCreateModal(true)
-            }}
-            className="btn-black"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} /> Create Ticket
-          </button>
+
         </div>
 
         {/* Controls Bar */}
@@ -337,15 +293,15 @@ export default function TicketsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredTickets.length > 0 ? (
+              {paginatedTickets.length > 0 ? (
                 paginatedTickets.map(ticket => {
                   const priorityStyle = getPriorityStyle(ticket.priority)
                   const statusStyle = getStatusStyle(ticket.status)
 
                   return (
-                    <tr key={ticket.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                    <tr key={ticket._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800', fontFamily: 'monospace', verticalAlign: 'middle' }}>
-                        {ticket.id}
+                        {ticket.ticketNumber}
                       </td>
                       <td style={{ padding: '14px 18px', verticalAlign: 'middle' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -402,7 +358,7 @@ export default function TicketsPage() {
                           </button>
                           <button
                             onClick={() => {
-                              setAssignTicketId(ticket.id)
+                              setAssignTicketId(ticket._id)
                               setAssignUser(ticket.assignedUser === 'Unassigned' ? '' : ticket.assignedUser)
                             }}
                             className="btn-outline"
@@ -412,7 +368,7 @@ export default function TicketsPage() {
                           </button>
                           {ticket.status !== 'Resolved' && ticket.status !== 'Closed' && (
                             <button
-                              onClick={() => handleQuickResolve(ticket.id)}
+                              onClick={() => handleQuickResolve(ticket._id)}
                               className="btn-black"
                               style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer', background: '#10b981', border: 'none', color: '#ffffff' }}
                             >
@@ -437,141 +393,13 @@ export default function TicketsPage() {
         </div>
 
         <TableBottomPagination
-          totalEntries={filteredTickets.length}
+          totalEntries={totalRecords}
           currentPage={currentPage}
           entriesPerPage={entriesPerPage}
           onPageChange={setCurrentPage}
         />
       </div>
 
-      {/* CREATE TICKET MODAL OVERLAY */}
-      {showCreateModal && createPortal(
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(9, 13, 22, 0.45)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99999,
-          padding: '20px'
-        }} onClick={() => setShowCreateModal(false)}>
-          <div className="menu-edit-panel animate-fade-in" style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '16px',
-            padding: '28px',
-            width: '90%',
-            maxWidth: '500px',
-            boxShadow: 'var(--shadow-premium)',
-            position: 'relative',
-            top: 'auto'
-          }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 20px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
-              File Support Request Ticket
-            </h3>
-
-            <form onSubmit={handleCreateTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              
-              {/* Restaurant Select */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.restaurantName ? '#ef4444' : 'var(--text-main)' }}>Restaurant Branch *</label>
-                <select
-                  value={newTicket.restaurantName}
-                  onChange={(e) => {
-                    setNewTicket({ ...newTicket, restaurantName: e.target.value })
-                    if (errors.restaurantName) setErrors({ ...errors, restaurantName: '' })
-                  }}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${errors.restaurantName ? '#ef4444' : 'var(--border-color)'}`, background: errors.restaurantName ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none', transition: 'border-color 0.15s' }}
-                >
-                  <option value="">Select Restaurant</option>
-                  {restaurants.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                </select>
-                {errors.restaurantName && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.restaurantName}</span>}
-              </div>
-
-              {/* Subject */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.subject ? '#ef4444' : 'var(--text-main)' }}>Subject / Issue Brief *</label>
-                <input
-                  type="text"
-                  value={newTicket.subject}
-                  onChange={(e) => {
-                    setNewTicket({ ...newTicket, subject: e.target.value })
-                    if (errors.subject) setErrors({ ...errors, subject: '' })
-                  }}
-                  placeholder="e.g. Menu display issue"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${errors.subject ? '#ef4444' : 'var(--border-color)'}`, background: errors.subject ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none', transition: 'border-color 0.15s' }}
-                />
-                {errors.subject && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.subject}</span>}
-              </div>
-
-              {/* Category & Priority Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Category</label>
-                  <select
-                    value={newTicket.category}
-                    onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                  >
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Priority</label>
-                  <select
-                    value={newTicket.priority}
-                    onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                  >
-                    {priorities.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Assign to Staff */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Initial Assignee</label>
-                <select
-                  value={newTicket.assignedUser}
-                  onChange={(e) => setNewTicket({ ...newTicket, assignedUser: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                >
-                  <option value="Unassigned">Leave Unassigned</option>
-                  {supportStaff.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-
-              {/* Detailed Description */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.description ? '#ef4444' : 'var(--text-main)' }}>Detailed Description *</label>
-                <textarea
-                  rows="3"
-                  value={newTicket.description}
-                  onChange={(e) => {
-                    setNewTicket({ ...newTicket, description: e.target.value })
-                    if (errors.description) setErrors({ ...errors, description: '' })
-                  }}
-                  placeholder="Describe the issue in detail..."
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${errors.description ? '#ef4444' : 'var(--border-color)'}`, background: errors.description ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none', resize: 'vertical', transition: 'border-color 0.15s' }}
-                />
-                {errors.description && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.description}</span>}
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <button type="submit" className="btn-black" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#000000', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}>Submit Ticket</button>
-                <button type="button" className="btn-outline" onClick={() => { setShowCreateModal(false); setErrors({}); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* ASSIGN USER MODAL OVERLAY */}
       {assignTicketId && createPortal(
@@ -656,7 +484,7 @@ export default function TicketsPage() {
               <div>
                 <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'hsl(var(--primary-hue), 95%, 52%)', textTransform: 'uppercase' }}>Ticket Details</span>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)', margin: '4px 0 0 0' }}>
-                  {selectedTicket.id}
+                  {selectedTicket.ticketNumber}
                 </h3>
               </div>
               <span style={{
@@ -720,7 +548,7 @@ export default function TicketsPage() {
                 {selectedTicket.status !== 'Resolved' && selectedTicket.status !== 'Closed' && (
                   <button
                     onClick={() => {
-                      handleQuickResolve(selectedTicket.id)
+                      handleQuickResolve(selectedTicket._id)
                       setSelectedTicket(null)
                     }}
                     className="btn-black"

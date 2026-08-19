@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Building,
   AlertTriangle,
@@ -440,6 +441,8 @@ import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 
 export default function RestaurantsPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
   const [confirmModal, setConfirmModal] = useState(null)
@@ -591,6 +594,26 @@ export default function RestaurantsPage() {
     }))
   }, [])
 
+  // Handle lead conversion redirection
+  const [conversionLeadId, setConversionLeadId] = useState(null)
+  useEffect(() => {
+    if (location.state?.convertFromLead) {
+      const lead = location.state.convertFromLead
+      setConversionLeadId(lead._id)
+      setNewRestState(prev => ({
+        ...prev,
+        name: lead.businessName || '',
+        ownerName: lead.contactPerson || '',
+        email: lead.emailAddress || '',
+        mobileNumber: lead.mobileNumber || ''
+      }))
+      setShowAddModal(true)
+      
+      // Clean up state so refresh doesn't trigger it again
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, navigate])
+
   const handleEditClick = (rest) => {
     setViewingRestId(null)
     setEditingRestId(rest.id)
@@ -724,14 +747,16 @@ export default function RestaurantsPage() {
         bannerUrl: newRestState.banner,
         startDate: newRestState.startDate || undefined,
         endDate: newRestState.endDate || undefined,
-        renewalDate: newRestState.renewalDate || undefined
+        renewalDate: newRestState.renewalDate || undefined,
+        leadId: conversionLeadId || undefined
       };
 
       const response = await createRestaurant(payload);
       if (response.success) {
         await fetchRestaurants();
         setShowAddModal(false);
-        showToast('success', `Branch "${newRestState.name}" registered successfully!`);
+        setConversionLeadId(null);
+        showToast('success', `Restaurant "${newRestState.name}" registered successfully!`);
         // Clear state
         setNewRestState({
           name: '',
