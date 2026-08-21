@@ -1,5 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Save, Settings, AlertTriangle } from 'lucide-react'
+import { useNotification } from '../../contexts/NotificationContext'
+import { getSettings, updateSettings } from '../../services/settingService'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -69,35 +71,58 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
   </div>
 )
 
-import { useRestaurant } from '../../hooks/useRestaurants'
-import { useNotification } from '../../contexts/NotificationContext'
-
 export default function SettingsPage() {
-  const { restaurantDetails = {}, updateRestaurantDetails: onUpdateRestaurantDetails } = useRestaurant()
   const { showToast } = useNotification()
   const setSystemLogs = () => { }
-  const [formState, setFormState] = useState({ ...restaurantDetails })
+  const [formState, setFormState] = useState({
+    name: '',
+    legalName: '',
+    email: '',
+    phone: ''
+  })
   const [formErrors, setFormErrors] = useState({})
+  const [settingsId, setSettingsId] = useState(null)
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await getSettings()
+        const data = response?.data
+        if (data) {
+          setFormState({
+            name: data.name || '',
+            legalName: data.legalName || '',
+            email: data.email || '',
+            phone: data.phone || ''
+          })
+          setSettingsId(data._id)
+        }
+      } catch (error) {
+        showToast('error', 'Failed to load system settings')
+      }
+    }
+    loadSettings()
+  }, [])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormState(prev => ({
       ...prev,
-      [name]: name === 'taxRate' || name === 'serviceCharge' ? parseFloat(value) || 0 : value
+      [name]: value
     }))
   }
 
-  const handleSaveDetails = (e) => {
+  const handleSaveDetails = async (e) => {
     e.preventDefault()
-    onUpdateRestaurantDetails(formState)
-    showToast('success', 'Global system configurations successfully synchronized system-wide!')
-
-    if (setSystemLogs) {
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      setSystemLogs(prev => [
-        { id: Date.now(), time: now, type: 'success', msg: `System configurations modified: "${formState.name || 'Serviq Platform'}"` },
-        ...prev
-      ])
+    
+    try {
+      const savedData = await updateSettings(formState)
+      if (savedData && savedData._id) {
+        setSettingsId(savedData._id)
+      }
+      showToast('success', 'Global system configurations successfully synchronized system-wide!')
+    } catch (error) {
+      showToast('error', 'Failed to update configurations')
     }
   }
 
@@ -162,65 +187,6 @@ export default function SettingsPage() {
             />
           </div>
 
-          {/* Location & Tax Configurations */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-            <ValidatedSelect
-              label="Operational Currency"
-              name="currency"
-              value={formState.currency || 'INR'}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="INR">Indian Rupee (₹)</option>
-              <option value="USD">US Dollar ($)</option>
-              <option value="EUR">Euro (€)</option>
-              <option value="GBP">British Pound (£)</option>
-            </ValidatedSelect>
-
-            <ValidatedInput
-              label="Standard Tax Rate (GST %)"
-              name="taxRate"
-              type="number"
-              value={formState.taxRate !== undefined ? formState.taxRate : 18}
-              onChange={handleInputChange}
-              placeholder="e.g. 18"
-              required
-              min="0"
-              max="100"
-            />
-
-            <ValidatedInput
-              label="Default Service Charge (%)"
-              name="serviceCharge"
-              type="number"
-              value={formState.serviceCharge !== undefined ? formState.serviceCharge : 5}
-              onChange={handleInputChange}
-              placeholder="e.g. 5"
-              required
-              min="0"
-              max="100"
-            />
-          </div>
-
-          {/* Operational Hours */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <ValidatedInput
-              label="System Opening Time"
-              name="openingTime"
-              value={formState.openingTime || '10:00 AM'}
-              onChange={handleInputChange}
-              placeholder="e.g. 10:00 AM"
-              required
-            />
-            <ValidatedInput
-              label="System Closing Time"
-              name="closingTime"
-              value={formState.closingTime || '10:00 PM'}
-              onChange={handleInputChange}
-              placeholder="e.g. 10:00 PM"
-              required
-            />
-          </div>
 
 
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>

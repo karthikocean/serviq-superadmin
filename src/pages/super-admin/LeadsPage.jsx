@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -72,19 +73,18 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import { getLeads, createLead, updateLeadStatus, assignLead, updateFollowUp, convertLeadToRestaurant } from '../../services/leadService'
 
 export default function LeadsPage() {
+  const navigate = useNavigate()
   const { restaurants, setRestaurants: onUpdateRestaurants } = useRestaurant()
   const { showToast } = useNotification()
   const restaurantAdmins = []
-  const leadStatuses = ['New Lead', 'Contacted', 'Demo Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost']
+  const leadStatuses = ['New Lead', 'Contacted', 'Interested', 'Follow-up', 'Not Interested', 'Demo Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost']
   const leadSources = ['Website', 'Referral', 'Cold Call', 'Walk-in', 'Partner', 'Social Media']
 
-  const [leads, setLeads] = useState([
-    { id: 'LEAD-001', businessName: 'Spice Garden Bistro', contactPerson: 'Anita Rao', mobileNumber: '+91 98765 70001', emailAddress: 'anita@spicegarden.in', leadSource: 'Website', leadStatus: 'Demo Scheduled', followUpDate: '2026-06-12', assignedTo: 'Rajesh Kumar', remarks: 'Owner wants a table QR demo for 18 tables.', convertedRestaurantId: '' },
-    { id: 'LEAD-002', businessName: 'Urban Tiffin House', contactPerson: 'Karthik Nair', mobileNumber: '+91 98765 70002', emailAddress: 'karthik@urbantiffin.in', leadSource: 'Referral', leadStatus: 'Proposal Sent', followUpDate: '2026-06-14', assignedTo: 'Amit Patel', remarks: 'Asked for Premium Plan with billing module.', convertedRestaurantId: '' },
-    { id: 'LEAD-003', businessName: 'Blue Plate Cafe', contactPerson: 'Meera Shah', mobileNumber: '+91 98765 70003', emailAddress: 'meera@blueplate.in', leadSource: 'Cold Call', leadStatus: 'Contacted', followUpDate: '2026-06-10', assignedTo: 'Unassigned', remarks: 'Needs callback after lunch service.', convertedRestaurantId: '' }
-  ])
+  const [leads, setLeads] = useState([])
+  const [totalRecords, setTotalRecords] = useState(0)
 
   const [leadFormState, setLeadFormState] = useState({
     businessName: '',
@@ -102,6 +102,29 @@ export default function LeadsPage() {
   const [leadStatusFilter, setLeadStatusFilter] = useState('All')
   const [showCreateLeadForm, setShowCreateLeadForm] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+  
+  const [currentPage, setCurrentPage] = useState(1)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
+
+  const fetchLeads = async () => {
+    try {
+      const data = await getLeads({ 
+        page: currentPage, 
+        limit: entriesPerPage, 
+        leadSearchQuery, 
+        leadStatusFilter 
+      })
+      setLeads(data.data || [])
+      setTotalRecords(data.pagination?.totalItems || 0)
+    } catch (error) {
+      console.error(error)
+      showToast('error', 'Failed to fetch leads')
+    }
+  }
+
+  useEffect(() => {
+    fetchLeads()
+  }, [currentPage, entriesPerPage, leadSearchQuery, leadStatusFilter])
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
@@ -126,7 +149,7 @@ export default function LeadsPage() {
     })
   }
 
-  const handleCreateLeadSubmit = (e) => {
+  const handleCreateLeadSubmit = async (e) => {
     e.preventDefault()
 
     const errors = {}
@@ -146,20 +169,15 @@ export default function LeadsPage() {
       }
     }
 
-    // Contact Person: letters and spaces only
     if (leadFormState.contactPerson && !/^[a-zA-Z\s]+$/.test(leadFormState.contactPerson.trim())) {
       errors.contactPerson = 'Contact Person must contain letters and spaces only'
     }
 
-    // Mobile Number: 10-digit Indian number starting with 6-9, no duplicates
     const mob = (leadFormState.mobileNumber || '').trim()
     if (mob && !/^[6-9]\d{9}$/.test(mob)) {
       errors.mobileNumber = 'Enter a valid 10-digit mobile number'
-    } else if (mob && leads.some(l => l.mobileNumber === mob)) {
-      errors.mobileNumber = 'Mobile number already registered by another lead'
     }
 
-    // Email Address: mandatory @ symbol and valid format
     const emailVal = (leadFormState.emailAddress || '').trim()
     if (emailVal && (!emailVal.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal))) {
       errors.emailAddress = 'Valid email address containing "@" is required'
@@ -172,113 +190,69 @@ export default function LeadsPage() {
 
     setFormErrors({})
 
-    const nextIdNum = leads.length > 0
-      ? Math.max(...leads.map(lead => parseInt(lead.id.replace('LEAD-', '')) || 0)) + 1
-      : 1
-
-    const newLead = {
-      id: `LEAD-${String(nextIdNum).padStart(3, '0')}`,
-      ...leadFormState,
-      assignedTo: leadFormState.assignedTo || restaurantAdmins[0]?.name || 'Unassigned',
-      convertedRestaurantId: ''
+    try {
+      await createLead(leadFormState)
+      resetLeadForm()
+      setShowCreateLeadForm(false)
+      showToast('success', `Lead "${leadFormState.businessName}" created successfully!`)
+      fetchLeads()
+    } catch (error) {
+      showToast('error', error.response?.data?.message || 'Failed to create lead')
     }
-
-    setLeads([newLead, ...leads])
-    resetLeadForm()
-    setShowCreateLeadForm(false)
-    showToast('success', `Lead "${newLead.businessName}" created successfully!`)
   }
 
-  const handleLeadStatusChange = (leadId, leadStatus) => {
-    setLeads(leads.map(lead => lead.id === leadId ? { ...lead, leadStatus } : lead))
-    showToast('success', `Lead status updated to ${leadStatus}.`)
+  const handleLeadStatusChange = async (leadId, leadStatus) => {
+    try {
+      await updateLeadStatus(leadId, leadStatus)
+      showToast('success', `Lead status updated to ${leadStatus}.`)
+      fetchLeads()
+    } catch (error) {
+      showToast('error', 'Failed to update status')
+    }
   }
 
-  const handleLeadAssignmentChange = (leadId, assignedTo) => {
-    setLeads(leads.map(lead => lead.id === leadId ? { ...lead, assignedTo } : lead))
-    showToast('success', `Lead assigned to ${assignedTo}.`)
+  const handleLeadAssignmentChange = async (leadId, assignedTo) => {
+    try {
+      await assignLead(leadId, assignedTo)
+      showToast('success', `Lead assigned to ${assignedTo}.`)
+      fetchLeads()
+    } catch (error) {
+      showToast('error', 'Failed to assign lead')
+    }
   }
 
-  const handleLeadFollowUpChange = (leadId, followUpDate) => {
-    setLeads(leads.map(lead => lead.id === leadId ? { ...lead, followUpDate } : lead))
-    showToast('success', 'Follow-up date scheduled.')
+  const handleLeadFollowUpChange = async (leadId, followUpDate) => {
+    try {
+      await updateFollowUp(leadId, followUpDate)
+      showToast('success', 'Follow-up date scheduled.')
+      fetchLeads()
+    } catch (error) {
+      showToast('error', 'Failed to update follow-up date')
+    }
   }
 
-  const handleConvertLeadToRestaurant = (lead) => {
-    if (lead.convertedRestaurantId) {
+  const handleConvertLeadToRestaurant = async (lead) => {
+    if (lead.leadStatus === 'Converted' || lead.convertedRestaurantId) {
       showToast('info', 'This lead is already converted to a restaurant.')
       return
     }
 
-    const nextIdNum = restaurants.length > 0
-      ? Math.max(...restaurants.map(rest => parseInt(String(rest.id).replace('R-', '')) || 0)) + 1
-      : 1
-    const newRestaurantId = `R-${String(nextIdNum).padStart(2, '0')}`
-    const newRestaurant = {
-      id: newRestaurantId,
-      name: lead.businessName,
-      legalName: `${lead.businessName} Pvt. Ltd.`,
-      ownerName: lead.contactPerson,
-      mobileNumber: lead.mobileNumber,
-      phone: lead.mobileNumber,
-      email: lead.emailAddress,
-      website: '',
-      address: '',
-      city: '',
-      state: '',
-      country: 'India',
-      license: '',
-      gstin: '',
-      currency: 'INR',
-      taxRate: 5,
-      serviceCharge: 5,
-      openingTime: '10:00 AM',
-      closingTime: '10:00 PM',
-      status: 'Active',
-      subscriptionPlan: 'Standard',
-      subscriptionStatus: 'Active',
-      expiryDate: (() => {
-        const expiry = new Date()
-        expiry.setFullYear(expiry.getFullYear() + 1)
-        return expiry.toISOString().split('T')[0]
-      })(),
-      createdDate: new Date().toISOString().split('T')[0],
-      logo: '',
-      banner: ''
+    try {
+      await convertLeadToRestaurant(lead._id)
+      showToast('success', 'Lead validated. Redirecting to Add Restaurant...')
+      navigate('/super-admin/restaurants', { state: { convertFromLead: lead } })
+    } catch (error) {
+      showToast('error', error.response?.data?.message || 'Conversion failed')
     }
-
-    onUpdateRestaurants([...restaurants, newRestaurant])
-    setLeads(leads.map(item => item.id === lead.id ? {
-      ...item,
-      leadStatus: 'Won',
-      convertedRestaurantId: newRestaurantId,
-      remarks: item.remarks ? `${item.remarks} Converted to restaurant ${newRestaurantId}.` : `Converted to restaurant ${newRestaurantId}.`
-    } : item))
-    showToast('success', `${lead.businessName} converted to restaurant ${newRestaurantId}.`)
   }
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [entriesPerPage, setEntriesPerPage] = useState(10)
 
-  const filteredLeads = leads.filter(lead => {
-    const query = leadSearchQuery.toLowerCase()
-    const matchesSearch =
-      lead.businessName.toLowerCase().includes(query) ||
-      lead.contactPerson.toLowerCase().includes(query) ||
-      lead.mobileNumber.toLowerCase().includes(query) ||
-      lead.emailAddress.toLowerCase().includes(query)
-    const matchesStatus = leadStatusFilter === 'All' || lead.leadStatus === leadStatusFilter
-    return matchesSearch && matchesStatus
-  })
 
-  const paginatedLeads = filteredLeads.slice(
-    (currentPage - 1) * entriesPerPage,
-    currentPage * entriesPerPage
-  )
+  const paginatedLeads = leads
 
-  const openLeadsCount = leads.filter(lead => !['Won', 'Lost'].includes(lead.leadStatus)).length
-  const wonLeadsCount = leads.filter(lead => lead.leadStatus === 'Won').length
-  const upcomingFollowUpsCount = leads.filter(lead => lead.followUpDate && !['Won', 'Lost'].includes(lead.leadStatus)).length
+  const openLeadsCount = leads.filter(lead => !['Won', 'Lost', 'Converted'].includes(lead.leadStatus)).length
+  const wonLeadsCount = leads.filter(lead => lead.leadStatus === 'Won' || lead.leadStatus === 'Converted').length
+  const upcomingFollowUpsCount = leads.filter(lead => lead.followUpDate && !['Won', 'Lost', 'Converted'].includes(lead.leadStatus)).length
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -425,7 +399,7 @@ export default function LeadsPage() {
               </thead>
               <tbody>
                 {paginatedLeads.map((lead, idx) => (
-                  <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                  <tr key={lead._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap', width: '65px' }}>
                       {(currentPage - 1) * entriesPerPage + idx + 1}
                     </td>
@@ -444,7 +418,7 @@ export default function LeadsPage() {
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '150px' }}>
                       <select
                         value={lead.leadStatus}
-                        onChange={(e) => handleLeadStatusChange(lead.id, e.target.value)}
+                        onChange={(e) => handleLeadStatusChange(lead._id, e.target.value)}
                         style={{
                           padding: '6px 10px',
                           borderRadius: '8px',
@@ -466,7 +440,7 @@ export default function LeadsPage() {
                       <input
                         type="text"
                         value={lead.assignedTo || ''}
-                        onChange={(e) => handleLeadAssignmentChange(lead.id, e.target.value)}
+                        onChange={(e) => handleLeadAssignmentChange(lead._id, e.target.value)}
                         placeholder="Unassigned"
                         style={{
                           padding: '6px 10px',
@@ -484,8 +458,8 @@ export default function LeadsPage() {
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '140px' }}>
                       <input
                         type="date"
-                        value={lead.followUpDate}
-                        onChange={(e) => handleLeadFollowUpChange(lead.id, e.target.value)}
+                        value={lead.followUpDate ? lead.followUpDate.substring(0, 10) : ''}
+                        onChange={(e) => handleLeadFollowUpChange(lead._id, e.target.value)}
                         style={{
                           padding: '6px 10px',
                           borderRadius: '8px',
@@ -518,7 +492,7 @@ export default function LeadsPage() {
                     </td>
                   </tr>
                 ))}
-                {filteredLeads.length === 0 && (
+                {paginatedLeads.length === 0 && (
                   <tr>
                     <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No leads found matching your filters.</td>
                   </tr>
@@ -528,7 +502,7 @@ export default function LeadsPage() {
             </div>
 
             <TableBottomPagination
-              totalEntries={filteredLeads.length}
+              totalEntries={totalRecords}
               currentPage={currentPage}
               entriesPerPage={entriesPerPage}
               onPageChange={setCurrentPage}
