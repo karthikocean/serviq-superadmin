@@ -1,33 +1,35 @@
 import { useState, useEffect } from 'react';
-
-const initialFeatures = {
-  'qr-code-config': false,
-  'menu': false,
-  'tables': false,
-  'orders': false,
-  'waiter-list': false,
-  'kitchen-list': false
-};
-
-const mockPlans = [
-  { id: 'plan-basic', name: 'Basic Plan', description: 'Essential tools for small eateries, QR menu ordering and simple table management.', monthlyPrice: 999, annualPrice: 9999, branchLimit: 1, userLimit: 3, orderLimit: 500, featuresIncluded: { ...initialFeatures, 'qr-code-config': true, 'menu': true, 'tables': true, 'orders': true }, status: 'Active' },
-  { id: 'plan-standard', name: 'Standard Plan', description: 'Includes everything in Basic, plus tableside waiter service and app integrations.', monthlyPrice: 1999, annualPrice: 19999, branchLimit: 2, userLimit: 5, orderLimit: 1000, featuresIncluded: { ...initialFeatures, 'qr-code-config': true, 'menu': true, 'tables': true, 'orders': true, 'waiter-list': true }, status: 'Active' },
-  { id: 'plan-premium', name: 'Premium Plan', description: 'Advanced operations with integrated Kitchen KDS displays and advanced billing.', monthlyPrice: 4999, annualPrice: 49999, branchLimit: 5, userLimit: 15, orderLimit: 5000, featuresIncluded: { ...initialFeatures, 'qr-code-config': true, 'menu': true, 'tables': true, 'orders': true, 'waiter-list': true, 'kitchen-list': true }, status: 'Active' },
-];
+import { getPlans } from '../services/api';
 
 export function usePlans() {
-  const [plans, setPlans] = useState(() => {
+  const [plans, setPlans] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchPlans = async () => {
+    setIsLoading(true);
     try {
-      const item = localStorage.getItem('serviq_plans');
-      return item ? JSON.parse(item) : mockPlans;
-    } catch {
-      return mockPlans;
+      const response = await getPlans();
+      if (response && response.data) {
+        // Handle pagination or array response
+        const fetchedPlans = response.data.results || response.data;
+        // Make sure it has id and name to match existing UI
+        const mappedPlans = fetchedPlans.map(p => ({
+          ...p,
+          id: p._id,
+          name: p.planName,
+        }));
+        setPlans(mappedPlans);
+      }
+    } catch (error) {
+      console.error("Error fetching plans:", error);
+    } finally {
+      setIsLoading(false);
     }
-  });
+  };
 
   useEffect(() => {
-    localStorage.setItem('serviq_plans', JSON.stringify(plans));
-  }, [plans]);
+    fetchPlans();
+  }, []);
 
-  return { plans, setPlans };
+  return { plans, setPlans, fetchPlans, isLoading };
 }

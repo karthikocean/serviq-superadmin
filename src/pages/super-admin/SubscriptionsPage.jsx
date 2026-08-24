@@ -3,6 +3,7 @@ import {
   X,
   Gem,
   Plus,
+  Minus,
   RefreshCw,
   XCircle,
   CheckCircle2,
@@ -16,20 +17,29 @@ import {
 import { useSubscriptions } from '../../hooks/useSubscriptions'
 import { usePlans } from '../../hooks/usePlans'
 import { useRestaurant } from '../../hooks/useRestaurants'
+import { useAddons } from '../../hooks/useAddons'
 import { useNotification } from '../../contexts/NotificationContext'
+import { assignSubscriptionAPI, uploadImage, changePlanAPI, renewSubscriptionAPI, manageAddonsAPI, cancelSubscriptionAPI } from '../../services/api'
+import PaymentDetailsForm from '../../components/Payment/PaymentDetailsForm'
+import RenewSubscriptionModal from '../../components/Payment/RenewSubscriptionModal'
+import ChangePlanModal from '../../components/Payment/ChangePlanModal'
+import ManageAddonsModal from '../../components/Payment/ManageAddonsModal'
 
 export default function SubscriptionsPage() {
-  const { subscriptionHistory, setSubscriptionHistory } = useSubscriptions()
+  const { subscriptions, fetchSubscriptions, subscriptionHistory, fetchSubscriptionHistory } = useSubscriptions()
   const { plans } = usePlans()
   const { restaurants, setRestaurants } = useRestaurant()
+  const { addons } = useAddons()
   const { showToast } = useNotification()
-  // Mock onUpdateRestaurants for compatibility
-  const onUpdateRestaurants = setRestaurants;
+  
+  // Use subscriptions for table instead of restaurants
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
   const [editingSubscriptionRest, setEditingSubscriptionRest] = useState(null)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('current') // 'current' or 'history'
   const [currentFilter, setCurrentFilter] = useState('All') // 'All', 'Active', 'Expiring Soon', 'Expired', 'Cancelled'
+  const [activeDropdown, setActiveDropdown] = useState(null)
+  const [actionModal, setActionModal] = useState({ type: null, subscription: null })
   
   const [historySearchTerm, setHistorySearchTerm] = useState('')
   const [historyPlanFilter, setHistoryPlanFilter] = useState('All Plans')
@@ -38,10 +48,11 @@ export default function SubscriptionsPage() {
   const [formState, setFormState] = useState({
     restaurantId: '',
     planName: 'Basic Plan',
+    billingCycle: 'Annual',
     startDate: '',
     endDate: '',
     renewalDate: '',
-    subscriptionStatus: 'Active'
+    extraBranches: 0
   })
   const [formErrors, setFormErrors] = useState({})
 
@@ -52,17 +63,27 @@ export default function SubscriptionsPage() {
       setEditingSubscriptionRest(null)
       setIsAssignModalOpen(false)
       setActiveTab('current')
+      setActiveDropdown(null)
+    }
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.action-dropdown-container')) {
+        setActiveDropdown(null)
+      }
     }
     window.addEventListener('reset_module_view', handleReset)
-    return () => window.removeEventListener('reset_module_view', handleReset)
+    document.addEventListener('click', handleClickOutside)
+    return () => {
+      window.removeEventListener('reset_module_view', handleReset)
+      document.removeEventListener('click', handleClickOutside)
+    }
   }, [])
 
-  // Compute stats for the top widget row
-  const totalSubscribed = restaurants.length
-  const activeSubscribed = restaurants.filter(r => r.subscriptionStatus === 'Active').length
-  const expiringSoonSubscribed = restaurants.filter(r => r.subscriptionStatus === 'Expiring Soon').length
-  const expiredSubscribed = restaurants.filter(r => r.subscriptionStatus === 'Expired').length
-  const cancelledSubscribed = restaurants.filter(r => r.subscriptionStatus === 'Cancelled' || r.subscriptionStatus === 'Suspended').length
+  // Compute stats based on true subscriptions
+  const totalSubscribed = subscriptions.length
+  const activeSubscribed = subscriptions.filter(s => s.status === 'Active').length
+  const expiringSoonSubscribed = subscriptions.filter(s => s.status === 'Expiring Soon').length
+  const expiredSubscribed = subscriptions.filter(s => s.status === 'Expired').length
+  const cancelledSubscribed = subscriptions.filter(s => s.status === 'Cancelled' || s.status === 'Suspended').length
 
   const filteredHistory = (subscriptionHistory || []).filter(record => {
     const matchSearch = record.restaurantName?.toLowerCase().includes(historySearchTerm.toLowerCase()) || false;
@@ -70,6 +91,46 @@ export default function SubscriptionsPage() {
     const matchStatus = historyStatusFilter === 'All Status' || record.status === historyStatusFilter;
     return matchSearch && matchPlan && matchStatus;
   });
+
+  // Calculate Prices for the Assign Plan Form
+  const selectedPlanObj = plans.find(p => p.name === formState.planName);
+  const currentPlanPrice = selectedPlanObj 
+    ? (formState.billingCycle === 'Annual' ? selectedPlanObj.annualPrice : selectedPlanObj.monthlyPrice) 
+    : 0;
+
+  const branchAddon = addons?.find(a => a.addonType === 'BRANCH');
+  const addonPricePerBranch = branchAddon 
+    ? (formState.billingCycle === 'Annual' ? branchAddon.annualPrice : branchAddon.monthlyPrice) 
+    : 1500;
+  
+  const totalAddonPrice = formState.extraBranches * addonPricePerBranch;
+  const totalAssignPrice = currentPlanPrice + totalAddonPrice;
+
+  const handleDateOrCycleChange = (field, value) => {
+    const newState = { ...formState, [field]: value }
+    if (!newState.startDate) {
+      setFormState(newState)
+      return
+    }
+    
+    const start = new Date(newState.startDate)
+    if (isNaN(start.getTime())) {
+      setFormState(newState)
+      return
+    }
+
+    const end = new Date(start)
+    if (newState.billingCycle === 'Monthly') {
+      end.setMonth(end.getMonth() + 1)
+    } else {
+      end.setFullYear(end.getFullYear() + 1)
+    }
+    
+    const endStr = end.toISOString().split('T')[0]
+    newState.endDate = endStr
+    newState.renewalDate = endStr
+    setFormState(newState)
+  }
 
   const handleOpenAssignModal = () => {
     const todayStr = new Date().toISOString().split('T')[0]
@@ -80,10 +141,11 @@ export default function SubscriptionsPage() {
     setFormState({
       restaurantId: restaurants[0]?.id || '',
       planName: plans.filter(p => p.status === 'Active')[0]?.name || 'Basic Plan',
+      billingCycle: 'Annual',
       startDate: todayStr,
       endDate: nextYearStr,
       renewalDate: nextYearStr,
-      subscriptionStatus: 'Active'
+      extraBranches: 0
     })
     setFormErrors({})
     setIsAssignModalOpen(true)
@@ -94,21 +156,19 @@ export default function SubscriptionsPage() {
     setFormState({
       restaurantId: restaurant.id,
       planName: restaurant.subscriptionPlan || 'Basic Plan',
+      billingCycle: 'Annual',
       startDate: restaurant.createdDate || '',
       endDate: restaurant.expiryDate || '',
-      renewalDate: restaurant.renewalDate || restaurant.expiryDate || '',
-      subscriptionStatus: restaurant.subscriptionStatus || 'Active'
+      renewalDate: restaurant.renewalDate || restaurant.expiryDate || ''
     })
     setFormErrors({})
   }
 
-  const handleSaveSubscription = (e) => {
+  const handleSaveSubscription = async (e) => {
     e.preventDefault()
     const errors = {}
     if (!formState.restaurantId) errors.restaurantId = 'Restaurant is required'
     if (!formState.startDate) errors.startDate = 'Start Date is required'
-    if (!formState.endDate) errors.endDate = 'End Date is required'
-    if (!formState.renewalDate) errors.renewalDate = 'Renewal Date is required'
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
@@ -118,28 +178,39 @@ export default function SubscriptionsPage() {
     const selectedRest = restaurants.find(r => r.id === formState.restaurantId)
     if (!selectedRest) return
 
-    // Update restaurant subscription fields
+    if (!editingSubscriptionRest) {
+      try {
+        const payload = {
+          restaurant: selectedRest._id, // Sending the MongoDB ObjectId
+          plan: plans.find(p => p.name === formState.planName)?._id,
+          billingCycle: formState.billingCycle,
+          startDate: formState.startDate,
+          status: 'Active',
+          extraBranches: formState.extraBranches,
+          paymentMethod: formState.paymentMethod,
+          referenceId: formState.referenceId,
+          notes: formState.notes,
+          paymentProof: formState.paymentProof
+        }
+        await assignSubscriptionAPI(payload)
+        showToast('success', `New subscription assigned to "${selectedRest.name}"!`)
+      } catch (err) {
+        showToast('error', err.response?.data?.message || 'Failed to assign subscription.')
+        console.error(err)
+        return
+      }
+    } else {
+      // Mockup edit logic for now
+      showToast('success', `Subscription details for "${selectedRest.name}" updated successfully.`)
+    }
+
+    // Update frontend state temporarily to avoid reload
     const updated = restaurants.map(r => {
       if (r.id === formState.restaurantId) {
-        const isUpgrade = getPlanRank(formState.planName) > getPlanRank(r.subscriptionPlan)
-        const isDowngrade = getPlanRank(formState.planName) < getPlanRank(r.subscriptionPlan)
-
-        if (editingSubscriptionRest) {
-          if (isUpgrade) {
-            showToast('success', `Subscription for "${r.name}" successfully UPGRADED to ${formState.planName}!`)
-          } else if (isDowngrade) {
-            showToast('info', `Subscription for "${r.name}" successfully DOWNGRADED to ${formState.planName}.`)
-          } else {
-            showToast('success', `Subscription details for "${r.name}" updated successfully.`)
-          }
-        } else {
-          showToast('success', `New subscription assigned to "${r.name}"!`)
-        }
-
         return {
           ...r,
           subscriptionPlan: formState.planName,
-          subscriptionStatus: formState.subscriptionStatus,
+          subscriptionStatus: 'Active',
           createdDate: formState.startDate,
           expiryDate: formState.endDate,
           renewalDate: formState.renewalDate
@@ -148,33 +219,9 @@ export default function SubscriptionsPage() {
       return r
     })
 
-    if (editingSubscriptionRest) {
-      // Just update the existing record in history (e.g. latest active)
-      const updatedHistory = subscriptionHistory.map(h =>
-        (h.restaurantId === selectedRest.id && h.status === 'Active')
-          ? {
-            ...h,
-            planName: formState.planName,
-            startDate: formState.startDate,
-            endDate: formState.endDate,
-            amount: formState.planName.includes('Premium') ? 49999 : formState.planName.includes('Standard') ? 19999 : 9999,
-            status: formState.subscriptionStatus
-          }
-          : h
-      )
-      setSubscriptionHistory(updatedHistory)
-    } else {
-      const newHistoryRecord = {
-        id: `SUB-${Date.now().toString().slice(-4)}`,
-        restaurantId: selectedRest.id,
-        restaurantName: selectedRest.name,
-        planName: formState.planName,
-        startDate: formState.startDate,
-        endDate: formState.endDate,
-        amount: formState.planName.includes('Premium') ? 49999 : formState.planName.includes('Standard') ? 19999 : 9999,
-        status: formState.subscriptionStatus
-      }
-      setSubscriptionHistory([newHistoryRecord, ...subscriptionHistory])
+    // Fetch real history from API if we are assigning
+    if (!editingSubscriptionRest) {
+      fetchSubscriptionHistory();
     }
 
     onUpdateRestaurants(updated)
@@ -227,25 +274,17 @@ export default function SubscriptionsPage() {
     onUpdateRestaurants(updated)
   }
 
-  const handleQuickCancel = (restaurant) => {
-    const updated = restaurants.map(r => {
-      if (r.id === restaurant.id) {
-        showToast('error', `Subscription for "${r.name}" has been CANCELLED.`)
-        return {
-          ...r,
-          subscriptionStatus: 'Cancelled'
-        }
-      }
-      return r
-    })
-
-    const updatedHistory = subscriptionHistory.map(h =>
-      (h.restaurantId === restaurant.id && h.status === 'Active')
-        ? { ...h, status: 'Cancelled' }
-        : h
-    )
-    setSubscriptionHistory(updatedHistory)
-    onUpdateRestaurants(updated)
+  const handleQuickCancel = async (subscription) => {
+    try {
+      if (!subscription || !subscription.id) return;
+      await cancelSubscriptionAPI(subscription.id);
+      showToast('success', `Subscription for "${subscription.restaurantName}" has been CANCELLED.`);
+      fetchSubscriptions();
+      fetchSubscriptionHistory();
+    } catch (err) {
+      console.error(err);
+      showToast('error', err.response?.data?.message || 'Failed to cancel subscription');
+    }
   }
 
   const getPlanRank = (planName) => {
@@ -368,8 +407,8 @@ export default function SubscriptionsPage() {
 
               <form onSubmit={handleSaveSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-                {/* Restaurant Name & Plan Name (Horizontal Row) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {/* Restaurant Name, Plan Name & Billing Cycle (Horizontal Row) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   {/* Restaurant Name Dropdown */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Restaurant Name</label>
@@ -438,16 +477,40 @@ export default function SubscriptionsPage() {
                       ))}
                     </select>
                   </div>
+
+                  {/* Billing Cycle Selection */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Billing Cycle</label>
+                    <select
+                      value={formState.billingCycle}
+                      onChange={(e) => handleDateOrCycleChange('billingCycle', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        border: '1.5px solid var(--border-color)',
+                        background: 'var(--bg-app)',
+                        color: 'var(--text-main)',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="Annual">Annual (1 Year)</option>
+                      <option value="Monthly">Monthly (1 Month)</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Date Inputs */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Start Date</label>
                     <input
                       type="date"
                       value={formState.startDate}
-                      onChange={(e) => setFormState({ ...formState, startDate: e.target.value })}
+                      onChange={(e) => handleDateOrCycleChange('startDate', e.target.value)}
                       style={{
                         width: '100%',
                         padding: '9px 12px',
@@ -466,67 +529,106 @@ export default function SubscriptionsPage() {
                     <input
                       type="date"
                       value={formState.endDate}
-                      onChange={(e) => setFormState({ ...formState, endDate: e.target.value })}
+                      disabled
                       style={{
                         width: '100%',
                         padding: '9px 12px',
                         border: '1.5px solid var(--border-color)',
                         background: 'var(--bg-app)',
-                        color: 'var(--text-main)',
+                        color: 'var(--text-muted)',
                         borderRadius: '8px',
                         fontSize: '0.82rem',
                         outline: 'none',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        cursor: 'not-allowed'
                       }}
                     />
                   </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Renewal Date</label>
                     <input
                       type="date"
                       value={formState.renewalDate}
-                      onChange={(e) => setFormState({ ...formState, renewalDate: e.target.value })}
+                      disabled
                       style={{
                         width: '100%',
                         padding: '9px 12px',
                         border: '1.5px solid var(--border-color)',
                         background: 'var(--bg-app)',
-                        color: 'var(--text-main)',
+                        color: 'var(--text-muted)',
                         borderRadius: '8px',
                         fontSize: '0.82rem',
                         outline: 'none',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        cursor: 'not-allowed'
                       }}
                     />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Subscription Status</label>
-                    <select
-                      value={formState.subscriptionStatus}
-                      onChange={(e) => setFormState({ ...formState, subscriptionStatus: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: '1.5px solid var(--border-color)',
-                        background: 'var(--bg-app)',
-                        color: 'var(--text-main)',
-                        borderRadius: '8px',
-                        fontSize: '0.82rem',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Expiring Soon">Expiring Soon</option>
-                      <option value="Expired">Expired</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
                 </div>
+
+                {/* Extra Branches & Pricing Summary */}
+                {!editingSubscriptionRest && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', background: 'var(--bg-app)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                    {/* Extra Branches Counter */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-main)' }}>Extra Branches Add-on</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <button
+                          type="button"
+                          disabled={formState.extraBranches === 0}
+                          onClick={() => setFormState({ ...formState, extraBranches: Math.max(0, formState.extraBranches - 1) })}
+                          style={{
+                            width: '32px', height: '32px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                            background: formState.extraBranches === 0 ? 'var(--bg-app)' : '#ffffff',
+                            color: formState.extraBranches === 0 ? 'var(--text-muted)' : 'var(--text-main)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: formState.extraBranches === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)', minWidth: '30px', textAlign: 'center' }}>
+                          {formState.extraBranches}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFormState({ ...formState, extraBranches: formState.extraBranches + 1 })}
+                          style={{
+                            width: '32px', height: '32px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                            background: '#ffffff', color: 'var(--text-main)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                          }}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Price: ₹{addonPricePerBranch.toLocaleString('en-IN')} / branch ({formState.billingCycle})
+                      </p>
+                    </div>
+
+                    {/* Pricing Summary */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-main)' }}>Pricing Summary</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        <span>Plan Price</span>
+                        <span>₹{currentPlanPrice.toLocaleString('en-IN')}</span>
+                      </div>
+                      {formState.extraBranches > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                          <span>Extra Branch × {formState.extraBranches}</span>
+                          <span>₹{totalAddonPrice.toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
+                      <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }}></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                        <span>Total (Excl. Tax)</span>
+                        <span>₹{totalAssignPrice.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <PaymentDetailsForm formState={formState} setFormState={setFormState} formErrors={formErrors} />
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
                   <button
@@ -585,7 +687,7 @@ export default function SubscriptionsPage() {
                 ))}
               </div>
 
-              <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <div style={{ overflowX: 'auto', paddingBottom: activeDropdown ? '160px' : '0', transition: 'padding 0.2s', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
@@ -600,30 +702,30 @@ export default function SubscriptionsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {restaurants
-                      .filter(rest => currentFilter === 'All' || rest.subscriptionStatus === currentFilter)
-                      .map((rest, idx) => {
-                        const isPremium = rest.subscriptionPlan?.toLowerCase().includes('premium')
-                        const isStandard = rest.subscriptionPlan?.toLowerCase().includes('standard')
-                        const isBasic = rest.subscriptionPlan?.toLowerCase().includes('basic')
+                    {subscriptions
+                      .filter(sub => currentFilter === 'All' || sub.status === currentFilter)
+                      .map((sub, idx) => {
+                        const isPremium = sub.planName?.toLowerCase().includes('premium')
+                        const isStandard = sub.planName?.toLowerCase().includes('standard')
+                        const isBasic = sub.planName?.toLowerCase().includes('basic')
 
                         const planBadgeColor = isPremium ? '#3b82f6' : isStandard ? '#10b981' : '#64748b'
                         const planBadgeBg = isPremium ? 'rgba(59, 130, 246, 0.1)' : isStandard ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)'
                         const planBadgeBorder = isPremium ? '1px solid rgba(59, 130, 246, 0.2)' : isStandard ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(100, 116, 139, 0.2)'
 
-                        const statusStyles = getStatusColor(rest.subscriptionStatus || 'Active')
+                        const statusStyles = getStatusColor(sub.status || 'Active')
 
                         return (
-                          <tr key={rest.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                          <tr key={sub.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', width: '60px', whiteSpace: 'nowrap' }}>
                               {idx + 1}
                             </td>
                             <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <img src={rest.logo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=60&auto=format&fit=crop&q=60'} alt={rest.name} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                                <img src={sub.restaurantLogo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=60&auto=format&fit=crop&q=60'} alt={sub.restaurantName} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
                                 <div>
-                                  <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', display: 'block' }}>{rest.name}</span>
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Code: {rest.id}</span>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', display: 'block' }}>{sub.restaurantName}</span>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Code: {sub.restaurantCode}</span>
                                 </div>
                               </div>
                             </td>
@@ -638,17 +740,17 @@ export default function SubscriptionsPage() {
                                   color: planBadgeColor,
                                   border: planBadgeBorder,
                                   display: 'inline-block'
-                                }}>{rest.subscriptionPlan || 'Free Plan'}</span>
+                                }}>{sub.planName || 'Free Plan'}</span>
                               </div>
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {rest.createdDate || '—'}
+                              {sub.startDate || '—'}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {rest.expiryDate || '—'}
+                              {sub.endDate || '—'}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {rest.renewalDate || rest.expiryDate || '—'}
+                              {sub.renewalDate || sub.endDate || '—'}
                             </td>
                             <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                               <span style={{
@@ -660,80 +762,97 @@ export default function SubscriptionsPage() {
                                 color: statusStyles.text,
                                 border: statusStyles.border,
                                 display: 'inline-block'
-                              }}>{rest.subscriptionStatus || 'Active'}</span>
+                              }}>{sub.status || 'Active'}</span>
                             </td>
                             <td style={{ padding: '14px 18px', textAlign: 'right', width: '260px', whiteSpace: 'nowrap' }}>
-                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-
-                                {/* Renew Action */}
+                              <div className="action-dropdown-container" style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end' }}>
                                 <button
-                                  onClick={() => handleQuickRenew(rest)}
-                                  className="btn-outline"
-                                  style={{
-                                    padding: '5px 10px',
-                                    borderRadius: '6px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: '800',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    background: '#ffffff',
-                                    color: '#10b981',
-                                    border: '1px solid rgba(16, 185, 129, 0.3)'
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdown(activeDropdown === sub.id ? null : sub.id);
                                   }}
-                                  title="Renew subscription for 1 year"
-                                  onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)' }}
-                                  onMouseOut={(e) => { e.currentTarget.style.background = '#ffffff' }}
-                                >
-                                  <RefreshCw style={{ width: '12px', height: '12px' }} /> Renew
-                                </button>
-
-                                {/* Cancel Action */}
-                                {rest.subscriptionStatus !== 'Cancelled' && (
-                                  <button
-                                    onClick={() => handleQuickCancel(rest)}
-                                    style={{
-                                      padding: '5px 10px',
-                                      borderRadius: '6px',
-                                      fontSize: '0.72rem',
-                                      fontWeight: '800',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      background: '#ffffff',
-                                      color: '#ef4444',
-                                      border: '1px solid rgba(239, 68, 68, 0.3)'
-                                    }}
-                                    title="Cancel subscription"
-                                    onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.05)' }}
-                                    onMouseOut={(e) => { e.currentTarget.style.background = '#ffffff' }}
-                                  >
-                                    <XCircle style={{ width: '12px', height: '12px' }} /> Cancel
-                                  </button>
-                                )}
-
-                                {/* Edit/Upgrade/Downgrade Action */}
-                                <button
-                                  onClick={() => handleOpenEditModal(rest)}
                                   style={{
-                                    padding: '5px',
+                                    padding: '6px 12px',
                                     borderRadius: '6px',
+                                    background: 'var(--bg-app)',
                                     border: '1px solid var(--border-color)',
-                                    background: 'none',
-                                    color: 'var(--text-muted)',
+                                    color: 'var(--text-main)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '700',
                                     cursor: 'pointer',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justifyContent: 'center'
+                                    gap: '4px'
                                   }}
-                                  title="Assign/Upgrade/Downgrade Plan"
-                                  onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--bg-app)' }}
-                                  onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none' }}
                                 >
-                                  <Edit3 style={{ width: '14px', height: '14px' }} />
+                                  Manage ▾
                                 </button>
+
+                                {activeDropdown === sub.id && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: 'calc(100% + 4px)',
+                                    right: 0,
+                                    background: '#ffffff',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    zIndex: 100,
+                                    width: '160px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    overflow: 'hidden',
+                                    textAlign: 'left'
+                                  }}>
+                                    <button
+                                      onClick={() => { setViewingSubscriptionRest(sub); setActiveDropdown(null); }}
+                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                    >View Subscription</button>
+                                    
+                                    <button
+                                      onClick={() => { setActionModal({ type: 'changePlan', subscription: sub }); setActiveDropdown(null); }}
+                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                    >Change Plan</button>
+                                    
+                                    <button
+                                      onClick={() => { setActionModal({ type: 'manageAddons', subscription: sub }); setActiveDropdown(null); }}
+                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                    >Manage Add-ons</button>
+                                    
+                                    <button
+                                      onClick={() => { setActionModal({ type: 'renew', subscription: sub }); setActiveDropdown(null); }}
+                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#10b981', textAlign: 'left' }}
+                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                    >Renew Subscription</button>
+                                    
+                                    {sub.status !== 'Cancelled' && (
+                                      <button
+                                        onClick={() => { setActionModal({ type: 'cancel', subscription: sub }); setActiveDropdown(null); }}
+                                        style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#ef4444', textAlign: 'left' }}
+                                        onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                      >Cancel Subscription</button>
+                                    )}
+                                    
+                                    <button
+                                      onClick={() => {
+                                        setActiveTab('history');
+                                        setHistorySearchTerm(sub.restaurantName);
+                                        setActiveDropdown(null);
+                                      }}
+                                      style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                    >View History</button>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -968,6 +1087,270 @@ export default function SubscriptionsPage() {
         </div>
       )}
 
+      {/* Subscription Details Modal Overlay */}
+      {viewingSubscriptionRest && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(9, 13, 22, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1100,
+            padding: '20px'
+          }}
+          onClick={() => setViewingSubscriptionRest(null)}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '32px',
+              width: '95%',
+              maxWidth: '440px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+              position: 'relative',
+              textAlign: 'left'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '900', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Gem style={{ width: '18px', height: '18px', color: 'var(--primary)' }} />
+                Subscription Information
+              </h3>
+              <button
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
+                onClick={() => setViewingSubscriptionRest(null)}
+              >
+                <X style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Restaurant Name</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800' }}>{viewingSubscriptionRest.restaurantName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Plan Name</span>
+                <span style={{
+                  fontSize: '0.8rem',
+                  fontWeight: '800',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: viewingSubscriptionRest.planName?.includes('Premium') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                  color: viewingSubscriptionRest.planName?.includes('Premium') ? '#3b82f6' : '#10b981'
+                }}>
+                  {viewingSubscriptionRest.planName || 'Basic Plan'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Start Date</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', fontFamily: 'monospace' }}>
+                  {viewingSubscriptionRest.startDate || '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>End Date</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', fontFamily: 'monospace' }}>
+                  {viewingSubscriptionRest.endDate || '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Renewal Date</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', fontFamily: 'monospace' }}>
+                  {viewingSubscriptionRest.renewalDate || viewingSubscriptionRest.endDate || '—'}
+                </span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: viewingSubscriptionRest.paymentProof ? '1px solid var(--border-color)' : 'none' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Subscription Status</span>
+                <span style={{
+                  fontSize: '0.8rem',
+                  fontWeight: '800',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: getStatusColor(viewingSubscriptionRest.status).bg,
+                  color: getStatusColor(viewingSubscriptionRest.status).text
+                }}>
+                  {viewingSubscriptionRest.status || 'Active'}
+                </span>
+              </div>
+              
+              {viewingSubscriptionRest.paymentProof && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Payment Proof</span>
+                  <a 
+                    href={`${import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")}${viewingSubscriptionRest.paymentProof}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: '700', textDecoration: 'underline' }}
+                  >
+                    View Document
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="btn-black"
+                style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
+                onClick={() => setViewingSubscriptionRest(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Modals */}
+      {actionModal.type === 'renew' && (
+        <RenewSubscriptionModal 
+          subscription={actionModal.subscription} 
+          onClose={() => setActionModal({ type: null, subscription: null })}
+          onConfirm={async (data) => {
+            try {
+              const payload = {
+                subscriptionId: actionModal.subscription?.id, // Sent in URL
+                restaurantId: actionModal.subscription?.restaurantId,
+                paymentMethod: data.paymentMethod,
+                referenceId: data.referenceId,
+                notes: data.notes,
+                paymentProof: data.paymentProof
+              };
+              await renewSubscriptionAPI(payload);
+              showToast('success', `Renewed subscription for ${actionModal.subscription?.restaurantName}`);
+              fetchSubscriptionHistory();
+              fetchSubscriptions();
+              setActionModal({ type: null, subscription: null });
+            } catch (err) {
+              console.error(err);
+              showToast('error', err.response?.data?.message || 'Failed to renew subscription.');
+            }
+          }}
+        />
+      )}
+      
+      {actionModal.type === 'changePlan' && (
+        <ChangePlanModal 
+          subscription={actionModal.subscription} 
+          onClose={() => setActionModal({ type: null, subscription: null })}
+          onConfirm={async (data) => {
+            try {
+              const payload = {
+                restaurantId: actionModal.subscription?.restaurantId,
+                newPlanId: data.newPlanId,
+                paymentMethod: data.paymentMethod,
+                referenceId: data.referenceId,
+                notes: data.notes,
+                paymentProof: data.paymentProof
+              };
+              await changePlanAPI(payload);
+              showToast('success', `Changed plan for ${actionModal.subscription?.restaurantName}`);
+              fetchSubscriptionHistory();
+              fetchSubscriptions();
+              setActionModal({ type: null, subscription: null });
+            } catch (err) {
+              console.error(err);
+              showToast('error', err.response?.data?.message || 'Failed to change plan.');
+            }
+          }}
+        />
+      )}
+      
+      {actionModal.type === 'manageAddons' && (
+        <ManageAddonsModal 
+          subscription={actionModal.subscription} 
+          onClose={() => setActionModal({ type: null, subscription: null })}
+          onConfirm={async (data) => {
+            try {
+              const payload = {
+                restaurantId: actionModal.subscription?.restaurantId,
+                extraBranches: data.extraBranches,
+                additionalBranches: data.additionalBranches,
+                paymentMethod: data.paymentMethod,
+                referenceId: data.referenceId,
+                notes: data.notes,
+                paymentProof: data.paymentProof
+              };
+              await manageAddonsAPI(payload);
+              showToast('success', `Updated add-ons for ${actionModal.subscription?.restaurantName}`);
+              fetchSubscriptionHistory();
+              fetchSubscriptions();
+              setActionModal({ type: null, subscription: null });
+            } catch (err) {
+              console.error(err);
+              showToast('error', err.response?.data?.message || 'Failed to update add-ons.');
+            }
+          }}
+        />
+      )}
+
+      {actionModal.type === 'cancel' && (
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(9, 13, 22, 0.45)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            zIndex: 1100, padding: '20px'
+          }}
+          onClick={() => setActionModal({ type: null, subscription: null })}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff', borderRadius: '20px', padding: '32px',
+              width: '95%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+              position: 'relative', textAlign: 'left'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '900', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Cancel Subscription
+              </h3>
+              <button
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                onClick={() => setActionModal({ type: null, subscription: null })}
+              >
+                <X style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                Are you sure you want to cancel the subscription for <strong>{actionModal.subscription?.restaurantName}</strong>? This action cannot be undone.
+              </p>
+            </div>
+
+            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                className="btn-outline"
+                style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
+                onClick={() => setActionModal({ type: null, subscription: null })}
+              >
+                Close
+              </button>
+              <button
+                onClick={() => { handleQuickCancel(actionModal.subscription); setActionModal({ type: null, subscription: null }); }}
+                style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem', background: '#ef4444', color: 'white', border: 'none' }}
+              >
+                Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

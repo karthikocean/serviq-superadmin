@@ -9,8 +9,10 @@ import {
   TrendingUp,
   Sparkles,
   Shield,
-  ShieldAlert
+  ShieldAlert,
+  Layers
 } from 'lucide-react'
+import ManageAddonsMasterModal from '../../components/Payment/ManageAddonsMasterModal'
 
 // Reusable validated input component
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -129,6 +131,7 @@ export default function PlansPage() {
   const [editingPlanId, setEditingPlanId] = useState(() => {
     return localStorage.getItem('serviq_editingPlanId') || null
   })
+  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false)
 
   useEffect(() => {
     if (editingPlanId) {
@@ -324,7 +327,8 @@ export default function PlansPage() {
   }
 
   return (
-    editingPlanId ? (
+    <>
+      {editingPlanId ? (
       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{
           background: 'var(--bg-card)',
@@ -497,27 +501,36 @@ export default function PlansPage() {
           <div>
             <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription</h3>
           </div>
-          <button
-            onClick={() => {
-              setEditingPlanId('new')
-              setPlanFormState({
-                name: '',
-                description: '',
-                monthlyPrice: '',
-                annualPrice: '',
-                branchLimit: 3,
-                userLimit: 99999,
-                orderLimit: 99999,
-                featuresIncluded: { ...initialFeatures },
-                status: 'Active'
-              })
-              setFormErrors({})
-            }}
-            className="btn-black"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => {
+                setEditingPlanId('new')
+                setPlanFormState({
+                  name: '',
+                  description: '',
+                  monthlyPrice: '',
+                  annualPrice: '',
+                  branchLimit: 3,
+                  userLimit: 99999,
+                  orderLimit: 99999,
+                  featuresIncluded: { ...initialFeatures },
+                  status: 'Active'
+                })
+                setFormErrors({})
+              }}
+              className="btn-black"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
+            </button>
+            <button
+              onClick={() => setIsAddonModalOpen(true)}
+              className="btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              <Layers style={{ width: '16px', height: '16px' }} /> Manage Add-ons
+            </button>
+          </div>
         </div>
 
         {/* Plans Cards Grid */}
@@ -677,6 +690,10 @@ export default function PlansPage() {
           })}
         </div>
       </div>
-    )
+      )}
+      {isAddonModalOpen && (
+        <ManageAddonsMasterModal onClose={() => setIsAddonModalOpen(false)} />
+      )}
+    </>
   )
 }
