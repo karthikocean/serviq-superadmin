@@ -3,32 +3,36 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Users, UtensilsCrossed, Settings } from 'lucide-react';
 import { SUPER_ADMIN_NAVIGATION } from '../../constants/navigation';
 import { ROUTES } from '../../constants/routes';
+import { useAuth } from '../../contexts/AuthContext';
 
-export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }) {
+// Map nav item label → module permission key
+const NAV_MODULE_MAP = {
+  'Dashboard':          'dashboard',
+  'Coupons':            'coupons',
+  'Restaurant':         'restaurants',
+  'Plans':              'plans',
+  'Subscription':       'subscriptions',
+  'Billing & Payments': 'billing',
+  'Leads/CRM':          'leads',
+  'Support Ticket':     'tickets',
+  'Notifications':      'notifications',
+  'Reports & Analytics':'reports',
+};
+
+export default function Sidebar({ isCollapsed, restaurantDetails }) {
   const [usersDropdownOpen, setUsersDropdownOpen] = useState(false);
   const location = useLocation();
+  const { hasPermission, isSuperOwner } = useAuth();
 
   const isUsersRolesActive = location.pathname.includes('/users') || location.pathname.includes('/roles');
 
+  // Can show Users sub-link or Roles sub-link
+  const canViewUsers = isSuperOwner || hasPermission('adminUsers', 'view');
+  const canViewRoles = isSuperOwner || hasPermission('roles', 'view');
+  const canViewSettings = isSuperOwner || hasPermission('settings', 'view');
+  const showUserRoleMenu = canViewUsers || canViewRoles;
+
   const clearActionStates = () => {
-    localStorage.removeItem('serviq_editingRestId');
-    localStorage.removeItem('serviq_viewingRestId');
-    localStorage.removeItem('serviq_showAddRestModal');
-    localStorage.removeItem('serviq_editingAdminId');
-    localStorage.removeItem('serviq_showAddAdminModal');
-    localStorage.removeItem('serviq_editingRoleId');
-    localStorage.removeItem('serviq_editingPlanId');
-    localStorage.removeItem('serviq_viewingPerfRestId');
-
-    sessionStorage.removeItem('serviq_billing_action');
-    sessionStorage.removeItem('serviq_restaurants_action');
-    sessionStorage.removeItem('serviq_plans_action');
-    sessionStorage.removeItem('serviq_subscriptions_action');
-    sessionStorage.removeItem('serviq_leads_action');
-    sessionStorage.removeItem('serviq_tickets_action');
-    sessionStorage.removeItem('serviq_notifications_action');
-    sessionStorage.removeItem('serviq_users_action');
-
     window.dispatchEvent(new CustomEvent('reset_module_view', { detail: { tab: 'all' } }));
   };
 
@@ -36,59 +40,67 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div>
         <ul className="sidebar-nav">
-              {SUPER_ADMIN_NAVIGATION.map((item, index) => (
-                <li key={index}>
-                  <NavLink 
-                    to={item.path} 
-                    onClick={clearActionStates}
-                    className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
-                  >
-                    <item.icon style={{ width: '18px', height: '18px' }} /> <span>{item.label}</span>
-                  </NavLink>
-                </li>
-              ))}
-
-              {/* User & Role Management Dropdown Menu */}
-              <li style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-                <div
-                  className="sidebar-item"
-                  onClick={() => !isCollapsed && setUsersDropdownOpen(!usersDropdownOpen)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: isCollapsed ? 'center' : 'space-between',
-                    alignItems: 'center',
-                    color: isUsersRolesActive ? '#ffffff' : '#0f172a',
-                    background: isUsersRolesActive ? '#ea580c' : 'transparent',
-                    cursor: 'pointer'
-                  }}
+          {SUPER_ADMIN_NAVIGATION.map((item, index) => {
+            const moduleKey = NAV_MODULE_MAP[item.label];
+            // If we have a module mapping, check permission; otherwise always show
+            const canView = !moduleKey || isSuperOwner || hasPermission(moduleKey, 'view');
+            if (!canView) return null;
+            return (
+              <li key={index}>
+                <NavLink
+                  to={item.path}
+                  onClick={clearActionStates}
+                  className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Users style={{ width: '18px', height: '18px' }} />
-                    {!isCollapsed && <span>User & Role</span>}
-                  </div>
-                  {!isCollapsed && (
-                    <ChevronDown
-                      style={{
-                        width: '14px',
-                        height: '14px',
-                        transition: 'transform 0.2s',
-                        transform: usersDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'
-                      }}
-                    />
-                  )}
-                </div>
+                  <item.icon style={{ width: '18px', height: '18px' }} /> <span>{item.label}</span>
+                </NavLink>
+              </li>
+            );
+          })}
 
-                {usersDropdownOpen && !isCollapsed && (
-                  <div style={{
-                    paddingLeft: '16px',
-                    marginTop: '4px',
-                    marginBottom: '4px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
-                    marginLeft: '24px'
-                  }}>
+          {/* User & Role Management Dropdown — only if user can view at least one sub-item */}
+          {showUserRoleMenu && (
+            <li style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
+              <div
+                className="sidebar-item"
+                onClick={() => !isCollapsed && setUsersDropdownOpen(!usersDropdownOpen)}
+                style={{
+                  display: 'flex',
+                  justifyContent: isCollapsed ? 'center' : 'space-between',
+                  alignItems: 'center',
+                  color: isUsersRolesActive ? '#ffffff' : '#0f172a',
+                  background: isUsersRolesActive ? '#ea580c' : 'transparent',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Users style={{ width: '18px', height: '18px' }} />
+                  {!isCollapsed && <span>User & Role</span>}
+                </div>
+                {!isCollapsed && (
+                  <ChevronDown
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      transition: 'transform 0.2s',
+                      transform: usersDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  />
+                )}
+              </div>
+
+              {usersDropdownOpen && !isCollapsed && (
+                <div style={{
+                  paddingLeft: '16px',
+                  marginTop: '4px',
+                  marginBottom: '4px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
+                  marginLeft: '24px'
+                }}>
+                  {canViewUsers && (
                     <NavLink
                       to={ROUTES.SUPER_ADMIN.USERS}
                       onClick={clearActionStates}
@@ -101,6 +113,8 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
                     >
                       Users
                     </NavLink>
+                  )}
+                  {canViewRoles && (
                     <NavLink
                       to={ROUTES.SUPER_ADMIN.ROLES}
                       onClick={clearActionStates}
@@ -113,19 +127,24 @@ export default function Sidebar({ isCollapsed, isSuperAdmin, restaurantDetails }
                     >
                       Roles & Permissions
                     </NavLink>
-                  </div>
-                )}
-              </li>
+                  )}
+                </div>
+              )}
+            </li>
+          )}
 
-              <li>
-                <NavLink 
-                  to={ROUTES.SUPER_ADMIN.SETTINGS} 
-                  onClick={clearActionStates}
-                  className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
-                >
-                  <Settings style={{ width: '18px', height: '18px' }} /> <span>System Settings</span>
-                </NavLink>
-              </li>
+          {/* System Settings */}
+          {canViewSettings && (
+            <li>
+              <NavLink
+                to={ROUTES.SUPER_ADMIN.SETTINGS}
+                onClick={clearActionStates}
+                className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
+              >
+                <Settings style={{ width: '18px', height: '18px' }} /> <span>System Settings</span>
+              </NavLink>
+            </li>
+          )}
         </ul>
       </div>
     </div>

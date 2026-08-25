@@ -50,7 +50,7 @@ const mockTickets = [
 export function useTickets() {
   const [tickets, setTickets] = useState(() => {
     try {
-      const item = localStorage.getItem('serviq_tickets');
+      const item = sessionStorage.getItem('serviq_tickets');
       return item ? JSON.parse(item) : mockTickets;
     } catch {
       return mockTickets;
@@ -58,7 +58,7 @@ export function useTickets() {
   });
 
   useEffect(() => {
-    localStorage.setItem('serviq_tickets', JSON.stringify(tickets));
+    sessionStorage.setItem('serviq_tickets', JSON.stringify(tickets));
   }, [tickets]);
 
   return { tickets, setTickets };

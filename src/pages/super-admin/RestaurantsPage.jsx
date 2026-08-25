@@ -439,12 +439,20 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function RestaurantsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('restaurants', 'add')
+  const canEdit = isSuperOwner || hasPermission('restaurants', 'edit')
+  const canDelete = isSuperOwner || hasPermission('restaurants', 'delete')
+  const canView = isSuperOwner || hasPermission('restaurants', 'view')
+
   const [confirmModal, setConfirmModal] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
@@ -496,13 +504,6 @@ export default function RestaurantsPage() {
     currentPage * entriesPerPage
   )
 
-  // Clear any stale localStorage form state on mount
-  useEffect(() => {
-    localStorage.removeItem('serviq_editingRestId')
-    localStorage.removeItem('serviq_viewingRestId')
-    localStorage.removeItem('serviq_showAddRestModal')
-  }, [])
-
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
@@ -512,9 +513,6 @@ export default function RestaurantsPage() {
         setShowAddModal(false)
         setViewingSubscriptionRest(null)
         setFormErrors({})
-        localStorage.removeItem('serviq_editingRestId')
-        localStorage.removeItem('serviq_viewingRestId')
-        localStorage.removeItem('serviq_showAddRestModal')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
@@ -929,7 +927,6 @@ export default function RestaurantsPage() {
         await fetchRestaurants();
         setEditingRestId(null)
         setEditFormState(null)
-        localStorage.removeItem('serviq_editingRestId')
         showToast('success', 'Branch updated successfully');
       } else {
         showToast('error', response.message || 'Error updating restaurant');
@@ -1412,28 +1409,30 @@ export default function RestaurantsPage() {
                 <div>
                   <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Restaurant Management</h3>
                 </div>
-                <button
-                  onClick={() => {
-                    setViewingRestId(null)
-                    setEditingRestId(null)
-                    setFormErrors({})
-                    setNewRestState({
-                      name: '', branch: '', license: '', gstin: '', pan: '',
-                      phone: '', email: '', website: '', address: '', currency: 'INR',
-                      taxRate: '', serviceCharge: '', openingTime: '', closingTime: '',
-                      status: 'Active', subscriptionPlan: 'Standard',
-                      createdDate: new Date().toISOString().split('T')[0],
-                      password: '', confirmPassword: '', ownerName: '', mobileNumber: '',
-                      city: '', state: '', country: '', logo: '', banner: '',
-                      startDate: '', endDate: '', renewalDate: '', planId: '', billingCycle: 'Monthly'
-                    })
-                    setShowAddModal(true)
-                  }}
-                  className="btn-black"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-                >
-                  <Plus style={{ width: '16px', height: '16px' }} /> Register
-                </button>
+                {canAdd && (
+                  <button
+                    onClick={() => {
+                      setViewingRestId(null)
+                      setEditingRestId(null)
+                      setFormErrors({})
+                      setNewRestState({
+                        name: '', branch: '', license: '', gstin: '', pan: '',
+                        phone: '', email: '', website: '', address: '', currency: 'INR',
+                        taxRate: '', serviceCharge: '', openingTime: '', closingTime: '',
+                        status: 'Active', subscriptionPlan: 'Standard',
+                        createdDate: new Date().toISOString().split('T')[0],
+                        password: '', confirmPassword: '', ownerName: '', mobileNumber: '',
+                        city: '', state: '', country: '', logo: '', banner: '',
+                        startDate: '', endDate: '', renewalDate: '', planId: '', billingCycle: 'Monthly'
+                      })
+                      setShowAddModal(true)
+                    }}
+                    className="btn-black"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    <Plus style={{ width: '16px', height: '16px' }} /> Register
+                  </button>
+                )}
               </div>
               <TableTopControls
                 entriesPerPage={entriesPerPage}
@@ -1449,7 +1448,7 @@ export default function RestaurantsPage() {
                     <tr>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '60px', whiteSpace: 'nowrap' }}>S.No</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '120px', whiteSpace: 'nowrap' }}>Restaurant ID</th>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Restaurant Name</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '120px', whiteSpace: 'nowrap' }}>Restaurant Name</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Owner Name</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Email</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Subscription Plan</th>
@@ -1533,62 +1532,66 @@ export default function RestaurantsPage() {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
 
                               {/* Suspend / Resume action */}
-                              <button
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  padding: '6px',
-                                  color: rest.status === 'Suspended' ? '#ef4444' : '#10b981',
-                                  transition: 'opacity 0.2s',
-                                  display: 'flex',
-                                  alignItems: 'center'
-                                }}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    const nextStatusStr = rest.status === 'Suspended' ? 'Active' : 'Suspended';
-                                    const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
-                                    if (response.success) {
-                                       await fetchRestaurants();
-                                       showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                              {canEdit && (
+                                <button
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '6px',
+                                    color: rest.status === 'Suspended' ? '#ef4444' : '#10b981',
+                                    transition: 'opacity 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      const nextStatusStr = rest.status === 'Suspended' ? 'Active' : 'Suspended';
+                                      const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
+                                      if (response.success) {
+                                         await fetchRestaurants();
+                                         showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                                      }
+                                    } catch (err) {
+                                       showToast('error', err.response?.data?.message || 'Error updating status');
                                     }
-                                  } catch (err) {
-                                     showToast('error', err.response?.data?.message || 'Error updating status');
-                                  }
-                                }}
-                                title={rest.status === 'Suspended' ? "Activate Restaurant" : "Suspend Restaurant"}
-                              >
-                                {rest.status === 'Suspended' ? (
-                                  <Lock style={{ width: '16px', height: '16px' }} />
-                                ) : (
-                                  <Unlock style={{ width: '16px', height: '16px' }} />
-                                )}
-                              </button>
+                                  }}
+                                  title={rest.status === 'Suspended' ? "Activate Restaurant" : "Suspend Restaurant"}
+                                >
+                                  {rest.status === 'Suspended' ? (
+                                    <Lock style={{ width: '16px', height: '16px' }} />
+                                  ) : (
+                                    <Unlock style={{ width: '16px', height: '16px' }} />
+                                  )}
+                                </button>
+                              )}
 
-                              
+                              {canView && (
+                                <button
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
+                                  onClick={(e) => { e.stopPropagation(); setEditingRestId(null); setViewingRestId(rest.id); }}
+                                  title="View Branch Showcase"
+                                  onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
+                                  onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                                >
+                                  <Eye style={{ width: '16px', height: '16px' }} />
+                                </button>
+                              )}
 
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                                onClick={(e) => { e.stopPropagation(); setEditingRestId(null); setViewingRestId(rest.id); }}
-                                title="View Branch Showcase"
-                                onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
-                                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                              >
-                                <Eye style={{ width: '16px', height: '16px' }} />
-                              </button>
+                              {canEdit && (
+                                <button
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
+                                  onClick={(e) => { e.stopPropagation(); handleEditClick(rest); }}
+                                  title="Edit Branch Details"
+                                  onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
+                                  onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                                >
+                                  <Edit2 style={{ width: '16px', height: '16px' }} />
+                                </button>
+                              )}
 
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                                onClick={(e) => { e.stopPropagation(); handleEditClick(rest); }}
-                                title="Edit Branch Details"
-                                onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
-                                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                              >
-                                <Edit2 style={{ width: '16px', height: '16px' }} />
-                              </button>
-
-                              {restaurants.length > 1 && (
+                              {canDelete && restaurants.length > 1 && (
                                 <button
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#ef4444', transition: 'opacity 0.2s', display: 'flex', alignItems: 'center' }}
                                   onClick={(e) => { e.stopPropagation(); handleDeleteRestaurant(rest.id); }}
@@ -1598,6 +1601,9 @@ export default function RestaurantsPage() {
                                 >
                                   <Trash2 style={{ width: '16px', height: '16px' }} />
                                 </button>
+                              )}
+                              {!canEdit && !canView && !canDelete && (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
                               )}
                             </div>
                           </td>

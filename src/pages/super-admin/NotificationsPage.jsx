@@ -21,12 +21,19 @@ import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { getNotifications, createNotification, cancelNotification, sendDraftNotification, deleteNotification } from '../../services/notificationService'
 import { getAllPlansApi } from '../../services/planService'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([])
   const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('notifications', 'add')
+  const canEdit = isSuperOwner || hasPermission('notifications', 'edit')
+  const canDelete = isSuperOwner || hasPermission('notifications', 'delete')
+  const canView = isSuperOwner || hasPermission('notifications', 'view')
 
   const [plans, setPlans] = useState([])
   
@@ -266,27 +273,29 @@ export default function NotificationsPage() {
           <div>
             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Notifications Management</h3>
           </div>
-          <button
-            onClick={() => {
-              setErrors({})
-              setNewNtf({
-                subject: '',
-                type: 'Subscription Expiry',
-                targetType: 'ALL',
-                targetPlan: '',
-                targetRestaurants: [],
-                body: '',
-                isScheduled: false,
-                scheduledDate: '',
-                scheduledTime: ''
-              })
-              setShowCreateModal(true)
-            }}
-            className="btn-black"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} /> Compose Notification
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                setErrors({})
+                setNewNtf({
+                  subject: '',
+                  type: 'Subscription Expiry',
+                  targetType: 'ALL',
+                  targetPlan: '',
+                  targetRestaurants: [],
+                  body: '',
+                  isScheduled: false,
+                  scheduledDate: '',
+                  scheduledTime: ''
+                })
+                setShowCreateModal(true)
+              }}
+              className="btn-black"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              <Plus style={{ width: '16px', height: '16px' }} /> Compose Notification
+            </button>
+          )}
         </div>
 
         {/* History Table */}
@@ -333,14 +342,16 @@ export default function NotificationsPage() {
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setSelectedNotification(n)}
-                            className="btn-outline"
-                            style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
-                          >
-                            View
-                          </button>
-                          {n.status === 'Scheduled' && (
+                          {canView && (
+                            <button
+                              onClick={() => setSelectedNotification(n)}
+                              className="btn-outline"
+                              style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+                            >
+                              View
+                            </button>
+                          )}
+                          {canEdit && n.status === 'Scheduled' && (
                             <button
                               onClick={() => handleCancelScheduled(n._id)}
                               style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.15)' }}
@@ -348,7 +359,7 @@ export default function NotificationsPage() {
                               Cancel
                             </button>
                           )}
-                          {n.status === 'Draft' && (
+                          {canEdit && n.status === 'Draft' && (
                             <button
                               onClick={() => handleSendDraft(n._id)}
                               style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}
@@ -356,13 +367,18 @@ export default function NotificationsPage() {
                               Send
                             </button>
                           )}
-                          <button
-                            onClick={() => handleDelete(n._id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
-                            title="Delete Notification"
-                          >
-                            <Trash2 style={{ width: '14px', height: '14px' }} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(n._id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
+                              title="Delete Notification"
+                            >
+                              <Trash2 style={{ width: '14px', height: '14px' }} />
+                            </button>
+                          )}
+                          {!canView && !canEdit && !canDelete && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                          )}
                         </div>
                       </td>
                     </tr>

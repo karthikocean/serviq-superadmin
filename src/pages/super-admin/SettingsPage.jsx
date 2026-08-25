@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Save, Settings, AlertTriangle } from 'lucide-react'
 import { useNotification } from '../../contexts/NotificationContext'
 import { getSettings, updateSettings } from '../../services/settingService'
+import { useAuth } from '../../contexts/AuthContext'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -73,6 +74,10 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 
 export default function SettingsPage() {
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canEdit = isSuperOwner || hasPermission('settings', 'edit')
+
   const setSystemLogs = () => { }
   const [formState, setFormState] = useState({
     name: '',
@@ -190,9 +195,13 @@ export default function SettingsPage() {
 
 
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
-            <button type="submit" className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Save style={{ width: '16px', height: '16px' }} /> Save Configurations
-            </button>
+            {canEdit ? (
+              <button type="submit" className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Save style={{ width: '16px', height: '16px' }} /> Save Configurations
+              </button>
+            ) : (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Read-only permissions</span>
+            )}
           </div>
         </form>
       </div>

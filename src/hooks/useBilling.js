@@ -1,26 +1,40 @@
-import { useState, useEffect } from 'react';
-
-const mockInvoices = [
-  { id: 'INV-2026-001', restaurantName: 'Serviq', subscriptionPlan: 'Premium Plan', amount: 4999, taxAmount: 900, paymentMethod: 'UPI', paymentDate: '2026-06-01', dueDate: '2026-07-01', status: 'Paid', transactionId: 'TXN-8472917462' },
-  { id: 'INV-2026-002', restaurantName: 'Sunset Diner', subscriptionPlan: 'Standard Plan', amount: 1999, taxAmount: 360, paymentMethod: 'Credit Card', paymentDate: '2026-05-28', dueDate: '2026-06-28', status: 'Paid', transactionId: 'TXN-1098273645' },
-  { id: 'INV-2026-003', restaurantName: 'Ocean Breeze Grill', subscriptionPlan: 'Premium Plan', amount: 4999, taxAmount: 900, paymentMethod: 'Net Banking', paymentDate: '', dueDate: '2026-06-15', status: 'Pending', transactionId: '—' },
-  { id: 'INV-2026-004', restaurantName: 'Mountain Lodge Cafe', subscriptionPlan: 'Premium Plan', amount: 4999, taxAmount: 900, paymentMethod: 'UPI', paymentDate: '2026-05-15', dueDate: '2026-06-15', status: 'Refunded', transactionId: 'TXN-9018273645' },
-  { id: 'INV-2026-005', restaurantName: 'Downtown Bakery', subscriptionPlan: 'Free Plan', amount: 0, taxAmount: 0, paymentMethod: 'N/A', paymentDate: '2026-05-20', dueDate: '2026-06-20', status: 'Paid', transactionId: 'TXN-SYSTEM-001' }
-];
+import { useState, useCallback } from 'react';
+import { getPaymentsAPI, downloadReceiptAPI } from '../services/api';
 
 export function useBilling() {
-  const [invoices, setInvoices] = useState(() => {
+  const [invoices, setInvoices] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchInvoices = useCallback(async (page = 1, limit = 10, search = '', status = 'All') => {
+    setIsLoading(true);
     try {
-      const item = localStorage.getItem('serviq_invoices');
-      return item ? JSON.parse(item) : mockInvoices;
-    } catch {
-      return mockInvoices;
+      const response = await getPaymentsAPI(page, limit, search, status);
+      if (response.success) {
+        setInvoices(response.data.results || response.data || []);
+        setTotal(response.data.total || (response.data.results ? response.data.results.length : 0));
+      }
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+    } finally {
+      setIsLoading(false);
     }
-  });
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('serviq_invoices', JSON.stringify(invoices));
-  }, [invoices]);
+  const downloadReceipt = async (paymentId, invoiceId) => {
+    try {
+      const blob = await downloadReceiptAPI(paymentId);
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `receipt-${invoiceId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+    }
+  };
 
-  return { invoices, setInvoices };
+  return { invoices, setInvoices, total, isLoading, fetchInvoices, downloadReceipt };
 }

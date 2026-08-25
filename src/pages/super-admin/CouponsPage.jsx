@@ -4,8 +4,15 @@ import { TableTopControls, TableBottomPagination } from '../../components/common
 import CustomSelect from '../../components/common/CustomSelect';
 import { getCouponsApi, createCouponApi, updateCouponApi, deleteCouponApi } from '../../services/couponService';
 import { getAllPlansApi } from '../../services/planService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function CouponsPage() {
+  const { hasPermission, isSuperOwner } = useAuth();
+  const canAdd = isSuperOwner || hasPermission('coupons', 'add');
+  const canEdit = isSuperOwner || hasPermission('coupons', 'edit');
+  const canDelete = isSuperOwner || hasPermission('coupons', 'delete');
+  const canView = isSuperOwner || hasPermission('coupons', 'view');
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCouponId, setEditingCouponId] = useState(null);
   const [viewingCouponId, setViewingCouponId] = useState(null);
@@ -531,17 +538,19 @@ export default function CouponsPage() {
               <div>
                 <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Coupons Management</h3>
               </div>
-              <button
-                onClick={() => {
-                  setFormData(defaultFormState);
-                  setErrors({});
-                  setShowAddModal(true);
-                }}
-                className="btn-black"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: '#000', color: '#fff', border: 'none' }}
-              >
-                <Plus style={{ width: '16px', height: '16px' }} /> Create Coupon
-              </button>
+              {canAdd && (
+                <button
+                  onClick={() => {
+                    setFormData(defaultFormState);
+                    setErrors({});
+                    setShowAddModal(true);
+                  }}
+                  className="btn-black"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: '#000', color: '#fff', border: 'none' }}
+                >
+                  <Plus style={{ width: '16px', height: '16px' }} /> Create Coupon
+                </button>
+              )}
             </div>
             
             <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }}></div>
@@ -610,15 +619,24 @@ export default function CouponsPage() {
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                          <button onClick={() => setViewingCouponId(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}>
-                            <Eye size={16} />
-                          </button>
-                          <button onClick={() => handleEdit(coupon)} style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}>
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => handleDelete(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
-                            <Trash2 size={16} />
-                          </button>
+                          {canView && (
+                            <button onClick={() => setViewingCouponId(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}>
+                              <Eye size={16} />
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => handleEdit(coupon)} style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}>
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                          {!canView && !canEdit && !canDelete && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                          )}
                         </div>
                       </td>
                     </tr>

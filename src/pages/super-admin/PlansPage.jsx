@@ -13,6 +13,7 @@ import {
   Layers
 } from 'lucide-react'
 import ManageAddonsMasterModal from '../../components/Payment/ManageAddonsMasterModal'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Reusable validated input component
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -128,25 +129,20 @@ import { useNotification } from '../../contexts/NotificationContext'
 export default function PlansPage() {
   const [plans, setPlans] = useState([])
   const { showToast } = useNotification()
-  const [editingPlanId, setEditingPlanId] = useState(() => {
-    return localStorage.getItem('serviq_editingPlanId') || null
-  })
-  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false)
+  const { hasPermission, isSuperOwner } = useAuth()
 
-  useEffect(() => {
-    if (editingPlanId) {
-      localStorage.setItem('serviq_editingPlanId', editingPlanId)
-    } else {
-      localStorage.removeItem('serviq_editingPlanId')
-    }
-  }, [editingPlanId])
+  const canAdd = isSuperOwner || hasPermission('plans', 'add')
+  const canEdit = isSuperOwner || hasPermission('plans', 'edit')
+  const canDelete = isSuperOwner || hasPermission('plans', 'delete')
+
+  const [editingPlanId, setEditingPlanId] = useState(null)
+  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false)
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
       if (e.detail?.tab === 'plans' || e.detail?.tab === 'all' || !e.detail?.tab) {
         setEditingPlanId(null)
-        localStorage.removeItem('serviq_editingPlanId')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
@@ -501,35 +497,39 @@ export default function PlansPage() {
           <div>
             <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription</h3>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => {
-                setEditingPlanId('new')
-                setPlanFormState({
-                  name: '',
-                  description: '',
-                  monthlyPrice: '',
-                  annualPrice: '',
-                  branchLimit: 3,
-                  userLimit: 99999,
-                  orderLimit: 99999,
-                  featuresIncluded: { ...initialFeatures },
-                  status: 'Active'
-                })
-                setFormErrors({})
-              }}
-              className="btn-black"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-            >
-              <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
-            </button>
-            <button
-              onClick={() => setIsAddonModalOpen(true)}
-              className="btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-            >
-              <Layers style={{ width: '16px', height: '16px' }} /> Manage Add-ons
-            </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {canAdd && (
+              <button
+                onClick={() => {
+                  setEditingPlanId('new')
+                  setPlanFormState({
+                    name: '',
+                    description: '',
+                    monthlyPrice: '',
+                    annualPrice: '',
+                    branchLimit: 3,
+                    userLimit: 99999,
+                    orderLimit: 99999,
+                    featuresIncluded: { ...initialFeatures },
+                    status: 'Active'
+                  })
+                  setFormErrors({})
+                }}
+                className="btn-black"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setIsAddonModalOpen(true)}
+                className="btn-outline"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                <Layers style={{ width: '16px', height: '16px' }} /> Manage Add-ons
+              </button>
+            )}
           </div>
         </div>
 
@@ -574,31 +574,33 @@ export default function PlansPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button
-                        onClick={() => {
-                          setEditingPlanId(plan.id)
-                          setPlanFormState({
-                            name: plan.name,
-                            description: plan.description || '',
-                            monthlyPrice: plan.monthlyPrice.toString(),
-                            annualPrice: plan.annualPrice.toString(),
-                            branchLimit: (plan.branchLimit || 3).toString(),
-                            userLimit: (plan.userLimit || 99999).toString(),
-                            orderLimit: (plan.orderLimit || 99999).toString(),
-                            featuresIncluded: plan.featuresIncluded || { ...initialFeatures },
-                            status: plan.status
-                          })
-                          setFormErrors({})
-                        }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'all 0.2s' }}
-                        title="Modify Plan Details"
-                        onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <Edit2 style={{ width: '15px', height: '15px' }} />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => {
+                            setEditingPlanId(plan.id)
+                            setPlanFormState({
+                              name: plan.name,
+                              description: plan.description || '',
+                              monthlyPrice: plan.monthlyPrice.toString(),
+                              annualPrice: plan.annualPrice.toString(),
+                              branchLimit: (plan.branchLimit || 3).toString(),
+                              userLimit: (plan.userLimit || 99999).toString(),
+                              orderLimit: (plan.orderLimit || 99999).toString(),
+                              featuresIncluded: plan.featuresIncluded || { ...initialFeatures },
+                              status: plan.status
+                            })
+                            setFormErrors({})
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'all 0.2s' }}
+                          title="Modify Plan Details"
+                          onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        >
+                          <Edit2 style={{ width: '15px', height: '15px' }} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '12px 0 0 0', lineHeight: '1.4', fontWeight: '500' }}>
@@ -648,43 +650,45 @@ export default function PlansPage() {
                 </div>
 
                 {/* Direct quick action: Activate / Deactivate plan */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
-                  <button
-                    onClick={() => togglePlanStatus(plan.id)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: '800',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s',
-                      background: plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
-                      color: plan.status === 'Active' ? '#ef4444' : '#10b981'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)'
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
-                    }}
-                  >
-                    {plan.status === 'Active' ? (
-                      <>
-                        <ShieldAlert style={{ width: '14px', height: '14px' }} /> Deactivate Plan
-                      </>
-                    ) : (
-                      <>
-                        <Shield style={{ width: '14px', height: '14px' }} /> Activate Plan
-                      </>
-                    )}
-                  </button>
-                </div>
+                {canEdit && (
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => togglePlanStatus(plan.id)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.78rem',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                        background: plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                        color: plan.status === 'Active' ? '#ef4444' : '#10b981'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
+                      }}
+                    >
+                      {plan.status === 'Active' ? (
+                        <>
+                          <ShieldAlert style={{ width: '14px', height: '14px' }} /> Deactivate Plan
+                        </>
+                      ) : (
+                        <>
+                          <Shield style={{ width: '14px', height: '14px' }} /> Activate Plan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}

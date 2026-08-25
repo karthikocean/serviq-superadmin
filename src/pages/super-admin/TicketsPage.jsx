@@ -20,12 +20,19 @@ import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { getTickets, createTicket, updateTicketStatus, assignTicket } from '../../services/ticketService'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState([])
   const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('tickets', 'add')
+  const canEdit = isSuperOwner || hasPermission('tickets', 'edit')
+  const canDelete = isSuperOwner || hasPermission('tickets', 'delete')
+  const canView = isSuperOwner || hasPermission('tickets', 'view')
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('')
@@ -349,24 +356,28 @@ export default function TicketsPage() {
                       </td>
                       <td style={{ padding: '14px 18px', verticalAlign: 'middle', textAlign: 'right', width: '180px' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setSelectedTicket(ticket)}
-                            className="btn-outline"
-                            style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer' }}
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={() => {
-                              setAssignTicketId(ticket._id)
-                              setAssignUser(ticket.assignedUser === 'Unassigned' ? '' : ticket.assignedUser)
-                            }}
-                            className="btn-outline"
-                            style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                          >
-                            <UserPlus style={{ width: '11px', height: '11px' }} /> Assign
-                          </button>
-                          {ticket.status !== 'Resolved' && ticket.status !== 'Closed' && (
+                          {canView && (
+                            <button
+                              onClick={() => setSelectedTicket(ticket)}
+                              className="btn-outline"
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer' }}
+                            >
+                              View
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button
+                              onClick={() => {
+                                setAssignTicketId(ticket._id)
+                                setAssignUser(ticket.assignedUser === 'Unassigned' ? '' : ticket.assignedUser)
+                              }}
+                              className="btn-outline"
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              <UserPlus style={{ width: '11px', height: '11px' }} /> Assign
+                            </button>
+                          )}
+                          {canEdit && ticket.status !== 'Resolved' && ticket.status !== 'Closed' && (
                             <button
                               onClick={() => handleQuickResolve(ticket._id)}
                               className="btn-black"
@@ -374,6 +385,9 @@ export default function TicketsPage() {
                             >
                               Resolve
                             </button>
+                          )}
+                          {!canView && !canEdit && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
                           )}
                         </div>
                       </td>

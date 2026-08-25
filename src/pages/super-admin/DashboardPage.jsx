@@ -136,24 +136,13 @@ export default function DashboardPage() {
   }, [activeTab])
 
   // Edit / View restaurant states
-  const [viewingPerfRestId, setViewingPerfRestId] = useState(() => {
-    return localStorage.getItem('serviq_viewingPerfRestId') || null
-  })
-
-  React.useEffect(() => {
-    if (viewingPerfRestId) {
-      localStorage.setItem('serviq_viewingPerfRestId', viewingPerfRestId)
-    } else {
-      localStorage.removeItem('serviq_viewingPerfRestId')
-    }
-  }, [viewingPerfRestId])
+  const [viewingPerfRestId, setViewingPerfRestId] = useState(null)
 
   // Listen for sidebar click reset event to open main module list
   React.useEffect(() => {
     const handleReset = () => {
       setViewingPerfRestId(null)
       setViewingSubscriptionRest(null)
-      localStorage.removeItem('serviq_viewingPerfRestId')
     }
     window.addEventListener('reset_module_view', handleReset)
     return () => window.removeEventListener('reset_module_view', handleReset)
@@ -469,23 +458,8 @@ export default function DashboardPage() {
   };
 
   const handleSidebarNav = (targetTab) => {
-    // Reset module edit/view sub-states so clicking sidebar menu item opens the main module list view
-    if (targetTab === 'plans') localStorage.removeItem('serviq_editingPlanId')
-    if (targetTab === 'details') {
-      localStorage.removeItem('serviq_editingRestId')
-      localStorage.removeItem('serviq_viewingRestId')
-      localStorage.removeItem('serviq_showAddRestModal')
-    }
-    if (targetTab === 'admins') {
-      localStorage.removeItem('serviq_editingAdminId')
-      localStorage.removeItem('serviq_showAddAdminModal')
-    }
-    if (targetTab === 'roles') localStorage.removeItem('serviq_editingRoleId')
-    if (targetTab === 'revenue') localStorage.removeItem('serviq_viewingPerfRestId')
-
     // Broadcast reset event to active component
     window.dispatchEvent(new CustomEvent('reset_module_view', { detail: { tab: targetTab } }))
-
     setActiveTab(targetTab)
   }
 
@@ -582,7 +556,7 @@ export default function DashboardPage() {
                 }}
               >
                 <Activity style={{ width: '16px', height: '16px' }} />
-                <span>Subscription</span>
+                <span>Subscriptionsss</span>
               </li>
 
               <li
@@ -602,7 +576,7 @@ export default function DashboardPage() {
                 }}
               >
                 <CreditCard style={{ width: '16px', height: '16px' }} />
-                <span>Billing & Payments</span>
+                <span>Billing & Payment</span>
               </li>
 
               <li

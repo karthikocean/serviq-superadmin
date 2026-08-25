@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { X, Edit2, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { useAddons } from '../../hooks/useAddons';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ManageAddonsMasterModal({ onClose }) {
   const { addons, createAddon, updateAddon, deleteAddon, isLoading } = useAddons();
+  const { hasPermission, isSuperOwner } = useAuth();
+  const canAdd = isSuperOwner || hasPermission('plans', 'add');
+  const canEdit = isSuperOwner || hasPermission('plans', 'edit');
+  const canDelete = isSuperOwner || hasPermission('plans', 'delete');
+
   const [editingAddon, setEditingAddon] = useState(null);
   
   const [formState, setFormState] = useState({
@@ -144,11 +150,13 @@ export default function ManageAddonsMasterModal({ onClose }) {
           </form>
         ) : (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-              <button onClick={handleOpenCreate} className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: '#000000', color: '#ffffff', border: 'none' }}>
-                <Plus size={16} /> Create Addon
-              </button>
-            </div>
+            {canAdd && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                <button onClick={handleOpenCreate} className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: '#000000', color: '#ffffff', border: 'none' }}>
+                  <Plus size={16} /> Create Addon
+                </button>
+              </div>
+            )}
 
             {isLoading ? (
               <p style={{ textAlign: 'center' }}>Loading addons...</p>
@@ -174,12 +182,16 @@ export default function ManageAddonsMasterModal({ onClose }) {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleOpenEdit(addon)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)' }}>
-                        <Edit2 size={16} />
-                      </button>
-                      <button onClick={() => handleDelete(addon._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
-                        <Trash2 size={16} />
-                      </button>
+                      {canEdit && (
+                        <button onClick={() => handleOpenEdit(addon)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)' }}>
+                          <Edit2 size={16} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => handleDelete(addon._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

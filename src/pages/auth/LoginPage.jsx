@@ -59,10 +59,10 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
     
     if (response.data && response.data.token) {
       const userData = response.data.admin || response.data.user;
-      localStorage.setItem("superadmin_token", response.data.token);
-      localStorage.setItem("superadmin_user", JSON.stringify(userData));
+      sessionStorage.setItem("superadmin_token", response.data.token);
+      sessionStorage.setItem("superadmin_user", JSON.stringify(userData));
       if (userData?.role?.roleName) {
-        localStorage.setItem("superadmin_roleName", userData.role.roleName);
+        sessionStorage.setItem("superadmin_roleName", userData.role.roleName);
       }
     }
 

@@ -16,10 +16,15 @@ import {
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function ReportsPage() {
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canView = isSuperOwner || hasPermission('reports', 'view')
+
   const [activeReportTab, setActiveReportTab] = useState('revenue')
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [selectedPlan, setSelectedPlan] = useState('All')
@@ -158,45 +163,47 @@ export default function ReportsPage() {
         </div>
 
         {/* Global Export Options */}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={() => handleExport('csv')}
-            disabled={isExporting}
-            className="btn-outline"
-            style={{
-              padding: '9px 14px',
-              fontSize: '0.78rem',
-              borderRadius: '10px',
-              fontWeight: '700',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            <FileSpreadsheet style={{ width: '15px', height: '15px', color: '#10b981' }} /> Export CSV
-          </button>
-          <button
-            onClick={() => handleExport('pdf')}
-            disabled={isExporting}
-            className="btn-black"
-            style={{
-              padding: '9px 14px',
-              fontSize: '0.78rem',
-              borderRadius: '10px',
-              fontWeight: '700',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              background: '#000000',
-              color: '#ffffff',
-              border: 'none'
-            }}
-          >
-            <FileText style={{ width: '15px', height: '15px', color: '#ef4444' }} /> Download PDF
-          </button>
-        </div>
+        {canView && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => handleExport('csv')}
+              disabled={isExporting}
+              className="btn-outline"
+              style={{
+                padding: '9px 14px',
+                fontSize: '0.78rem',
+                borderRadius: '10px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <FileSpreadsheet style={{ width: '15px', height: '15px', color: '#10b981' }} /> Export CSV
+            </button>
+            <button
+              onClick={() => handleExport('pdf')}
+              disabled={isExporting}
+              className="btn-black"
+              style={{
+                padding: '9px 14px',
+                fontSize: '0.78rem',
+                borderRadius: '10px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                background: '#000000',
+                color: '#ffffff',
+                border: 'none'
+              }}
+            >
+              <FileText style={{ width: '15px', height: '15px', color: '#ef4444' }} /> Download PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* TAB 1: REVENUE REPORT */}

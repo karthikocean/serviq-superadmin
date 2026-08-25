@@ -24,6 +24,7 @@ import PaymentDetailsForm from '../../components/Payment/PaymentDetailsForm'
 import RenewSubscriptionModal from '../../components/Payment/RenewSubscriptionModal'
 import ChangePlanModal from '../../components/Payment/ChangePlanModal'
 import ManageAddonsModal from '../../components/Payment/ManageAddonsModal'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function SubscriptionsPage() {
   const { subscriptions, fetchSubscriptions, subscriptionHistory, fetchSubscriptionHistory } = useSubscriptions()
@@ -31,6 +32,12 @@ export default function SubscriptionsPage() {
   const { restaurants, setRestaurants } = useRestaurant()
   const { addons } = useAddons()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('subscriptions', 'add')
+  const canEdit = isSuperOwner || hasPermission('subscriptions', 'edit')
+  const canDelete = isSuperOwner || hasPermission('subscriptions', 'delete')
+  const canView = isSuperOwner || hasPermission('subscriptions', 'view')
   
   // Use subscriptions for table instead of restaurants
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
@@ -655,13 +662,26 @@ export default function SubscriptionsPage() {
                 <div>
                   <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)' }}>Franchise Subscriptions & Agreements Registry</h4>
                 </div>
-                <button
-                  onClick={handleOpenAssignModal}
-                  className="btn-black"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-                >
-                  <Plus style={{ width: '15px', height: '15px' }} /> Assign Plan
-                </button>
+                {canAdd && (
+                  <button
+                    onClick={() => {
+                      setFormState({
+                        restaurantId: '',
+                        planName: 'Basic Plan',
+                        billingCycle: 'Annual',
+                        startDate: '',
+                        endDate: '',
+                        renewalDate: '',
+                        extraBranches: 0
+                      })
+                      setIsAssignModalOpen(true)
+                    }}
+                    className="btn-black"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    <Plus style={{ width: '15px', height: '15px' }} /> Assign Plan
+                  </button>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -765,95 +785,109 @@ export default function SubscriptionsPage() {
                               }}>{sub.status || 'Active'}</span>
                             </td>
                             <td style={{ padding: '14px 18px', textAlign: 'right', width: '260px', whiteSpace: 'nowrap' }}>
-                              <div className="action-dropdown-container" style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end' }}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveDropdown(activeDropdown === sub.id ? null : sub.id);
-                                  }}
-                                  style={{
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    background: 'var(--bg-app)',
-                                    border: '1px solid var(--border-color)',
-                                    color: 'var(--text-main)',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '700',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                  }}
-                                >
-                                  Manage ▾
-                                </button>
+                              {(canView || canEdit || canDelete) ? (
+                                <div className="action-dropdown-container" style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveDropdown(activeDropdown === sub.id ? null : sub.id);
+                                    }}
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: '6px',
+                                      background: 'var(--bg-app)',
+                                      border: '1px solid var(--border-color)',
+                                      color: 'var(--text-main)',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '700',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    Manage ▾
+                                  </button>
 
-                                {activeDropdown === sub.id && (
-                                  <div style={{
-                                    position: 'absolute',
-                                    top: 'calc(100% + 4px)',
-                                    right: 0,
-                                    background: '#ffffff',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '8px',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    zIndex: 100,
-                                    width: '160px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    overflow: 'hidden',
-                                    textAlign: 'left'
-                                  }}>
-                                    <button
-                                      onClick={() => { setViewingSubscriptionRest(sub); setActiveDropdown(null); }}
-                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                    >View Subscription</button>
-                                    
-                                    <button
-                                      onClick={() => { setActionModal({ type: 'changePlan', subscription: sub }); setActiveDropdown(null); }}
-                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                    >Change Plan</button>
-                                    
-                                    <button
-                                      onClick={() => { setActionModal({ type: 'manageAddons', subscription: sub }); setActiveDropdown(null); }}
-                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                    >Manage Add-ons</button>
-                                    
-                                    <button
-                                      onClick={() => { setActionModal({ type: 'renew', subscription: sub }); setActiveDropdown(null); }}
-                                      style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#10b981', textAlign: 'left' }}
-                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                    >Renew Subscription</button>
-                                    
-                                    {sub.status !== 'Cancelled' && (
-                                      <button
-                                        onClick={() => { setActionModal({ type: 'cancel', subscription: sub }); setActiveDropdown(null); }}
-                                        style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#ef4444', textAlign: 'left' }}
-                                        onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                      >Cancel Subscription</button>
-                                    )}
-                                    
-                                    <button
-                                      onClick={() => {
-                                        setActiveTab('history');
-                                        setHistorySearchTerm(sub.restaurantName);
-                                        setActiveDropdown(null);
-                                      }}
-                                      style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                      onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                    >View History</button>
-                                  </div>
-                                )}
-                              </div>
+                                  {activeDropdown === sub.id && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: 'calc(100% + 4px)',
+                                      right: 0,
+                                      background: '#ffffff',
+                                      border: '1px solid var(--border-color)',
+                                      borderRadius: '8px',
+                                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                      zIndex: 100,
+                                      width: '160px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      overflow: 'hidden',
+                                      textAlign: 'left'
+                                    }}>
+                                      {canView && (
+                                        <button
+                                          onClick={() => { setViewingSubscriptionRest(sub); setActiveDropdown(null); }}
+                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                        >View Subscription</button>
+                                      )}
+                                      
+                                      {canEdit && (
+                                        <button
+                                          onClick={() => { setActionModal({ type: 'changePlan', subscription: sub }); setActiveDropdown(null); }}
+                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                        >Change Plan</button>
+                                      )}
+                                      
+                                      {canEdit && (
+                                        <button
+                                          onClick={() => { setActionModal({ type: 'manageAddons', subscription: sub }); setActiveDropdown(null); }}
+                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                        >Manage Add-ons</button>
+                                      )}
+                                      
+                                      {canEdit && (
+                                        <button
+                                          onClick={() => { setActionModal({ type: 'renew', subscription: sub }); setActiveDropdown(null); }}
+                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#10b981', textAlign: 'left' }}
+                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                        >Renew Subscription</button>
+                                      )}
+                                      
+                                      {canDelete && sub.status !== 'Cancelled' && (
+                                        <button
+                                          onClick={() => { setActionModal({ type: 'cancel', subscription: sub }); setActiveDropdown(null); }}
+                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#ef4444', textAlign: 'left' }}
+                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                        >Cancel Subscription</button>
+                                      )}
+                                      
+                                      {canView && (
+                                        <button
+                                          onClick={() => {
+                                            setActiveTab('history');
+                                            setHistorySearchTerm(sub.restaurantName);
+                                            setActiveDropdown(null);
+                                          }}
+                                          style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
+                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                                        >View History</button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                              )}
                             </td>
                           </tr>
                         )

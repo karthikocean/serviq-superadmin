@@ -74,11 +74,18 @@ import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { getLeads, createLead, updateLeadStatus, assignLead, updateFollowUp, convertLeadToRestaurant } from '../../services/leadService'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function LeadsPage() {
   const navigate = useNavigate()
   const { restaurants, setRestaurants: onUpdateRestaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('leads', 'add')
+  const canEdit = isSuperOwner || hasPermission('leads', 'edit')
+  const canDelete = isSuperOwner || hasPermission('leads', 'delete')
+  const canView = isSuperOwner || hasPermission('leads', 'view')
   const restaurantAdmins = []
   const leadStatuses = ['New Lead', 'Contacted', 'Interested', 'Follow-up', 'Not Interested', 'Demo Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost']
   const leadSources = ['Website', 'Referral', 'Cold Call', 'Walk-in', 'Partner', 'Social Media']
@@ -300,18 +307,20 @@ export default function LeadsPage() {
                 </select>
               </>
             )}
-            <button
-              type="button"
-              className={showCreateLeadForm ? 'btn-outline' : 'btn-black'}
-              onClick={() => {
-                setFormErrors({})
-                resetLeadForm()
-                setShowCreateLeadForm(!showCreateLeadForm)
-              }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', padding: '7px 14px' }}
-            >
-              {showCreateLeadForm ? 'Back' : 'Create Lead'}
-            </button>
+            {canAdd && (
+              <button
+                type="button"
+                className={showCreateLeadForm ? 'btn-outline' : 'btn-black'}
+                onClick={() => {
+                  setFormErrors({})
+                  resetLeadForm()
+                  setShowCreateLeadForm(!showCreateLeadForm)
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', padding: '7px 14px' }}
+              >
+                {showCreateLeadForm ? 'Back' : 'Create Lead'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -418,6 +427,7 @@ export default function LeadsPage() {
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '150px' }}>
                       <select
                         value={lead.leadStatus}
+                        disabled={!canEdit}
                         onChange={(e) => handleLeadStatusChange(lead._id, e.target.value)}
                         style={{
                           padding: '6px 10px',
@@ -428,9 +438,10 @@ export default function LeadsPage() {
                           fontSize: '0.75rem',
                           fontWeight: '700',
                           outline: 'none',
-                          cursor: 'pointer',
+                          cursor: canEdit ? 'pointer' : 'not-allowed',
                           boxSizing: 'border-box',
-                          width: '100%'
+                          width: '100%',
+                          opacity: canEdit ? 1 : 0.7
                         }}
                       >
                         {leadStatuses.map(status => <option key={status} value={status}>{status}</option>)}
@@ -439,6 +450,7 @@ export default function LeadsPage() {
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '160px' }}>
                       <input
                         type="text"
+                        disabled={!canEdit}
                         value={lead.assignedTo || ''}
                         onChange={(e) => handleLeadAssignmentChange(lead._id, e.target.value)}
                         placeholder="Unassigned"
@@ -451,13 +463,16 @@ export default function LeadsPage() {
                           fontSize: '0.75rem',
                           outline: 'none',
                           boxSizing: 'border-box',
-                          width: '100%'
+                          width: '100%',
+                          cursor: canEdit ? 'text' : 'not-allowed',
+                          opacity: canEdit ? 1 : 0.7
                         }}
                       />
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '140px' }}>
                       <input
                         type="date"
+                        disabled={!canEdit}
                         value={lead.followUpDate ? lead.followUpDate.substring(0, 10) : ''}
                         onChange={(e) => handleLeadFollowUpChange(lead._id, e.target.value)}
                         style={{
@@ -469,7 +484,9 @@ export default function LeadsPage() {
                           fontSize: '0.75rem',
                           outline: 'none',
                           boxSizing: 'border-box',
-                          width: '100%'
+                          width: '100%',
+                          cursor: canEdit ? 'text' : 'not-allowed',
+                          opacity: canEdit ? 1 : 0.7
                         }}
                       />
                     </td>
@@ -480,15 +497,19 @@ export default function LeadsPage() {
                       {lead.remarks || '-'}
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', textAlign: 'right', width: '180px', whiteSpace: 'nowrap' }}>
-                      <button
-                        type="button"
-                        className="btn-outline"
-                        disabled={Boolean(lead.convertedRestaurantId) || lead.leadStatus === 'Lost'}
-                        onClick={() => handleConvertLeadToRestaurant(lead)}
-                        style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '8px', cursor: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 'not-allowed' : 'pointer', opacity: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 0.55 : 1 }}
-                      >
-                        {lead.convertedRestaurantId ? `Converted ${lead.convertedRestaurantId}` : 'Convert to Restaurant'}
-                      </button>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="btn-outline"
+                          disabled={Boolean(lead.convertedRestaurantId) || lead.leadStatus === 'Lost'}
+                          onClick={() => handleConvertLeadToRestaurant(lead)}
+                          style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '8px', cursor: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 'not-allowed' : 'pointer', opacity: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 0.55 : 1 }}
+                        >
+                          {lead.convertedRestaurantId ? `Converted ${lead.convertedRestaurantId}` : 'Convert to Restaurant'}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
