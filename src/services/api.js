@@ -82,4 +82,65 @@ export const getPlans = async () => {
   return response.data;
 };
 
+export const assignSubscriptionAPI = async (data) => {
+  const response = await api.post("/subscriptions", data);
+  return response.data;
+};
+
+export const changePlanAPI = async (data) => {
+  const response = await api.post("/subscriptions/change-plan", data);
+  return response.data;
+};
+
+export const renewSubscriptionAPI = async (data) => {
+  // data should contain { subscriptionId, ... }
+  const response = await api.post(`/subscriptions/${data.subscriptionId}/renew`, data);
+  return response.data;
+};
+
+export const manageAddonsAPI = async (data) => {
+  const response = await api.post("/subscriptions/purchase-addon", data);
+  return response.data;
+};
+
+export const getSubscriptionHistoryAPI = async (page = 1, limit = 10) => {
+  const response = await api.get(`/subscriptions/history?page=${page}&limit=${limit}`);
+  return response.data;
+};
+
+export const getAllSubscriptionsAPI = async (page = 1, limit = 100) => {
+  const response = await api.get(`/subscriptions?page=${page}&limit=${limit}`);
+  return response.data;
+};
+
+export const getAddonsAPI = async () => {
+  const response = await api.get('/subscriptions/addons/all');
+  return response.data;
+};
+
+export const createAddonAPI = async (data) => {
+  const response = await api.post('/subscriptions/addons', data);
+  return response.data;
+};
+
+export const updateAddonAPI = async (id, data) => {
+  const response = await api.put(`/subscriptions/addons/${id}`, data);
+  return response.data;
+};
+
+export const deleteAddonAPI = async (id) => {
+  const response = await api.delete(`/subscriptions/addons/${id}`);
+  return response.data;
+};
+
+export const prorateChangePlanAPI = async (data) => {
+  const response = await api.post(`/subscriptions/prorate-change-plan`, data);
+  return response.data;
+};
+
+export const cancelSubscriptionAPI = async (id) => {
+  const response = await api.post(`/subscriptions/${id}/cancel`);
+  return response.data;
+};
+
 export default api;
