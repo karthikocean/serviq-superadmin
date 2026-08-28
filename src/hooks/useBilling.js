@@ -6,7 +6,7 @@ export function useBilling() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchInvoices = useCallback(async (page = 1, limit = 10, search = '', status = 'All') => {
+  const fetchInvoices = useCallback(async (page = 0, limit = 10, search = '', status = 'All') => {
     setIsLoading(true);
     try {
       const response = await getPaymentsAPI(page, limit, search, status);

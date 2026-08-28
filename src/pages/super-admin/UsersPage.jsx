@@ -15,7 +15,6 @@ import { TableTopControls, TableBottomPagination } from '../../components/common
 import { getManagers, createManager, updateManager, deleteManager } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 
-// ─── Reusable validated input component with password visibility toggle ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => {
   const [showPassword, setShowPassword] = useState(false)
   const isPassword = type === 'password'
@@ -137,7 +136,7 @@ export default function UsersPage() {
   const [formErrors, setFormErrors] = useState({})
 
   // Pagination & Search states
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -156,7 +155,7 @@ export default function UsersPage() {
   const fetchPlatformAdmins = async () => {
     setLoading(true)
     try {
-      const res = await getManagers(1, 100)
+      const res = await getManagers(0, 100)
       if (res.success) {
         const mapped = (res.data.results || res.data || []).map(mapBackendManagerToUI)
         setRestaurantAdmins(mapped)
@@ -175,7 +174,7 @@ export default function UsersPage() {
 
   const filteredAdmins = restaurantAdmins.filter(a => {
     const term = searchTerm.toLowerCase()
-    return !term || 
+    return !term ||
       (a.name && a.name.toLowerCase().includes(term)) ||
       (a.email && a.email.toLowerCase().includes(term)) ||
       (a.id && a.id.toLowerCase().includes(term)) ||
@@ -183,8 +182,8 @@ export default function UsersPage() {
   })
 
   const paginatedAdmins = filteredAdmins.slice(
-    (currentPage - 1) * entriesPerPage,
-    currentPage * entriesPerPage
+    currentPage * entriesPerPage,
+    (currentPage + 1) * entriesPerPage
   )
 
   // Listen for sidebar click reset event to open main module list
@@ -209,7 +208,6 @@ export default function UsersPage() {
     password: ''
   })
 
-  // Prefill adminFormState when editingAdminId changes or is restored on refresh
   useEffect(() => {
     if (editingAdminId) {
       const admin = restaurantAdmins.find(a => a.id === editingAdminId)
@@ -227,7 +225,6 @@ export default function UsersPage() {
     }
   }, [editingAdminId, restaurantAdmins])
 
-  // Synchronize new admin initial restaurant assign
   useEffect(() => {
     if (restaurants.length > 0 && !adminFormState.restaurantName) {
       setAdminFormState(prev => ({ ...prev, restaurantName: restaurants[0].name }))
@@ -685,9 +682,9 @@ export default function UsersPage() {
 
             <TableTopControls
               entriesPerPage={entriesPerPage}
-              onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+              onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
               searchTerm={searchTerm}
-              onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+              onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(0); }}
               searchPlaceholder="Search users..."
             />
 
@@ -708,7 +705,7 @@ export default function UsersPage() {
                 <tbody>
                   {paginatedAdmins.map((admin, idx) => (
                     <tr key={admin.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '14px 24px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>{(currentPage - 1) * entriesPerPage + idx + 1}</td>
+                      <td style={{ padding: '14px 24px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>{currentPage * entriesPerPage + idx + 1}</td>
                       <td style={{ padding: '14px 18px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{admin.name}</td>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{admin.email}</td>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>{admin.phone || 'N/A'}</td>

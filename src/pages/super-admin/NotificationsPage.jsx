@@ -70,7 +70,7 @@ export default function NotificationsPage() {
   
   const fetchPlans = async () => {
     try {
-      const data = await getAllPlansApi(1, 100);
+      const data = await getAllPlansApi(0, 100);
       setPlans(data.data || []);
     } catch (err) {
       console.error("Failed to fetch plans", err);
@@ -81,7 +81,7 @@ export default function NotificationsPage() {
     fetchPlans();
   }, []);
 
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   const fetchNotifications = async () => {
@@ -301,7 +301,7 @@ export default function NotificationsPage() {
         {/* History Table */}
         <TableTopControls
           entriesPerPage={entriesPerPage}
-          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
           searchTerm=""
           onSearchChange={() => {}}
           showSearch={false}

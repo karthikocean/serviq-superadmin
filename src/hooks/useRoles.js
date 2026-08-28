@@ -11,7 +11,7 @@ export function useRoles() {
     setLoading(true);
     setError(null);
     try {
-      const response = await getRoles(1, 100);
+      const response = await getRoles(0, 100);
       // Backend paginates: response.data = { results: [...], total, page, limit }
       // or response.data = [...] for non-paginated
       if (response && response.data) {

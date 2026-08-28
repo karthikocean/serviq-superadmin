@@ -83,22 +83,22 @@ export const TableTopControls = ({
 
 export const TableBottomPagination = ({
   totalEntries = 0,
-  currentPage = 1,
+  currentPage = 0,
   entriesPerPage = 10,
   onPageChange = () => {}
 }) => {
   const totalPages = Math.ceil(totalEntries / entriesPerPage) || 1;
-  const startEntry = totalEntries === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1;
-  const endEntry = Math.min(currentPage * entriesPerPage, totalEntries);
+  const startEntry = totalEntries === 0 ? 0 : (currentPage) * entriesPerPage + 1;
+  const endEntry = Math.min((currentPage + 1) * entriesPerPage, totalEntries);
 
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    let startPage = Math.max(0, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages - 1, startPage + maxVisible - 1);
 
     if (endPage - startPage + 1 < maxVisible) {
-      startPage = Math.max(1, endPage - maxVisible + 1);
+      startPage = Math.max(0, endPage - maxVisible + 1);
     }
 
     for (let i = startPage; i <= endPage; i++) {
@@ -129,17 +129,17 @@ export const TableBottomPagination = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <button
           type="button"
-          disabled={currentPage === 1}
+          disabled={currentPage === 0}
           onClick={() => onPageChange(currentPage - 1)}
           style={{
             padding: '6px 14px',
             borderRadius: '8px',
             border: '1px solid #e2e8f0',
-            background: currentPage === 1 ? '#f8fafc' : '#ffffff',
-            color: currentPage === 1 ? '#cbd5e1' : '#334155',
+            background: currentPage === 0 ? '#f8fafc' : '#ffffff',
+            color: currentPage === 0 ? '#cbd5e1' : '#334155',
             fontSize: '0.82rem',
             fontWeight: '600',
-            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+            cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
             transition: 'all 0.15s ease'
           }}
         >
@@ -166,23 +166,23 @@ export const TableBottomPagination = ({
               transition: 'all 0.15s ease'
             }}
           >
-            {page}
+            {page + 1}
           </button>
         ))}
 
         <button
           type="button"
-          disabled={currentPage >= totalPages}
+          disabled={currentPage >= totalPages - 1}
           onClick={() => onPageChange(currentPage + 1)}
           style={{
             padding: '6px 14px',
             borderRadius: '8px',
             border: '1px solid #e2e8f0',
-            background: currentPage >= totalPages ? '#f8fafc' : '#ffffff',
-            color: currentPage >= totalPages ? '#cbd5e1' : '#334155',
+            background: currentPage >= totalPages - 1 ? '#f8fafc' : '#ffffff',
+            color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#334155',
             fontSize: '0.82rem',
             fontWeight: '600',
-            cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+            cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
             transition: 'all 0.15s ease'
           }}
         >

@@ -10,7 +10,7 @@ export function useRestaurant() {
   const fetchRestaurants = async () => {
     setIsLoading(true);
     try {
-      const response = await getRestaurants(1, 10);
+      const response = await getRestaurants(0, 10);
       if (response.success) {
         const backendRest = response.data.results || response.data;
         const mapped = backendRest.map(r => ({

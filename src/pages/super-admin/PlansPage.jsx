@@ -151,7 +151,7 @@ export default function PlansPage() {
 
   const fetchPlans = async () => {
     try {
-      const data = await getAllPlansApi(1, 100);
+      const data = await getAllPlansApi(0, 100);
       if (data.success) {
         const formattedPlans = data.data.map(p => ({
           ...p,

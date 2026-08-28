@@ -23,7 +23,7 @@ export default function CouponsPage() {
   const [availablePlans, setAvailablePlans] = useState([]);
 
   const [coupons, setCoupons] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 10;
@@ -37,7 +37,7 @@ export default function CouponsPage() {
 
   const fetchCoupons = async () => {
     try {
-      const data = await getCouponsApi(currentPage - 1, itemsPerPage, searchQuery);
+      const data = await getCouponsApi(currentPage, itemsPerPage, searchQuery);
       if (data.success) {
         const formattedData = data.data.map(c => ({
           ...c,
@@ -56,13 +56,13 @@ export default function CouponsPage() {
   };
 
   useEffect(() => {
-    setCurrentPage(1);
+    setCurrentPage(0);
   }, [searchQuery]);
 
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const data = await getAllPlansApi(1, 100);
+        const data = await getAllPlansApi(0, 100);
         if (data.success) {
           const mappedPlans = data.data.map(p => ({ label: p.planName, value: p._id }));
           setAvailablePlans(mappedPlans);

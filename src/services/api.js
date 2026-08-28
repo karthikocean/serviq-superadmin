@@ -52,7 +52,7 @@ export const uploadImage = async (file) => {
   return response.data;
 };
 
-export const getRestaurants = async (page = 1, limit = 10) => {
+export const getRestaurants = async (page = 0, limit = 10) => {
   const response = await api.get(`/restaurants?page=${page}&limit=${limit}`);
   return response.data;
 };
@@ -102,12 +102,12 @@ export const manageAddonsAPI = async (data) => {
   return response.data;
 };
 
-export const getSubscriptionHistoryAPI = async (page = 1, limit = 10) => {
+export const getSubscriptionHistoryAPI = async (page = 0, limit = 10) => {
   const response = await api.get(`/subscriptions/history?page=${page}&limit=${limit}`);
   return response.data;
 };
 
-export const getAllSubscriptionsAPI = async (page = 1, limit = 100) => {
+export const getAllSubscriptionsAPI = async (page = 0, limit = 100) => {
   const response = await api.get(`/subscriptions?page=${page}&limit=${limit}`);
   return response.data;
 };
@@ -142,7 +142,7 @@ export const cancelSubscriptionAPI = async (id) => {
   return response.data;
 };
 
-export const getRoles = async (page = 1, limit = 100) => {
+export const getRoles = async (page = 0, limit = 100) => {
   const response = await api.get(`/roles?page=${page}&limit=${limit}`);
   return response.data;
 };
@@ -167,7 +167,7 @@ export const getModulesAPI = async () => {
   return response.data;
 };
 
-export const getManagers = async (page = 1, limit = 10) => {
+export const getManagers = async (page = 0, limit = 10) => {
   const response = await api.get(`/managers?page=${page}&limit=${limit}`);
   return response.data;
 };

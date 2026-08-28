@@ -486,7 +486,7 @@ export default function RestaurantsPage() {
   const [formErrors, setFormErrors] = useState({})
 
   // Pagination & Search states
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -500,8 +500,8 @@ export default function RestaurantsPage() {
   })
 
   const paginatedRestaurants = filteredRestaurants.slice(
-    (currentPage - 1) * entriesPerPage,
-    currentPage * entriesPerPage
+    currentPage * entriesPerPage,
+    (currentPage + 1) * entriesPerPage
   )
 
   // Listen for sidebar click reset event to open main module list
@@ -1436,9 +1436,9 @@ export default function RestaurantsPage() {
               </div>
               <TableTopControls
                 entriesPerPage={entriesPerPage}
-                onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+                onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
                 searchTerm={searchTerm}
-                onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+                onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(0); }}
                 searchPlaceholder="Search restaurants..."
               />
 
@@ -1460,7 +1460,7 @@ export default function RestaurantsPage() {
                   <tbody>
                     {paginatedRestaurants.map((rest, index) => {
                       const isActive = rest.id === activeRestaurantId
-                      const serialNum = (currentPage - 1) * entriesPerPage + index + 1
+                      const serialNum = currentPage * entriesPerPage + index + 1
 
                       return (
                         <tr

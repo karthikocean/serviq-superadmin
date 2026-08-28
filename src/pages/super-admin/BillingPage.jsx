@@ -96,7 +96,7 @@ export default function BillingPage() {
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All')
 
   useEffect(() => {
-    fetchInvoices(1, 100, invoiceSearchQuery, invoiceStatusFilter)
+    fetchInvoices(0, 100, invoiceSearchQuery, invoiceStatusFilter)
   }, [invoiceSearchQuery, invoiceStatusFilter, fetchInvoices])
 
   return (

@@ -110,7 +110,7 @@ export default function LeadsPage() {
   const [showCreateLeadForm, setShowCreateLeadForm] = useState(false)
   const [formErrors, setFormErrors] = useState({})
   
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   const fetchLeads = async () => {

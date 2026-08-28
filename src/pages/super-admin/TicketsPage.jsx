@@ -61,7 +61,7 @@ export default function TicketsPage() {
   const statuses = ['Open', 'In Progress', 'Resolved', 'Closed']
   const supportStaff = ['Admin User', 'Jane Doe (Support)', 'John Smith (Dev)', 'Platform Super']
 
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   // Handlers
@@ -279,9 +279,9 @@ export default function TicketsPage() {
         {/* Tickets Table Grid */}
         <TableTopControls
           entriesPerPage={entriesPerPage}
-          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
           searchTerm={searchTerm}
-          onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+          onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(0); }}
           searchPlaceholder="Search tickets..."
           showSearch={false}
         />
