@@ -40,13 +40,13 @@ export default function Sidebar({ isCollapsed, restaurantDetails }) {
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div>
         <ul className="sidebar-nav">
-          {SUPER_ADMIN_NAVIGATION.map((item, index) => {
+          {SUPER_ADMIN_NAVIGATION.slice(0, 5).map((item, index) => {
             const moduleKey = NAV_MODULE_MAP[item.label];
             // If we have a module mapping, check permission; otherwise always show
             const canView = !moduleKey || isSuperOwner || hasPermission(moduleKey, 'view');
             if (!canView) return null;
             return (
-              <li key={index}>
+              <li key={`top-${index}`}>
                 <NavLink
                   to={item.path}
                   onClick={clearActionStates}
@@ -132,6 +132,24 @@ export default function Sidebar({ isCollapsed, restaurantDetails }) {
               )}
             </li>
           )}
+
+          {SUPER_ADMIN_NAVIGATION.slice(5).map((item, index) => {
+            const moduleKey = NAV_MODULE_MAP[item.label];
+            // If we have a module mapping, check permission; otherwise always show
+            const canView = !moduleKey || isSuperOwner || hasPermission(moduleKey, 'view');
+            if (!canView) return null;
+            return (
+              <li key={`bottom-${index}`}>
+                <NavLink
+                  to={item.path}
+                  onClick={clearActionStates}
+                  className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
+                >
+                  <item.icon style={{ width: '18px', height: '18px' }} /> <span>{item.label}</span>
+                </NavLink>
+              </li>
+            );
+          })}
 
           {/* System Settings */}
           {canViewSettings && (

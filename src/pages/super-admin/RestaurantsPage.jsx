@@ -461,13 +461,16 @@ export default function RestaurantsPage() {
     const loadPlans = async () => {
       try {
         const response = await getPlans();
-        if (response.success && response.data) {
+        if (response.success) {
           const plansList = response.data.results || response.data;
-          setPlans(plansList);
-          setNewRestState(prev => ({
-            ...prev,
-            planId: plansList.length > 0 ? plansList[0]._id : ''
-          }))
+          const activePlans = plansList.filter(p => p.isActive || p.status === 'Active');
+          setPlans(activePlans);
+          if (!newRestState.planId) {
+            setNewRestState(prev => ({
+              ...prev,
+              planId: activePlans.length > 0 ? activePlans[0]._id : ''
+            }))
+          }
         }
       } catch (e) {
         console.error("Failed to load plans", e)
@@ -1498,18 +1501,28 @@ export default function RestaurantsPage() {
                             {rest.email || '—'}
                           </td>
                           <td style={{ padding: '14px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            <span style={{
-                              fontSize: '0.7rem',
-                              fontWeight: '800',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              background: rest.subscriptionPlan?.includes('Premium') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                              color: rest.subscriptionPlan?.includes('Premium') ? '#3b82f6' : '#10b981',
-                              border: rest.subscriptionPlan?.includes('Premium') ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
-                              display: 'inline-block'
-                            }}>
-                              {rest.subscriptionPlan || 'Standard Plan'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '800',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                background: rest.subscriptionPlan?.includes('Premium') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                color: rest.subscriptionPlan?.includes('Premium') ? '#3b82f6' : '#10b981',
+                                border: rest.subscriptionPlan?.includes('Premium') ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+                                display: 'inline-block',
+                                lineHeight: 1
+                              }}>
+                                {rest.subscriptionPlan ? rest.subscriptionPlan.replace(' Plan', '') : 'Standard'}
+                              </span>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: '700',
+                                color: rest.subscriptionStatus === 'Active' ? '#10b981' : (rest.subscriptionStatus === 'Expiring Soon' ? '#f59e0b' : '#ef4444')
+                              }}>
+                                {rest.subscriptionStatus || 'No Plan'}
+                              </span>
+                            </div>
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>
                             {rest.phone || rest.mobileNumber || '—'}

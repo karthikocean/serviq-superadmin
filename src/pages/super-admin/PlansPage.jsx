@@ -110,12 +110,12 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 )
 
 const CORE_FEATURES = [
-  { label: 'QR Ordering', key: 'qr-code-config' },
   { label: 'Menu Management', key: 'menu' },
   { label: 'Table Management', key: 'tables' },
   { label: 'Order Management', key: 'orders' },
   { label: 'Waiter Management', key: 'waiter-list' },
-  { label: 'Kitchen Management', key: 'kitchen-list' }
+  { label: 'Kitchen Management', key: 'kitchen-list' },
+  { label: 'Inventory Management', key: 'inventory' }
 ]
 
 const initialFeatures = CORE_FEATURES.reduce((acc, feat) => {
@@ -627,7 +627,9 @@ export default function PlansPage() {
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Includes Features:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {CORE_FEATURES.map((feat, idx) => {
-                      const isIncluded = plan.featuresIncluded?.[feat.key]
+                      if (feat.key === 'inventory' && !isPremium) return null
+
+                      const isIncluded = (feat.key === 'inventory' && isPremium) || plan.featuresIncluded?.[feat.key]
                       return (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.4 }}>
                           <div style={{

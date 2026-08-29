@@ -113,6 +113,7 @@ const ValidatedSelect = ({ label, value, onChange, required, error, setError, ch
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useBilling } from '../../hooks/useBilling'
 import { useSubscriptions } from '../../hooks/useSubscriptions'
+import { getDashboardMetricsApi } from '../../services/dashboardService'
 
 export default function DashboardPage() {
   const { restaurants, restaurantDetails = {} } = useRestaurant()
@@ -128,6 +129,61 @@ export default function DashboardPage() {
   const isMerged = true;
   const setActiveTab = () => { }
   const [formErrors, setFormErrors] = useState({})
+
+  const [dashboardMetrics, setDashboardMetrics] = useState({
+    restaurants: { total: 0, active: 0, inactive: 0 },
+    financials: { monthlyRevenue: 0, pendingPayments: 0 },
+    subscriptions: { expiring: 0, basicPlan: 0, standardPlan: 0, premiumPlan: 0 },
+    tickets: { open: 0, inProgress: 0, resolved: 0 },
+    revenueTrend: []
+  });
+
+  React.useEffect(() => {
+    if (activeTab === 'revenue') {
+      getDashboardMetricsApi().then(res => {
+        if (res.success && res.data) {
+          const d = res.data;
+          
+          let basicPlan = 0;
+          let standardPlan = 0;
+          let premiumPlan = 0;
+          
+          if (Array.isArray(d.planCounts)) {
+            d.planCounts.forEach(p => {
+              if (p.planName?.toLowerCase().includes('basic')) basicPlan += p.count;
+              if (p.planName?.toLowerCase().includes('standard')) standardPlan += p.count;
+              if (p.planName?.toLowerCase().includes('premium')) premiumPlan += p.count;
+            });
+          }
+
+          setDashboardMetrics({
+            restaurants: {
+              total: d.totalRestaurants || 0,
+              active: d.activeRestaurants || 0,
+              inactive: d.inactiveRestaurants || 0
+            },
+            financials: {
+              monthlyRevenue: Math.round(d.monthlyRevenue || 0),
+              pendingPayments: Math.round(d.pendingPayments || 0)
+            },
+            subscriptions: {
+              expiring: d.expiringSubscriptions || 0,
+              basicPlan,
+              standardPlan,
+              premiumPlan,
+              planCounts: d.planCounts || []
+            },
+            tickets: {
+              open: d.tickets?.open || 0,
+              inProgress: d.tickets?.inProgress || 0,
+              resolved: d.tickets?.resolved || 0
+            },
+            revenueTrend: Array.isArray(d.revenueTrend) ? d.revenueTrend : []
+          });
+        }
+      }).catch(err => console.error(err));
+    }
+  }, [activeTab]);
 
   React.useEffect(() => {
     if (activeTab === 'admins' || activeTab === 'roles') {
@@ -186,24 +242,38 @@ export default function DashboardPage() {
   // Total Users count (active diners, staff members, registered operators)
   const totalUsersCount = Math.round(totalOrdersCount * 3.5) + (staffMembers.length * restaurants.length)
 
-  // Monthly Revenue estimation (including other historical weeks in current month)
-  const monthlyRevenue = Math.round(totalRevenue * 8.5)
-
   // Subscription Revenue from branches (Active branches * ₹4,999 base fee/month)
   const activeRestaurants = restaurants.filter(r => r.status === 'Active')
   const subscriptionRevenue = activeRestaurants.length * 4999
 
-  // Pending payments calculations from invoices list
-  const pendingPaymentsCount = invoices.filter(inv => inv.status === 'Pending').length
-  const pendingPaymentsSum = invoices.filter(inv => inv.status === 'Pending').reduce((acc, inv) => acc + inv.amount, 0)
-  const expiringSubscriptionsCount = restaurants.filter(r => r.status === 'Active' && r.subscriptionPlan !== 'Premium').length > 0 ? 3 : 1
+  // API-driven metrics for Dashboard
+  const monthlyRevenue = dashboardMetrics?.financials?.monthlyRevenue || 0
+  const pendingPaymentsSum = dashboardMetrics?.financials?.pendingPayments || 0
+  const expiringSubscriptionsCount = dashboardMetrics?.subscriptions?.expiring || 0
 
-  // Subscription Plan Distributions for Donut/Pie Chart
-  const standardCount = restaurants.filter(r => r.subscriptionPlan?.includes('Standard')).length || 0
-  const premiumCount = restaurants.filter(r => r.subscriptionPlan?.includes('Premium')).length || 0
+
+  const basicCount = dashboardMetrics?.subscriptions?.basicPlan || 0
+  const standardCount = dashboardMetrics?.subscriptions?.standardPlan || 0
+  const premiumCount = dashboardMetrics?.subscriptions?.premiumPlan || 0
   const totalPlans = standardCount + premiumCount || 1
   const standardPct = (standardCount / totalPlans) * 100
   const premiumPct = (premiumCount / totalPlans) * 100
+
+  // Revenue Trend Math for SVG Chart (6 points across 600px width)
+  const trendData = dashboardMetrics?.revenueTrend && dashboardMetrics.revenueTrend.length > 0 
+    ? dashboardMetrics.revenueTrend.slice(-6) // ensure max 6
+    : [
+      { month: 'Jan', revenue: 0 }, { month: 'Feb', revenue: 0 }, { month: 'Mar', revenue: 0 },
+      { month: 'Apr', revenue: 0 }, { month: 'May', revenue: 0 }, { month: 'Jun', revenue: 0 }
+    ];
+  const maxRevenue = Math.max(...trendData.map(d => d.revenue), 1000);
+  const trendPoints = trendData.map((d, i) => {
+    const x = 50 + i * 100;
+    const y = 160 - (d.revenue / maxRevenue) * 140;
+    return { x, y, ...d };
+  });
+  const trendLinePath = trendPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ');
+  const trendAreaPath = `${trendLinePath} L ${trendPoints[trendPoints.length - 1]?.x || 550},160 L 50,160 Z`;
 
   // Donut chart stroke math (Circumference C = 251.2 for r = 40)
   const donutCircumference = 251.2
@@ -813,7 +883,7 @@ export default function DashboardPage() {
                   <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Building style={{ width: '22px', height: '22px' }} /></div>
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Total Restaurants</span>
-                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.length}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{dashboardMetrics?.restaurants?.total || 0}</h3>
                     <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '700' }}>100% Registered</span>
                   </div>
                 </div>
@@ -823,7 +893,7 @@ export default function DashboardPage() {
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CheckCircle style={{ width: '22px', height: '22px' }} /></div>
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Active Restaurants</span>
-                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.status === 'Active').length}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{dashboardMetrics?.restaurants?.active || 0}</h3>
                     <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '700' }}>Online & Serving</span>
                   </div>
                 </div>
@@ -833,7 +903,7 @@ export default function DashboardPage() {
                   <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><AlertTriangle style={{ width: '22px', height: '22px' }} /></div>
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Inactive Restaurants</span>
-                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.status !== 'Active').length}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{dashboardMetrics?.restaurants?.inactive || 0}</h3>
                     <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: '700' }}>Suspended/Offline</span>
                   </div>
                 </div>
@@ -884,7 +954,7 @@ export default function DashboardPage() {
                   <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Award style={{ width: '22px', height: '22px' }} /></div>
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Basic Plan</span>
-                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.subscriptionPlan?.includes('Basic')).length}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{basicCount}</h3>
                   </div>
                 </div>
 
@@ -893,7 +963,7 @@ export default function DashboardPage() {
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Award style={{ width: '22px', height: '22px' }} /></div>
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Standard Plan</span>
-                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.subscriptionPlan?.includes('Standard')).length}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{standardCount}</h3>
                   </div>
                 </div>
 
@@ -902,7 +972,7 @@ export default function DashboardPage() {
                   <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Award style={{ width: '22px', height: '22px' }} /></div>
                   <div>
                     <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Premium Plan</span>
-                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{restaurants.filter(r => r.subscriptionPlan?.includes('Premium')).length}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900' }}>{premiumCount}</h3>
                   </div>
                 </div>
 
@@ -950,11 +1020,11 @@ export default function DashboardPage() {
                   }}>Live</span> */}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                   {[
-                    { label: 'Open Tickets', value: '12', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.15)' },
-                    { label: 'In Progress', value: '8', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.15)' },
-                    { label: 'Resolved (30d)', value: '47', color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.15)' },
+                    { label: 'Open Tickets', value: dashboardMetrics?.tickets?.open || 0, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.15)' },
+                    { label: 'In Progress', value: dashboardMetrics?.tickets?.inProgress || 0, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.15)' },
+                    { label: 'Resolved (30d)', value: dashboardMetrics?.tickets?.resolved || 0, color: '#10b981', bg: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.15)' },
                   ].map((stat, idx) => (
                     <div key={idx} style={{
                       padding: '16px',
@@ -981,7 +1051,7 @@ export default function DashboardPage() {
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Monthly recurring revenue from franchise plans</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '900', color: 'var(--primary)' }}>₹{subscriptionRevenue.toLocaleString()}</h2>
+                      <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '900', color: 'var(--primary)' }}>₹{(trendPoints[trendPoints.length - 1]?.revenue || 0).toLocaleString()}</h2>
                     </div>
                   </div>
 
@@ -1003,18 +1073,18 @@ export default function DashboardPage() {
                       <line x1="0" y1="90" x2="600" y2="90" stroke="var(--border-color)" strokeWidth="1" strokeDasharray="5,5" />
                       <line x1="0" y1="160" x2="600" y2="160" stroke="var(--border-color)" strokeWidth="1" />
 
-                      {/* Area fill (Smooth Cubic Bezier) */}
+                      {/* Area fill (Dynamic) */}
                       <path
-                        d="M 50,160 L 50,148 C 100,148 100,90 150,90 C 200,90 200,125 250,125 C 300,125 300,55 350,55 C 400,55 400,78 450,78 C 500,78 500,20 550,20 L 550,160 Z"
+                        d={trendAreaPath}
                         fill="url(#areaGradient)"
                       />
 
-                      {/* Guideline for June */}
-                      <line x1="550" y1="20" x2="550" y2="160" stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.5" />
+                      {/* Guideline for current month (last point) */}
+                      <line x1={trendPoints[trendPoints.length - 1]?.x || 550} y1="20" x2={trendPoints[trendPoints.length - 1]?.x || 550} y2="160" stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.5" />
 
-                      {/* Smooth Cubic Bezier Line */}
+                      {/* Line (Dynamic) */}
                       <path
-                        d="M 50,148 C 100,148 100,90 150,90 C 200,90 200,125 250,125 C 300,125 300,55 350,55 C 400,55 400,78 450,78 C 500,78 500,20 550,20"
+                        d={trendLinePath}
                         fill="none"
                         stroke="var(--primary)"
                         strokeWidth="4"
@@ -1023,35 +1093,38 @@ export default function DashboardPage() {
                       />
 
                       {/* Data Points (Elegant Rings) */}
-                      <circle cx="50" cy="148" r="4" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="2.5" />
-                      <circle cx="150" cy="90" r="4" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="2.5" />
-                      <circle cx="250" cy="125" r="4" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="2.5" />
-                      <circle cx="350" cy="55" r="4" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="2.5" />
-                      <circle cx="450" cy="78" r="4" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="2.5" />
+                      {trendPoints.slice(0, -1).map((p, i) => (
+                        <circle key={i} cx={p.x} cy={p.y} r="4" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="2.5" />
+                      ))}
 
-                      {/* Active Data Point */}
-                      <circle cx="550" cy="20" r="6" fill="var(--primary)" stroke="var(--bg-card)" strokeWidth="2.5" filter="url(#glow)" />
+                      {/* Active Data Point (Last) */}
+                      {trendPoints.length > 0 && (
+                        <circle cx={trendPoints[trendPoints.length - 1].x} cy={trendPoints[trendPoints.length - 1].y} r="6" fill="var(--primary)" stroke="var(--bg-card)" strokeWidth="2.5" filter="url(#glow)" />
+                      )}
 
                       {/* Value Labels */}
-                      <text x="50" y="130" textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontWeight="700">₹{(subscriptionRevenue * 0.45 / 1000).toFixed(1)}K</text>
-                      <text x="150" y="72" textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontWeight="700">₹{(subscriptionRevenue * 0.7 / 1000).toFixed(1)}K</text>
-                      <text x="250" y="107" textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontWeight="700">₹{(subscriptionRevenue * 0.55 / 1000).toFixed(1)}K</text>
-                      <text x="350" y="37" textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontWeight="700">₹{(subscriptionRevenue * 0.85 / 1000).toFixed(1)}K</text>
-                      <text x="450" y="60" textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontWeight="700">₹{(subscriptionRevenue * 0.75 / 1000).toFixed(1)}K</text>
+                      {trendPoints.slice(0, -1).map((p, i) => (
+                        <text key={`label-${i}`} x={p.x} y={p.y - 18} textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontWeight="700">
+                          ₹{(p.revenue / 1000).toFixed(1)}K
+                        </text>
+                      ))}
 
                       {/* Active Month Floating Tooltip */}
-                      <g filter="url(#glow)">
-                        <rect x="500" y="-30" width="100" height="32" rx="8" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="1.5" />
-                        <text x="550" y="-10" textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--text-main)">₹{(subscriptionRevenue / 1000).toFixed(1)}K</text>
-                      </g>
+                      {trendPoints.length > 0 && (
+                        <g filter="url(#glow)">
+                          <rect x={trendPoints[trendPoints.length - 1].x - 50} y={Math.max(0, trendPoints[trendPoints.length - 1].y - 50)} width="100" height="32" rx="8" fill="var(--bg-card)" stroke="var(--primary)" strokeWidth="1.5" />
+                          <text x={trendPoints[trendPoints.length - 1].x} y={Math.max(0, trendPoints[trendPoints.length - 1].y - 50) + 20} textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--text-main)">
+                            ₹{(trendPoints[trendPoints.length - 1].revenue / 1000).toFixed(1)}K
+                          </text>
+                        </g>
+                      )}
 
                       {/* X-Axis Labels */}
-                      <text x="50" y="190" textAnchor="middle" fontSize="13" fill="var(--text-muted)" fontWeight="600">Jan</text>
-                      <text x="150" y="190" textAnchor="middle" fontSize="13" fill="var(--text-muted)" fontWeight="600">Feb</text>
-                      <text x="250" y="190" textAnchor="middle" fontSize="13" fill="var(--text-muted)" fontWeight="600">Mar</text>
-                      <text x="350" y="190" textAnchor="middle" fontSize="13" fill="var(--text-muted)" fontWeight="600">Apr</text>
-                      <text x="450" y="190" textAnchor="middle" fontSize="13" fill="var(--text-muted)" fontWeight="600">May</text>
-                      <text x="550" y="190" textAnchor="middle" fontSize="13" fill="var(--primary)" fontWeight="800">Jun (Current)</text>
+                      {trendPoints.map((p, i) => (
+                        <text key={`xaxis-${i}`} x={p.x} y="190" textAnchor="middle" fontSize="13" fill={i === trendPoints.length - 1 ? 'var(--primary)' : 'var(--text-muted)'} fontWeight={i === trendPoints.length - 1 ? '800' : '600'}>
+                          {p.month} {i === trendPoints.length - 1 ? '(Current)' : ''}
+                        </text>
+                      ))}
                     </svg>
                   </div>
                 </div>

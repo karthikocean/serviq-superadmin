@@ -34,6 +34,7 @@ export function useRestaurant() {
           openingTime: r.openingTime || '',
           closingTime: r.closingTime || '',
           subscriptionPlan: r.subscription?.plan?.planName || 'Standard',
+          subscriptionStatus: r.subscription?.status || 'No Plan',
           status: r.isActive ? 'Active' : 'Suspended',
           logo: r.logoUrl || '',
           banner: r.bannerUrl || '',
