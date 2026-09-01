@@ -4,8 +4,15 @@ import { TableTopControls, TableBottomPagination } from '../../components/common
 import CustomSelect from '../../components/common/CustomSelect';
 import { getCouponsApi, createCouponApi, updateCouponApi, deleteCouponApi } from '../../services/couponService';
 import { getAllPlansApi } from '../../services/planService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function CouponsPage() {
+  const { hasPermission, isSuperOwner } = useAuth();
+  const canAdd = isSuperOwner || hasPermission('coupons', 'add');
+  const canEdit = isSuperOwner || hasPermission('coupons', 'edit');
+  const canDelete = isSuperOwner || hasPermission('coupons', 'delete');
+  const canView = isSuperOwner || hasPermission('coupons', 'view');
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCouponId, setEditingCouponId] = useState(null);
   const [viewingCouponId, setViewingCouponId] = useState(null);
@@ -16,7 +23,7 @@ export default function CouponsPage() {
   const [availablePlans, setAvailablePlans] = useState([]);
 
   const [coupons, setCoupons] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 10;
@@ -30,7 +37,7 @@ export default function CouponsPage() {
 
   const fetchCoupons = async () => {
     try {
-      const data = await getCouponsApi(currentPage - 1, itemsPerPage, searchQuery);
+      const data = await getCouponsApi(currentPage, itemsPerPage, searchQuery);
       if (data.success) {
         const formattedData = data.data.map(c => ({
           ...c,
@@ -49,13 +56,13 @@ export default function CouponsPage() {
   };
 
   useEffect(() => {
-    setCurrentPage(1);
+    setCurrentPage(0);
   }, [searchQuery]);
 
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const data = await getAllPlansApi(1, 100);
+        const data = await getAllPlansApi(0, 100);
         if (data.success) {
           const mappedPlans = data.data.map(p => ({ label: p.planName, value: p._id }));
           setAvailablePlans(mappedPlans);
@@ -180,7 +187,7 @@ export default function CouponsPage() {
                 <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)' }}>
                   {editingCouponId ? 'EDIT COUPON' : 'CREATE COUPON'}
                 </h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Configure promotional codes and discounts for restaurants.</p>
+               
               </div>
             </div>
 
@@ -191,7 +198,7 @@ export default function CouponsPage() {
                 {/* Row 1 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.code ? '#ef4444' : 'var(--text-main)' }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="text" 
                       name="code"
@@ -203,7 +210,7 @@ export default function CouponsPage() {
                     {errors.code && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.code}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.name ? '#ef4444' : 'var(--text-main)' }}>Coupon Name <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Coupon Name <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="text" 
                       name="name"
@@ -232,7 +239,7 @@ export default function CouponsPage() {
                 {/* Row 3 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.type ? '#ef4444' : 'var(--text-main)' }}>Discount Type <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Discount Type <span style={{ color: '#ef4444' }}>*</span></label>
                     <div style={{ border: errors.type ? '1.5px solid #ef4444' : 'none', borderRadius: '8px', transition: 'border-color 0.15s' }}>
                       <CustomSelect 
                         options={['Percentage', 'Fixed Amount']}
@@ -244,7 +251,7 @@ export default function CouponsPage() {
                     {errors.type && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.type}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.value ? '#ef4444' : 'var(--text-main)' }}>Discount Value <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Discount Value <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="number" 
                       name="value"
@@ -291,7 +298,7 @@ export default function CouponsPage() {
 
                 {/* Applicable Plans */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.plans ? '#ef4444' : 'var(--text-main)' }}>Applicable Plans <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Applicable Plans <span style={{ color: '#ef4444' }}>*</span></label>
                   <div style={{ border: errors.plans ? '1.5px solid #ef4444' : 'none', borderRadius: '8px', transition: 'border-color 0.15s' }}>
                     <CustomSelect 
                       options={availablePlans}
@@ -307,7 +314,7 @@ export default function CouponsPage() {
                 {/* Row 5 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.startDate ? '#ef4444' : 'var(--text-main)' }}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="date" 
                       name="startDate"
@@ -318,7 +325,7 @@ export default function CouponsPage() {
                     {errors.startDate && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.startDate}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.endDate ? '#ef4444' : 'var(--text-main)' }}>End Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>End Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="date" 
                       name="endDate"
@@ -531,17 +538,19 @@ export default function CouponsPage() {
               <div>
                 <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Coupons Management</h3>
               </div>
-              <button
-                onClick={() => {
-                  setFormData(defaultFormState);
-                  setErrors({});
-                  setShowAddModal(true);
-                }}
-                className="btn-black"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: '#000', color: '#fff', border: 'none' }}
-              >
-                <Plus style={{ width: '16px', height: '16px' }} /> Create Coupon
-              </button>
+              {canAdd && (
+                <button
+                  onClick={() => {
+                    setFormData(defaultFormState);
+                    setErrors({});
+                    setShowAddModal(true);
+                  }}
+                  className="btn-black"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: '#000', color: '#fff', border: 'none' }}
+                >
+                  <Plus style={{ width: '16px', height: '16px' }} /> Create Coupon
+                </button>
+              )}
             </div>
             
             <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }}></div>
@@ -610,15 +619,24 @@ export default function CouponsPage() {
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                          <button onClick={() => setViewingCouponId(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}>
-                            <Eye size={16} />
-                          </button>
-                          <button onClick={() => handleEdit(coupon)} style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}>
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => handleDelete(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
-                            <Trash2 size={16} />
-                          </button>
+                          {canView && (
+                            <button onClick={() => setViewingCouponId(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}>
+                              <Eye size={16} />
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => handleEdit(coupon)} style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}>
+                              <Edit2 size={16} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                          {!canView && !canEdit && !canDelete && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                          )}
                         </div>
                       </td>
                     </tr>

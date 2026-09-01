@@ -46,7 +46,7 @@ const mockNotifications = [
 export function useNotifications() {
   const [notifications, setNotifications] = useState(() => {
     try {
-      const item = localStorage.getItem('serviq_notifications');
+      const item = sessionStorage.getItem('serviq_notifications');
       return item ? JSON.parse(item) : mockNotifications;
     } catch {
       return mockNotifications;
@@ -54,7 +54,7 @@ export function useNotifications() {
   });
 
   useEffect(() => {
-    localStorage.setItem('serviq_notifications', JSON.stringify(notifications));
+    sessionStorage.setItem('serviq_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
   return { notifications, setNotifications };

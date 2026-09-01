@@ -1,6 +1,6 @@
 import api from './api';
 
-export const getAllPlansApi = async (page = 1, limit = 100) => {
+export const getAllPlansApi = async (page = 0, limit = 100) => {
   const response = await api.get('/plans', { params: { page, limit } });
   return response.data;
 };

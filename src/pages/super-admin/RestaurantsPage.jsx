@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import { ValidatedSelect } from '../../components/common/CustomSelect'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -33,7 +34,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -122,72 +123,77 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-// ─── Reusable validated select component ───
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
 
 // ─── Custom Image File Upload Button Component ───
-const ImageUploadButton = ({ label, value, onChange, onClear }) => {
+const ImageUploadButton = ({ label, value, onChange, onClear, error, setError }) => {
   const fileInputRef = useRef(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [localError, setLocalError] = useState('')
 
   const handleFileChange = async (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setIsUploading(true)
-      try {
-        const response = await uploadImage(file)
-        if (response.success && response.url) {
-          onChange(response.url)
-        } else if (response.data && response.data.url) {
-          onChange(response.data.url)
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+    const allowedExtensions = /\.(jpe?g|png|webp|gif|svg)$/i
+
+    // Validate file format
+    if (!allowedMimeTypes.includes(file.type) && !allowedExtensions.test(file.name)) {
+      const err = 'Invalid file format. Please select an image file (JPG, PNG, WEBP, GIF, SVG).'
+      setLocalError(err)
+      if (setError) setError(err)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      const err = 'File size exceeds 5MB limit. Please upload a smaller image.'
+      setLocalError(err)
+      if (setError) setError(err)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    setLocalError('')
+    if (setError) setError('')
+    setIsUploading(true)
+    try {
+      const response = await uploadImage(file)
+      if (response && response.success && response.url) {
+        onChange(response.url)
+      } else if (response && response.data && response.data.url) {
+        onChange(response.data.url)
+      } else if (typeof response === 'string') {
+        onChange(response)
+      } else {
+        // Fallback Data URL
+        const reader = new FileReader()
+        reader.onload = (uploadEvt) => {
+          onChange(uploadEvt.target.result)
         }
-      } catch (error) {
-        console.error("Upload failed", error)
-      } finally {
-        setIsUploading(false)
+        reader.readAsDataURL(file)
       }
+    } catch (error) {
+      console.error("Upload failed", error)
+      const err = error.response?.data?.message || 'Failed to upload image. Please try again.'
+      setLocalError(err)
+      if (setError) setError(err)
+    } finally {
+      setIsUploading(false)
     }
   }
 
+  const displayedError = localError || error
+
   return (
     <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)' }}>{label}</label>
+      {label && <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)' }}>{label}</label>}
 
       <input
         type="file"
         ref={fileInputRef}
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
         onChange={handleFileChange}
         style={{ display: 'none' }}
         disabled={isUploading}
@@ -196,33 +202,42 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            setLocalError('')
+            if (setError) setError('')
+            fileInputRef.current?.click()
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
             padding: '7px 14px',
             borderRadius: '8px',
-            background: 'var(--bg-app)',
-            border: '1px dashed var(--border-color)',
-            color: 'var(--text-main)',
+            background: displayedError ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
+            border: displayedError ? '1.5px dashed #ef4444' : '1px dashed var(--border-color)',
+            color: displayedError ? '#ef4444' : 'var(--text-main)',
             fontSize: '0.78rem',
             fontWeight: '700',
             cursor: 'pointer',
             transition: 'all 0.15s'
           }}
           onMouseOver={(e) => {
-            e.currentTarget.style.borderColor = 'var(--primary, #f95e10)'
-            e.currentTarget.style.color = 'var(--primary, #f95e10)'
+            if (!displayedError) {
+              e.currentTarget.style.borderColor = 'var(--primary, #f95e10)'
+              e.currentTarget.style.color = 'var(--primary, #f95e10)'
+            }
           }}
           onMouseOut={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border-color)'
-            e.currentTarget.style.color = 'var(--text-main)'
+            if (!displayedError) {
+              e.currentTarget.style.borderColor = 'var(--border-color)'
+              e.currentTarget.style.color = 'var(--text-main)'
+            }
           }}
         >
           <Upload style={{ width: '14px', height: '14px' }} />
           {isUploading ? 'Uploading...' : 'Choose Image File'}
         </button>
+        
 
         {value ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -234,7 +249,12 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
             <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
             <button
               type="button"
-              onClick={onClear}
+              onClick={() => {
+                setLocalError('')
+                if (setError) setError('')
+                if (fileInputRef.current) fileInputRef.current.value = ''
+                onClear()
+              }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', display: 'flex', alignItems: 'center' }}
               title="Remove image"
             >
@@ -245,6 +265,12 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No file chosen</span>
         )}
       </div>
+
+      {displayedError && (
+        <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600', marginTop: '2px' }}>
+          {displayedError}
+        </span>
+      )}
     </div>
   )
 }
@@ -307,7 +333,7 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }} ref={dropdownRef}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ display: 'flex', gap: '6px' }}>
@@ -439,12 +465,20 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function RestaurantsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('restaurants', 'add')
+  const canEdit = isSuperOwner || hasPermission('restaurants', 'edit')
+  const canDelete = isSuperOwner || hasPermission('restaurants', 'delete')
+  const canView = isSuperOwner || hasPermission('restaurants', 'view')
+
   const [confirmModal, setConfirmModal] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
@@ -453,13 +487,16 @@ export default function RestaurantsPage() {
     const loadPlans = async () => {
       try {
         const response = await getPlans();
-        if (response.success && response.data) {
+        if (response.success) {
           const plansList = response.data.results || response.data;
-          setPlans(plansList);
-          setNewRestState(prev => ({
-            ...prev,
-            planId: plansList.length > 0 ? plansList[0]._id : ''
-          }))
+          const activePlans = plansList.filter(p => p.isActive || p.status === 'Active');
+          setPlans(activePlans);
+          if (!newRestState.planId) {
+            setNewRestState(prev => ({
+              ...prev,
+              planId: activePlans.length > 0 ? activePlans[0]._id : ''
+            }))
+          }
         }
       } catch (e) {
         console.error("Failed to load plans", e)
@@ -478,7 +515,7 @@ export default function RestaurantsPage() {
   const [formErrors, setFormErrors] = useState({})
 
   // Pagination & Search states
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -492,16 +529,9 @@ export default function RestaurantsPage() {
   })
 
   const paginatedRestaurants = filteredRestaurants.slice(
-    (currentPage - 1) * entriesPerPage,
-    currentPage * entriesPerPage
+    currentPage * entriesPerPage,
+    (currentPage + 1) * entriesPerPage
   )
-
-  // Clear any stale localStorage form state on mount
-  useEffect(() => {
-    localStorage.removeItem('serviq_editingRestId')
-    localStorage.removeItem('serviq_viewingRestId')
-    localStorage.removeItem('serviq_showAddRestModal')
-  }, [])
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
@@ -512,9 +542,6 @@ export default function RestaurantsPage() {
         setShowAddModal(false)
         setViewingSubscriptionRest(null)
         setFormErrors({})
-        localStorage.removeItem('serviq_editingRestId')
-        localStorage.removeItem('serviq_viewingRestId')
-        localStorage.removeItem('serviq_showAddRestModal')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
@@ -546,7 +573,9 @@ export default function RestaurantsPage() {
           openingTime: rest.openingTime || '',
           closingTime: rest.closingTime || '',
           status: rest.status || 'Active',
-          logo: rest.logo || ''
+          logo: rest.logo || '',
+          password: '',
+          confirmPassword: ''
         })
       }
     }
@@ -637,7 +666,9 @@ export default function RestaurantsPage() {
       openingTime: rest.openingTime || '',
       closingTime: rest.closingTime || '',
       status: rest.status || 'Active',
-      logo: rest.logo || ''
+      logo: rest.logo || '',
+      password: '',
+      confirmPassword: ''
     })
   }
 
@@ -748,7 +779,9 @@ export default function RestaurantsPage() {
         startDate: newRestState.startDate || undefined,
         endDate: newRestState.endDate || undefined,
         renewalDate: newRestState.renewalDate || undefined,
-        leadId: conversionLeadId || undefined
+        leadId: conversionLeadId || undefined,
+        status: newRestState.status || 'Active',
+        isActive: (newRestState.status || 'Active') === 'Active'
       };
 
       const response = await createRestaurant(payload);
@@ -896,6 +929,17 @@ export default function RestaurantsPage() {
       errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
     }
 
+    const hasPassword = editFormState.password && String(editFormState.password).trim() !== ''
+    const hasConfirmPassword = editFormState.confirmPassword && String(editFormState.confirmPassword).trim() !== ''
+
+    if (hasPassword && !hasConfirmPassword) {
+      errors.confirmPassword = 'Confirm Password is required'
+    } else if (!hasPassword && hasConfirmPassword) {
+      errors.password = 'New Password is required'
+    } else if (hasPassword && hasConfirmPassword && editFormState.password !== editFormState.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match'
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
@@ -921,7 +965,10 @@ export default function RestaurantsPage() {
         closingTime: editFormState.closingTime,
         logoUrl: editFormState.logo,
         bannerUrl: editFormState.banner,
-        websiteDomain: editFormState.website
+        websiteDomain: editFormState.website,
+        status: editFormState.status || 'Active',
+        isActive: (editFormState.status || 'Active') === 'Active',
+        ...(hasPassword ? { password: editFormState.password } : {})
       }
       
       const response = await updateRestaurantApi(targetRest._id, payload);
@@ -929,7 +976,6 @@ export default function RestaurantsPage() {
         await fetchRestaurants();
         setEditingRestId(null)
         setEditFormState(null)
-        localStorage.removeItem('serviq_editingRestId')
         showToast('success', 'Branch updated successfully');
       } else {
         showToast('error', response.message || 'Error updating restaurant');
@@ -1096,8 +1142,16 @@ export default function RestaurantsPage() {
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
                       value={newRestState.logo}
-                      onChange={(dataUrl) => setNewRestState(prev => ({ ...prev, logo: dataUrl }))}
-                      onClear={() => setNewRestState(prev => ({ ...prev, logo: '' }))}
+                      onChange={(dataUrl) => {
+                        setNewRestState(prev => ({ ...prev, logo: dataUrl }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      onClear={() => {
+                        setNewRestState(prev => ({ ...prev, logo: '' }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      error={formErrors.logo}
+                      setError={(val) => setFormErrors(prev => ({ ...prev, logo: val }))}
                     />
                   </div>
                 </div>
@@ -1412,34 +1466,36 @@ export default function RestaurantsPage() {
                 <div>
                   <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Restaurant Management</h3>
                 </div>
-                <button
-                  onClick={() => {
-                    setViewingRestId(null)
-                    setEditingRestId(null)
-                    setFormErrors({})
-                    setNewRestState({
-                      name: '', branch: '', license: '', gstin: '', pan: '',
-                      phone: '', email: '', website: '', address: '', currency: 'INR',
-                      taxRate: '', serviceCharge: '', openingTime: '', closingTime: '',
-                      status: 'Active', subscriptionPlan: 'Standard',
-                      createdDate: new Date().toISOString().split('T')[0],
-                      password: '', confirmPassword: '', ownerName: '', mobileNumber: '',
-                      city: '', state: '', country: '', logo: '', banner: '',
-                      startDate: '', endDate: '', renewalDate: '', planId: '', billingCycle: 'Monthly'
-                    })
-                    setShowAddModal(true)
-                  }}
-                  className="btn-black"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-                >
-                  <Plus style={{ width: '16px', height: '16px' }} /> Register
-                </button>
+                {canAdd && (
+                  <button
+                    onClick={() => {
+                      setViewingRestId(null)
+                      setEditingRestId(null)
+                      setFormErrors({})
+                      setNewRestState({
+                        name: '', branch: '', license: '', gstin: '', pan: '',
+                        phone: '', email: '', website: '', address: '', currency: 'INR',
+                        taxRate: '', serviceCharge: '', openingTime: '', closingTime: '',
+                        status: 'Active', subscriptionPlan: 'Standard',
+                        createdDate: new Date().toISOString().split('T')[0],
+                        password: '', confirmPassword: '', ownerName: '', mobileNumber: '',
+                        city: '', state: '', country: '', logo: '', banner: '',
+                        startDate: '', endDate: '', renewalDate: '', planId: '', billingCycle: 'Monthly'
+                      })
+                      setShowAddModal(true)
+                    }}
+                    className="btn-black"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    <Plus style={{ width: '16px', height: '16px' }} /> Register
+                  </button>
+                )}
               </div>
               <TableTopControls
                 entriesPerPage={entriesPerPage}
-                onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+                onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
                 searchTerm={searchTerm}
-                onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+                onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(0); }}
                 searchPlaceholder="Search restaurants..."
               />
 
@@ -1449,7 +1505,7 @@ export default function RestaurantsPage() {
                     <tr>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '60px', whiteSpace: 'nowrap' }}>S.No</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '120px', whiteSpace: 'nowrap' }}>Restaurant ID</th>
-                      <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Restaurant Name</th>
+                      <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '120px', whiteSpace: 'nowrap' }}>Restaurant Name</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Owner Name</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Email</th>
                       <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)', textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', whiteSpace: 'nowrap' }}>Subscription Plan</th>
@@ -1461,7 +1517,7 @@ export default function RestaurantsPage() {
                   <tbody>
                     {paginatedRestaurants.map((rest, index) => {
                       const isActive = rest.id === activeRestaurantId
-                      const serialNum = (currentPage - 1) * entriesPerPage + index + 1
+                      const serialNum = currentPage * entriesPerPage + index + 1
 
                       return (
                         <tr
@@ -1499,18 +1555,28 @@ export default function RestaurantsPage() {
                             {rest.email || '—'}
                           </td>
                           <td style={{ padding: '14px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            <span style={{
-                              fontSize: '0.7rem',
-                              fontWeight: '800',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              background: rest.subscriptionPlan?.includes('Premium') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                              color: rest.subscriptionPlan?.includes('Premium') ? '#3b82f6' : '#10b981',
-                              border: rest.subscriptionPlan?.includes('Premium') ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
-                              display: 'inline-block'
-                            }}>
-                              {rest.subscriptionPlan || 'Standard Plan'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: '800',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                background: rest.subscriptionPlan?.toLowerCase().includes('premium') ? 'rgba(59, 130, 246, 0.1)' : rest.subscriptionPlan?.toLowerCase().includes('basic') ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                color: rest.subscriptionPlan?.toLowerCase().includes('premium') ? '#3b82f6' : rest.subscriptionPlan?.toLowerCase().includes('basic') ? '#f59e0b' : '#10b981',
+                                border: rest.subscriptionPlan?.toLowerCase().includes('premium') ? '1px solid rgba(59, 130, 246, 0.2)' : rest.subscriptionPlan?.toLowerCase().includes('basic') ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+                                display: 'inline-block',
+                                lineHeight: 1
+                              }}>
+                                {rest.subscriptionPlan ? rest.subscriptionPlan.replace(' Plan', '') : 'Standard'}
+                              </span>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: '700',
+                                color: rest.subscriptionStatus === 'Active' ? '#10b981' : (rest.subscriptionStatus === 'Expiring Soon' ? '#f59e0b' : '#ef4444')
+                              }}>
+                                {rest.subscriptionStatus || 'No Plan'}
+                              </span>
+                            </div>
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>
                             {rest.phone || rest.mobileNumber || '—'}
@@ -1532,63 +1598,68 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
 
-                              {/* Suspend / Resume action */}
-                              <button
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  padding: '6px',
-                                  color: rest.status === 'Suspended' ? '#ef4444' : '#10b981',
-                                  transition: 'opacity 0.2s',
-                                  display: 'flex',
-                                  alignItems: 'center'
-                                }}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    const nextStatusStr = rest.status === 'Suspended' ? 'Active' : 'Suspended';
-                                    const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
-                                    if (response.success) {
-                                       await fetchRestaurants();
-                                       showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                              {/* Suspend / Inactivate / Activate action */}
+                              {canEdit && (
+                                <button
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '6px',
+                                    color: (rest.status === 'Suspended' || rest.status === 'Inactive') ? '#ef4444' : '#10b981',
+                                    transition: 'opacity 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      const isCurrentlyInactive = rest.status === 'Suspended' || rest.status === 'Inactive' || rest.isActive === false;
+                                      const nextStatusStr = isCurrentlyInactive ? 'Active' : 'Inactive';
+                                      const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
+                                      if (response.success) {
+                                         await fetchRestaurants();
+                                         showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                                      }
+                                    } catch (err) {
+                                       showToast('error', err.response?.data?.message || 'Error updating status');
                                     }
-                                  } catch (err) {
-                                     showToast('error', err.response?.data?.message || 'Error updating status');
-                                  }
-                                }}
-                                title={rest.status === 'Suspended' ? "Activate Restaurant" : "Suspend Restaurant"}
-                              >
-                                {rest.status === 'Suspended' ? (
-                                  <Lock style={{ width: '16px', height: '16px' }} />
-                                ) : (
-                                  <Unlock style={{ width: '16px', height: '16px' }} />
-                                )}
-                              </button>
+                                  }}
+                                  title={(rest.status === 'Suspended' || rest.status === 'Inactive') ? "Activate Restaurant" : "Deactivate / Inactivate Restaurant"}
+                                >
+                                  {(rest.status === 'Suspended' || rest.status === 'Inactive') ? (
+                                    <Lock style={{ width: '16px', height: '16px' }} />
+                                  ) : (
+                                    <Unlock style={{ width: '16px', height: '16px' }} />
+                                  )}
+                                </button>
+                              )}
 
-                              
+                              {canView && (
+                                <button
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
+                                  onClick={(e) => { e.stopPropagation(); setEditingRestId(null); setViewingRestId(rest.id); }}
+                                  title="View Branch Showcase"
+                                  onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
+                                  onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                                >
+                                  <Eye style={{ width: '16px', height: '16px' }} />
+                                </button>
+                              )}
 
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                                onClick={(e) => { e.stopPropagation(); setEditingRestId(null); setViewingRestId(rest.id); }}
-                                title="View Branch Showcase"
-                                onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
-                                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                              >
-                                <Eye style={{ width: '16px', height: '16px' }} />
-                              </button>
+                              {canEdit && (
+                                <button
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
+                                  onClick={(e) => { e.stopPropagation(); handleEditClick(rest); }}
+                                  title="Edit Branch Details"
+                                  onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
+                                  onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                                >
+                                  <Edit2 style={{ width: '16px', height: '16px' }} />
+                                </button>
+                              )}
 
-                              <button
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                                onClick={(e) => { e.stopPropagation(); handleEditClick(rest); }}
-                                title="Edit Branch Details"
-                                onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
-                                onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                              >
-                                <Edit2 style={{ width: '16px', height: '16px' }} />
-                              </button>
-
-                              {restaurants.length > 1 && (
+                              {canDelete && restaurants.length > 1 && (
                                 <button
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#ef4444', transition: 'opacity 0.2s', display: 'flex', alignItems: 'center' }}
                                   onClick={(e) => { e.stopPropagation(); handleDeleteRestaurant(rest.id); }}
@@ -1598,6 +1669,9 @@ export default function RestaurantsPage() {
                                 >
                                   <Trash2 style={{ width: '16px', height: '16px' }} />
                                 </button>
+                              )}
+                              {!canEdit && !canView && !canDelete && (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
                               )}
                             </div>
                           </td>
@@ -1799,6 +1873,9 @@ export default function RestaurantsPage() {
               </div>
 
               <form onSubmit={handleUpdateRestaurantSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Chrome AutoFill Trap */}
+                <input type="text" name="chrome_fake_user" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+                <input type="password" name="chrome_fake_pass" style={{ display: 'none' }} tabIndex={-1} autoComplete="new-password" />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
                     label="Business Name"
@@ -2018,8 +2095,61 @@ export default function RestaurantsPage() {
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
                       value={editFormState.logo}
-                      onChange={(dataUrl) => setEditFormState(prev => ({ ...prev, logo: dataUrl }))}
-                      onClear={() => setEditFormState(prev => ({ ...prev, logo: '' }))}
+                      onChange={(dataUrl) => {
+                        setEditFormState(prev => ({ ...prev, logo: dataUrl }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      onClear={() => {
+                        setEditFormState(prev => ({ ...prev, logo: '' }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      error={formErrors.logo}
+                      setError={(val) => setFormErrors(prev => ({ ...prev, logo: val }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Password Management */}
+                <div style={{
+                  background: 'var(--bg-app)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  marginTop: '8px'
+                }}>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Lock style={{ width: '15px', height: '15px', color: '#F95E10' }} />
+                    Password Management
+                  </h4>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <ValidatedInput
+                      label="New Password"
+                      type="password"
+                      value={editFormState.password || ''}
+                      onChange={(e) => setEditFormState({ ...editFormState, password: e.target.value })}
+                      placeholder="Enter new password (leave blank to keep current)"
+                      preventAutofill={true}
+                      autoComplete="new-password"
+                      name="edit_rest_new_password"
+                      error={formErrors.password}
+                      setError={(val) => setFormErrors({ ...formErrors, password: val })}
+                    />
+                    
+                    <ValidatedInput
+                      label="Confirm Password"
+                      type="password"
+                      value={editFormState.confirmPassword || ''}
+                      onChange={(e) => setEditFormState({ ...editFormState, confirmPassword: e.target.value })}
+                      placeholder="Re-enter new password"
+                      preventAutofill={true}
+                      autoComplete="new-password"
+                      name="edit_rest_confirm_password"
+                      error={formErrors.confirmPassword}
+                      setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                     />
                   </div>
                 </div>

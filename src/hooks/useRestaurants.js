@@ -10,39 +10,53 @@ export function useRestaurant() {
   const fetchRestaurants = async () => {
     setIsLoading(true);
     try {
-      const response = await getRestaurants(1, 10);
+      const response = await getRestaurants(0, 100);
       if (response.success) {
         const backendRest = response.data.results || response.data;
-        const mapped = backendRest.map(r => ({
-          _id: r._id,
-          id: r.restaurantId,
-          name: r.restaurantName,
-          ownerName: r.ownerName,
-          mobileNumber: r.phoneNumber,
-          phone: r.phoneNumber,
-          email: r.email,
-          website: r.websiteDomain || '',
-          address: r.address || '',
-          city: r.city || '',
-          state: r.state || '',
-          country: r.country || '',
-          license: r.fssaiLicense || '',
-          gstin: r.gstinNumber || '',
-          pan: r.panNumber || '',
-          taxRate: r.taxRate || 0,
-          serviceCharge: r.serviceFee || 0,
-          openingTime: r.openingTime || '',
-          closingTime: r.closingTime || '',
-          subscriptionPlan: r.subscription?.plan?.planName || 'Standard',
-          status: r.isActive ? 'Active' : 'Suspended',
-          logo: r.logoUrl || '',
-          banner: r.bannerUrl || '',
-          startDate: r.subscription?.startDate || '',
-          endDate: r.subscription?.endDate || '',
-          renewalDate: r.subscription?.renewalDate || '',
-          billingCycle: r.subscription?.billingCycle || 'Monthly',
-          planId: r.subscription?.plan?._id || ''
-        }));
+        const mapped = backendRest.map(r => {
+          const rawStatus = (r.status || '').toLowerCase();
+          let formattedStatus = 'Active';
+          if (rawStatus === 'inactive' || r.isActive === false) {
+            formattedStatus = 'Inactive';
+          } else if (rawStatus === 'suspended') {
+            formattedStatus = 'Suspended';
+          } else if (r.status) {
+            formattedStatus = r.status.charAt(0).toUpperCase() + r.status.slice(1).toLowerCase();
+          }
+
+          return {
+            _id: r._id,
+            id: r.restaurantId,
+            name: r.restaurantName,
+            ownerName: r.ownerName,
+            mobileNumber: r.phoneNumber,
+            phone: r.phoneNumber,
+            email: r.email,
+            website: r.websiteDomain || '',
+            address: r.address || '',
+            city: r.city || '',
+            state: r.state || '',
+            country: r.country || '',
+            license: r.fssaiLicense || '',
+            gstin: r.gstinNumber || '',
+            pan: r.panNumber || '',
+            taxRate: r.taxRate || 0,
+            serviceCharge: r.serviceFee || 0,
+            openingTime: r.openingTime || '',
+            closingTime: r.closingTime || '',
+            subscriptionPlan: r.subscriptionPlan?.planName || (typeof r.subscriptionPlan === 'string' ? r.subscriptionPlan : (r.subscription?.plan?.planName || 'Standard')),
+            subscriptionStatus: r.subscription?.status || (r.isActive ? 'Active' : 'Inactive'),
+            status: formattedStatus,
+            isActive: formattedStatus === 'Active',
+            logo: r.logoUrl || '',
+            banner: r.bannerUrl || '',
+            startDate: r.subscription?.startDate || '',
+            endDate: r.subscription?.endDate || '',
+            renewalDate: r.subscription?.renewalDate || '',
+            billingCycle: r.subscription?.billingCycle || 'Monthly',
+            planId: r.subscription?.plan?._id || ''
+          };
+        });
         setRestaurantsState(mapped);
         if (mapped.length > 0 && !activeRestaurantId) {
           setActiveRestaurantId(mapped[0].id);

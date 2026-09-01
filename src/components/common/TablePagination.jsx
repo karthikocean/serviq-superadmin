@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
 export const TableTopControls = ({
   entriesPerPage = 10,
@@ -22,27 +23,19 @@ export const TableTopControls = ({
       {showEntriesSelector ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: '500' }}>
           <span>Show</span>
-          <select
-            value={entriesPerPage}
-            onChange={(e) => onEntriesPerPageChange(Number(e.target.value))}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '8px',
-              border: '1.5px solid #cbd5e1',
-              background: '#ffffff',
-              color: '#0f172a',
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              outline: 'none'
-            }}
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
+          <div style={{ width: '80px' }}>
+            <CustomSelect
+              options={[
+                { value: 5, label: '5' },
+                { value: 10, label: '10' },
+                { value: 25, label: '25' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' }
+              ]}
+              value={entriesPerPage}
+              onChange={(val) => onEntriesPerPageChange(Number(typeof val === 'object' && val !== null && val.target ? val.target.value : val))}
+            />
+          </div>
           <span>entries</span>
         </div>
       ) : <div />}
@@ -61,7 +54,12 @@ export const TableTopControls = ({
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
+                e.preventDefault();
+              }
+            }}
+            onChange={(e) => onSearchChange(e.target.value.replace(/\s+/g, ''))}
             placeholder={searchPlaceholder}
             style={{
               width: '100%',
@@ -83,22 +81,22 @@ export const TableTopControls = ({
 
 export const TableBottomPagination = ({
   totalEntries = 0,
-  currentPage = 1,
+  currentPage = 0,
   entriesPerPage = 10,
   onPageChange = () => {}
 }) => {
   const totalPages = Math.ceil(totalEntries / entriesPerPage) || 1;
-  const startEntry = totalEntries === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1;
-  const endEntry = Math.min(currentPage * entriesPerPage, totalEntries);
+  const startEntry = totalEntries === 0 ? 0 : (currentPage) * entriesPerPage + 1;
+  const endEntry = Math.min((currentPage + 1) * entriesPerPage, totalEntries);
 
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    let startPage = Math.max(0, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages - 1, startPage + maxVisible - 1);
 
     if (endPage - startPage + 1 < maxVisible) {
-      startPage = Math.max(1, endPage - maxVisible + 1);
+      startPage = Math.max(0, endPage - maxVisible + 1);
     }
 
     for (let i = startPage; i <= endPage; i++) {
@@ -129,17 +127,17 @@ export const TableBottomPagination = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <button
           type="button"
-          disabled={currentPage === 1}
+          disabled={currentPage === 0}
           onClick={() => onPageChange(currentPage - 1)}
           style={{
             padding: '6px 14px',
             borderRadius: '8px',
             border: '1px solid #e2e8f0',
-            background: currentPage === 1 ? '#f8fafc' : '#ffffff',
-            color: currentPage === 1 ? '#cbd5e1' : '#334155',
+            background: currentPage === 0 ? '#f8fafc' : '#ffffff',
+            color: currentPage === 0 ? '#cbd5e1' : '#334155',
             fontSize: '0.82rem',
             fontWeight: '600',
-            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+            cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
             transition: 'all 0.15s ease'
           }}
         >
@@ -166,23 +164,23 @@ export const TableBottomPagination = ({
               transition: 'all 0.15s ease'
             }}
           >
-            {page}
+            {page + 1}
           </button>
         ))}
 
         <button
           type="button"
-          disabled={currentPage >= totalPages}
+          disabled={currentPage >= totalPages - 1}
           onClick={() => onPageChange(currentPage + 1)}
           style={{
             padding: '6px 14px',
             borderRadius: '8px',
             border: '1px solid #e2e8f0',
-            background: currentPage >= totalPages ? '#f8fafc' : '#ffffff',
-            color: currentPage >= totalPages ? '#cbd5e1' : '#334155',
+            background: currentPage >= totalPages - 1 ? '#f8fafc' : '#ffffff',
+            color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#334155',
             fontSize: '0.82rem',
             fontWeight: '600',
-            cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+            cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
             transition: 'all 0.15s ease'
           }}
         >

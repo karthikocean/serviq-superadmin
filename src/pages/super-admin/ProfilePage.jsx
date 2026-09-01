@@ -21,6 +21,9 @@ export default function ProfilePage() {
     confirmPassword: ''
   });
 
+  const [personalErrors, setPersonalErrors] = useState({});
+  const [passwordErrors, setPasswordErrors] = useState({});
+
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -46,19 +49,49 @@ export default function ProfilePage() {
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (personalErrors[name]) {
+      setPersonalErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
     setPasswordData(prev => ({ ...prev, [name]: value }));
+    if (passwordErrors[name]) {
+      setPasswordErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const savePersonalInfo = async (e) => {
     e.preventDefault();
+    const errors = {};
+    const name = (formData.name || '').trim();
+    const phoneNumber = (formData.phoneNumber || '').trim();
+
+    if (!name) {
+      errors.name = 'Full Name is required';
+    } else if (name.length < 2) {
+      errors.name = 'Full Name must be at least 2 characters';
+    }
+
+    if (!phoneNumber) {
+      errors.phoneNumber = 'Phone Number is required';
+    } else if (!/^[+]?[\d\s-]{10,15}$/.test(phoneNumber)) {
+      errors.phoneNumber = 'Enter a valid phone number (10-15 digits)';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setPersonalErrors(errors);
+      showToast('error', 'Please resolve personal details validation errors.');
+      return;
+    }
+
+    setPersonalErrors({});
+
     try {
       await updateProfile({
-        name: formData.name,
-        phoneNumber: formData.phoneNumber
+        name,
+        phoneNumber
       });
       showToast('success', 'Profile updated successfully!');
     } catch (error) {
@@ -68,11 +101,32 @@ export default function ProfilePage() {
 
   const savePassword = async (e) => {
     e.preventDefault();
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showToast('error', "Passwords don't match!");
+    const errors = {};
+
+    if (!passwordData.currentPassword) {
+      errors.currentPassword = 'Current Password is required';
+    }
+
+    if (!passwordData.newPassword) {
+      errors.newPassword = 'New Password is required';
+    } else if (passwordData.newPassword.length < 6) {
+      errors.newPassword = 'New Password must be at least 6 characters';
+    }
+
+    if (!passwordData.confirmPassword) {
+      errors.confirmPassword = 'Confirm Password is required';
+    } else if (passwordData.newPassword !== passwordData.confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setPasswordErrors(errors);
+      showToast('error', 'Please resolve password validation errors.');
       return;
     }
-    
+
+    setPasswordErrors({});
+
     try {
       await updatePassword({
         currentPassword: passwordData.currentPassword,
@@ -91,11 +145,6 @@ export default function ProfilePage() {
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-
-      {/* Page Header */}
-      {/* <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>My Profile</h1>
-      </div> */}
 
       <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
 
@@ -150,10 +199,18 @@ export default function ProfilePage() {
               <h2 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-main)' }}>Personal Information</h2>
               <p style={{ margin: '0 0 24px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Update your personal details and contact information.</p>
 
-              <form onSubmit={savePersonalInfo} style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+              <form onSubmit={savePersonalInfo} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="text" name="name" value={formData.name} onChange={handleFormChange} required style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }} />
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleFormChange}
+                    required
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: personalErrors.name ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: personalErrors.name ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
+                  />
+                  {personalErrors.name && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{personalErrors.name}</span>}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -166,7 +223,15 @@ export default function ProfilePage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleFormChange} required style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }} />
+                  <input
+                    type="text"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleFormChange}
+                    required
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: personalErrors.phoneNumber ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: personalErrors.phoneNumber ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
+                  />
+                  {personalErrors.phoneNumber && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{personalErrors.phoneNumber}</span>}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -188,20 +253,47 @@ export default function ProfilePage() {
               <h2 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-main)' }}>Security Options</h2>
               <p style={{ margin: '0 0 24px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Change your password to keep your account secure.</p>
 
-              <form onSubmit={savePassword} style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+              <form onSubmit={savePassword} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Current Password <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="password" name="currentPassword" value={passwordData.currentPassword} onChange={handlePasswordChange} required placeholder="Enter current password" style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }} />
+                  <input
+                    type="password"
+                    name="currentPassword"
+                    value={passwordData.currentPassword}
+                    onChange={handlePasswordChange}
+                    required
+                    placeholder="Enter current password"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: passwordErrors.currentPassword ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: passwordErrors.currentPassword ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
+                  />
+                  {passwordErrors.currentPassword && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{passwordErrors.currentPassword}</span>}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>New Password <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="password" name="newPassword" value={passwordData.newPassword} onChange={handlePasswordChange} required placeholder="Enter new password" style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }} />
+                  <input
+                    type="password"
+                    name="newPassword"
+                    value={passwordData.newPassword}
+                    onChange={handlePasswordChange}
+                    required
+                    placeholder="Enter new password (min 6 chars)"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: passwordErrors.newPassword ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: passwordErrors.newPassword ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
+                  />
+                  {passwordErrors.newPassword && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{passwordErrors.newPassword}</span>}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Confirm New Password <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input type="password" name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} required placeholder="Re-enter new password" style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none' }} />
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordData.confirmPassword}
+                    onChange={handlePasswordChange}
+                    required
+                    placeholder="Re-enter new password"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: passwordErrors.confirmPassword ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: passwordErrors.confirmPassword ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
+                  />
+                  {passwordErrors.confirmPassword && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{passwordErrors.confirmPassword}</span>}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '10px' }}>

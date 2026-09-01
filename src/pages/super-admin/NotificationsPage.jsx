@@ -19,14 +19,22 @@ import {
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
 import { getNotifications, createNotification, cancelNotification, sendDraftNotification, deleteNotification } from '../../services/notificationService'
 import { getAllPlansApi } from '../../services/planService'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([])
   const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('notifications', 'add')
+  const canEdit = isSuperOwner || hasPermission('notifications', 'edit')
+  const canDelete = isSuperOwner || hasPermission('notifications', 'delete')
+  const canView = isSuperOwner || hasPermission('notifications', 'view')
 
   const [plans, setPlans] = useState([])
   
@@ -63,7 +71,7 @@ export default function NotificationsPage() {
   
   const fetchPlans = async () => {
     try {
-      const data = await getAllPlansApi(1, 100);
+      const data = await getAllPlansApi(0, 100);
       setPlans(data.data || []);
     } catch (err) {
       console.error("Failed to fetch plans", err);
@@ -74,7 +82,7 @@ export default function NotificationsPage() {
     fetchPlans();
   }, []);
 
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   const fetchNotifications = async () => {
@@ -266,33 +274,35 @@ export default function NotificationsPage() {
           <div>
             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Notifications Management</h3>
           </div>
-          <button
-            onClick={() => {
-              setErrors({})
-              setNewNtf({
-                subject: '',
-                type: 'Subscription Expiry',
-                targetType: 'ALL',
-                targetPlan: '',
-                targetRestaurants: [],
-                body: '',
-                isScheduled: false,
-                scheduledDate: '',
-                scheduledTime: ''
-              })
-              setShowCreateModal(true)
-            }}
-            className="btn-black"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} /> Compose Notification
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                setErrors({})
+                setNewNtf({
+                  subject: '',
+                  type: 'Subscription Expiry',
+                  targetType: 'ALL',
+                  targetPlan: '',
+                  targetRestaurants: [],
+                  body: '',
+                  isScheduled: false,
+                  scheduledDate: '',
+                  scheduledTime: ''
+                })
+                setShowCreateModal(true)
+              }}
+              className="btn-black"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              <Plus style={{ width: '16px', height: '16px' }} /> Compose Notification
+            </button>
+          )}
         </div>
 
         {/* History Table */}
         <TableTopControls
           entriesPerPage={entriesPerPage}
-          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(1); }}
+          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
           searchTerm=""
           onSearchChange={() => {}}
           showSearch={false}
@@ -333,14 +343,16 @@ export default function NotificationsPage() {
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setSelectedNotification(n)}
-                            className="btn-outline"
-                            style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
-                          >
-                            View
-                          </button>
-                          {n.status === 'Scheduled' && (
+                          {canView && (
+                            <button
+                              onClick={() => setSelectedNotification(n)}
+                              className="btn-outline"
+                              style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+                            >
+                              View
+                            </button>
+                          )}
+                          {canEdit && n.status === 'Scheduled' && (
                             <button
                               onClick={() => handleCancelScheduled(n._id)}
                               style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.15)' }}
@@ -348,7 +360,7 @@ export default function NotificationsPage() {
                               Cancel
                             </button>
                           )}
-                          {n.status === 'Draft' && (
+                          {canEdit && n.status === 'Draft' && (
                             <button
                               onClick={() => handleSendDraft(n._id)}
                               style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}
@@ -356,13 +368,18 @@ export default function NotificationsPage() {
                               Send
                             </button>
                           )}
-                          <button
-                            onClick={() => handleDelete(n._id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
-                            title="Delete Notification"
-                          >
-                            <Trash2 style={{ width: '14px', height: '14px' }} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(n._id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
+                              title="Delete Notification"
+                            >
+                              <Trash2 style={{ width: '14px', height: '14px' }} />
+                            </button>
+                          )}
+                          {!canView && !canEdit && !canDelete && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -421,13 +438,15 @@ export default function NotificationsPage() {
               {/* Type */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Notification Type</label>
-                <select
+                <CustomSelect
+                  options={types.map(t => ({ value: t, label: t }))}
                   value={newNtf.type}
-                  onChange={(e) => setNewNtf({ ...newNtf, type: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                >
-                  {types.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  onChange={(val) => {
+                    const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                    setNewNtf({ ...newNtf, type: selected })
+                  }}
+                  placeholder="Select Notification Type"
+                />
               </div>
 
               {/* Target Audience Segmented Control */}
@@ -460,25 +479,25 @@ export default function NotificationsPage() {
               {/* Conditional Target Inputs */}
               {newNtf.targetType === 'PLAN' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.targetPlan ? '#ef4444' : 'var(--text-main)' }}>Select Plan *</label>
-                  <select
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Plan *</label>
+                  <CustomSelect
+                    options={plans.map(p => ({ value: p._id || p.id, label: p.planName }))}
                     value={newNtf.targetPlan}
-                    onChange={(e) => {
-                      setNewNtf({ ...newNtf, targetPlan: e.target.value })
+                    onChange={(val) => {
+                      const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                      setNewNtf({ ...newNtf, targetPlan: selected })
                       if (errors.targetPlan) setErrors({ ...errors, targetPlan: '' })
                     }}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${errors.targetPlan ? '#ef4444' : 'var(--border-color)'}`, background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                  >
-                    <option value="" disabled>-- Select Subscription Plan --</option>
-                    {plans.map(p => <option key={p._id || p.id} value={p._id || p.id}>{p.planName}</option>)}
-                  </select>
+                    error={errors.targetPlan}
+                    placeholder="-- Select Subscription Plan --"
+                  />
                   {errors.targetPlan && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.targetPlan}</span>}
                 </div>
               )}
 
               {newNtf.targetType === 'RESTAURANT' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.targetRestaurants ? '#ef4444' : 'var(--text-main)' }}>Select Restaurants *</label>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Restaurants *</label>
                   
                   <div style={{ position: 'relative' }}>
                     <div 
@@ -518,7 +537,7 @@ export default function NotificationsPage() {
 
               {/* Subject */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.subject ? '#ef4444' : 'var(--text-main)' }}>Message Subject *</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Message Subject *</label>
                 <input
                   type="text"
                   value={newNtf.subject}
@@ -534,7 +553,7 @@ export default function NotificationsPage() {
 
               {/* Message Body */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.body ? '#ef4444' : 'var(--text-main)' }}>Message Body (Content) *</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Message Body (Content) *</label>
                 <textarea
                   rows="4"
                   value={newNtf.body}
@@ -564,7 +583,7 @@ export default function NotificationsPage() {
               {newNtf.isScheduled && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: errors.scheduledDate ? '#ef4444' : 'var(--text-main)' }}>Date *</label>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-main)' }}>Date *</label>
                     <input
                       type="date"
                       value={newNtf.scheduledDate}
@@ -577,7 +596,7 @@ export default function NotificationsPage() {
                     {errors.scheduledDate && <span style={{ fontSize: '0.65rem', color: '#ef4444' }}>{errors.scheduledDate}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: errors.scheduledTime ? '#ef4444' : 'var(--text-main)' }}>Time *</label>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-main)' }}>Time *</label>
                     <input
                       type="time"
                       value={newNtf.scheduledTime}

@@ -2,9 +2,19 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Unlock, Lock, Edit2, Trash2, AlertTriangle } from 'lucide-react'
 
 import { useNotification } from '../../contexts/NotificationContext'
+import { useRoles } from '../../hooks/useRoles'
+import { useAuth } from '../../contexts/AuthContext'
+import CustomSelect from '../../components/common/CustomSelect'
 
 export default function RolesPage() {
+  const { roles, loading, createRole, updateRole, deleteRole } = useRoles()
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canAdd = isSuperOwner || hasPermission('roles', 'add')
+  const canEdit = isSuperOwner || hasPermission('roles', 'edit')
+  const canDelete = isSuperOwner || hasPermission('roles', 'delete')
+
   const [confirmModal, setConfirmModal] = useState(null)
   const [systemRoles, setSystemRoles] = useState([
     {
@@ -14,12 +24,19 @@ export default function RolesPage() {
       desc: 'Complete control over all restaurants and billing.',
       perms: {
         dashboard: { view: true, add: true, edit: true, delete: true },
+        coupons: { view: true, add: true, edit: true, delete: true },
         restaurants: { view: true, add: true, edit: true, delete: true },
-        roles: { view: true, add: true, edit: true, delete: true },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
         plans: { view: true, add: true, edit: true, delete: true },
-        revenue: { view: true, add: true, edit: true, delete: true }
+        subscriptions: { view: true, add: true, edit: true, delete: true },
+        billing: { view: true, add: true, edit: true, delete: true },
+        leads: { view: true, add: true, edit: true, delete: true },
+        tickets: { view: true, add: true, edit: true, delete: true },
+        notifications: { view: true, add: true, edit: true, delete: true },
+        reports: { view: true, add: true, edit: true, delete: true },
+        adminUsers: { view: true, add: true, edit: true, delete: true },
+        roles: { view: true, add: true, edit: true, delete: true },
+        settings: { view: true, add: true, edit: true, delete: true },
+        profile: { view: true, add: true, edit: true, delete: true }
       }
     },
     {
@@ -29,12 +46,19 @@ export default function RolesPage() {
       desc: 'Manage specific restaurant branch settings and staff.',
       perms: {
         dashboard: { view: true, add: true, edit: true, delete: true },
+        coupons: { view: true, add: true, edit: true, delete: true },
         restaurants: { view: true, add: true, edit: true, delete: true },
-        roles: { view: true, add: true, edit: true, delete: true },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
         plans: { view: true, add: true, edit: true, delete: true },
-        revenue: { view: false, add: false, edit: false, delete: false }
+        subscriptions: { view: true, add: true, edit: true, delete: true },
+        billing: { view: true, add: true, edit: true, delete: true },
+        leads: { view: true, add: true, edit: true, delete: true },
+        tickets: { view: true, add: true, edit: true, delete: true },
+        notifications: { view: true, add: true, edit: true, delete: true },
+        reports: { view: true, add: true, edit: true, delete: true },
+        adminUsers: { view: true, add: true, edit: true, delete: true },
+        roles: { view: true, add: true, edit: true, delete: true },
+        settings: { view: true, add: true, edit: true, delete: true },
+        profile: { view: true, add: true, edit: true, delete: true }
       }
     },
     {
@@ -44,12 +68,19 @@ export default function RolesPage() {
       desc: 'Oversees day-to-day operations and staff.',
       perms: {
         dashboard: { view: false, add: false, edit: false, delete: false },
+        coupons: { view: true, add: true, edit: true, delete: true },
         restaurants: { view: false, add: false, edit: false, delete: false },
-        roles: { view: true, add: true, edit: true, delete: true },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
+        plans: { view: false, add: false, edit: false, delete: false },
         subscriptions: { view: true, add: true, edit: true, delete: true },
-        plans: { view: true, add: true, edit: true, delete: true },
-        revenue: { view: false, add: false, edit: false, delete: false }
+        billing: { view: true, add: true, edit: true, delete: true },
+        leads: { view: true, add: true, edit: true, delete: true },
+        tickets: { view: true, add: true, edit: true, delete: true },
+        notifications: { view: true, add: true, edit: true, delete: true },
+        reports: { view: true, add: true, edit: true, delete: true },
+        adminUsers: { view: true, add: true, edit: true, delete: true },
+        roles: { view: true, add: true, edit: true, delete: true },
+        settings: { view: false, add: false, edit: false, delete: false },
+        profile: { view: true, add: true, edit: true, delete: true }
       }
     },
     {
@@ -59,12 +90,19 @@ export default function RolesPage() {
       desc: 'Handles billing and payment collections.',
       perms: {
         dashboard: { view: true, add: true, edit: true, delete: true },
+        coupons: { view: false, add: false, edit: false, delete: false },
         restaurants: { view: false, add: false, edit: false, delete: false },
-        roles: { view: false, add: false, edit: false, delete: false },
-        adminUsers: { view: false, add: false, edit: false, delete: false },
-        subscriptions: { view: false, add: false, edit: false, delete: false },
         plans: { view: false, add: false, edit: false, delete: false },
-        revenue: { view: false, add: false, edit: false, delete: false }
+        subscriptions: { view: false, add: false, edit: false, delete: false },
+        billing: { view: false, add: false, edit: false, delete: false },
+        leads: { view: false, add: false, edit: false, delete: false },
+        tickets: { view: false, add: false, edit: false, delete: false },
+        notifications: { view: false, add: false, edit: false, delete: false },
+        reports: { view: false, add: false, edit: false, delete: false },
+        adminUsers: { view: false, add: false, edit: false, delete: false },
+        roles: { view: false, add: false, edit: false, delete: false },
+        settings: { view: false, add: false, edit: false, delete: false },
+        profile: { view: true, add: true, edit: true, delete: true }
       }
     },
     {
@@ -74,12 +112,19 @@ export default function RolesPage() {
       desc: 'Takes orders and serves tables.',
       perms: {
         dashboard: { view: false, add: false, edit: false, delete: false },
+        coupons: { view: false, add: false, edit: false, delete: false },
         restaurants: { view: false, add: false, edit: false, delete: false },
-        roles: { view: false, add: false, edit: false, delete: false },
+        plans: { view: false, add: false, edit: false, delete: false },
+        subscriptions: { view: false, add: false, edit: false, delete: false },
+        billing: { view: false, add: false, edit: false, delete: false },
+        leads: { view: false, add: false, edit: false, delete: false },
+        tickets: { view: false, add: false, edit: false, delete: false },
+        notifications: { view: false, add: false, edit: false, delete: false },
+        reports: { view: false, add: false, edit: false, delete: false },
         adminUsers: { view: true, add: true, edit: true, delete: true },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
-        plans: { view: true, add: true, edit: true, delete: true },
-        revenue: { view: false, add: false, edit: false, delete: false }
+        roles: { view: false, add: false, edit: false, delete: false },
+        settings: { view: false, add: false, edit: false, delete: false },
+        profile: { view: true, add: true, edit: true, delete: true }
       }
     },
     {
@@ -89,34 +134,30 @@ export default function RolesPage() {
       desc: 'Prepares food and updates order status.',
       perms: {
         dashboard: { view: false, add: false, edit: false, delete: false },
+        coupons: { view: false, add: false, edit: false, delete: false },
         restaurants: { view: false, add: false, edit: false, delete: false },
-        roles: { view: false, add: false, edit: false, delete: false },
+        plans: { view: false, add: false, edit: false, delete: false },
+        subscriptions: { view: false, add: false, edit: false, delete: false },
+        billing: { view: false, add: false, edit: false, delete: false },
+        leads: { view: false, add: false, edit: false, delete: false },
+        tickets: { view: false, add: false, edit: false, delete: false },
+        notifications: { view: false, add: false, edit: false, delete: false },
+        reports: { view: false, add: false, edit: false, delete: false },
         adminUsers: { view: false, add: false, edit: false, delete: false },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
-        plans: { view: true, add: true, edit: true, delete: true },
-        revenue: { view: false, add: false, edit: false, delete: false }
+        roles: { view: false, add: false, edit: false, delete: false },
+        settings: { view: false, add: false, edit: false, delete: false },
+        profile: { view: true, add: true, edit: true, delete: true }
       }
     }
   ])
 
-  const [editingRoleId, setEditingRoleId] = useState(() => {
-    return localStorage.getItem('serviq_editingRoleId') || null
-  })
-
-  useEffect(() => {
-    if (editingRoleId) {
-      localStorage.setItem('serviq_editingRoleId', editingRoleId)
-    } else {
-      localStorage.removeItem('serviq_editingRoleId')
-    }
-  }, [editingRoleId])
+  const [editingRoleId, setEditingRoleId] = useState(null)
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
       if (e.detail?.tab === 'roles' || e.detail?.tab === 'all' || !e.detail?.tab) {
         setEditingRoleId(null)
-        localStorage.removeItem('serviq_editingRoleId')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
@@ -130,14 +171,51 @@ export default function RolesPage() {
     status: 'Active',
     perms: {
       dashboard: { view: false, add: false, edit: false, delete: false },
+      coupons: { view: false, add: false, edit: false, delete: false },
       restaurants: { view: false, add: false, edit: false, delete: false },
-      roles: { view: false, add: false, edit: false, delete: false },
-      adminUsers: { view: false, add: false, edit: false, delete: false },
-      subscriptions: { view: false, add: false, edit: false, delete: false },
       plans: { view: false, add: false, edit: false, delete: false },
-      revenue: { view: false, add: false, edit: false, delete: false }
+      subscriptions: { view: false, add: false, edit: false, delete: false },
+      billing: { view: false, add: false, edit: false, delete: false },
+      leads: { view: false, add: false, edit: false, delete: false },
+      tickets: { view: false, add: false, edit: false, delete: false },
+      notifications: { view: false, add: false, edit: false, delete: false },
+      reports: { view: false, add: false, edit: false, delete: false },
+      adminUsers: { view: false, add: false, edit: false, delete: false },
+      roles: { view: false, add: false, edit: false, delete: false },
+      settings: { view: false, add: false, edit: false, delete: false },
+      profile: { view: false, add: false, edit: false, delete: false }
     }
   })
+
+  // Synchronize systemRoles local state when backend hook loaded data
+  useEffect(() => {
+    if (roles && roles.length > 0) {
+      // Map API fields (roleName, isActive) to local UI state fields (name, status)
+      const mapped = roles.map(r => ({
+        id: r._id || r.id,
+        name: r.roleName || r.name,
+        slug: r.slug,
+        status: r.isActive === false ? 'Disabled' : 'Active',
+        perms: r.permissions || r.perms || {
+          dashboard: { view: true, add: true, edit: true, delete: true },
+          coupons: { view: true, add: true, edit: true, delete: true },
+          restaurants: { view: true, add: true, edit: true, delete: true },
+          plans: { view: true, add: true, edit: true, delete: true },
+          subscriptions: { view: true, add: true, edit: true, delete: true },
+          billing: { view: true, add: true, edit: true, delete: true },
+          leads: { view: true, add: true, edit: true, delete: true },
+          tickets: { view: true, add: true, edit: true, delete: true },
+          notifications: { view: true, add: true, edit: true, delete: true },
+          reports: { view: true, add: true, edit: true, delete: true },
+          adminUsers: { view: true, add: true, edit: true, delete: true },
+          roles: { view: true, add: true, edit: true, delete: true },
+          settings: { view: true, add: true, edit: true, delete: true },
+          profile: { view: true, add: true, edit: true, delete: true }
+        }
+      }))
+      setSystemRoles(mapped)
+    }
+  }, [roles])
 
   // Prefill roleFormState when editingRoleId changes or is restored on page refresh
   useEffect(() => {
@@ -149,12 +227,29 @@ export default function RolesPage() {
     }
   }, [editingRoleId, systemRoles])
 
-  const handleSaveRole = (e) => {
+  const handleSaveRole = async (e) => {
     e.preventDefault()
 
     const errors = {}
-    if (!roleFormState.name || !roleFormState.name.trim()) {
+    const trimmedName = (roleFormState.name || '').trim();
+
+    if (!trimmedName) {
       errors.name = 'Role Name is Required'
+    } else if (!/^[a-zA-Z0-9 ]+$/.test(trimmedName)) {
+      errors.name = 'Role Name can only contain letters, numbers, and spaces'
+    }
+
+    // Check that at least one module has at least one permission check true
+    let hasAtLeastOnePerm = false
+    if (roleFormState.perms) {
+      hasAtLeastOnePerm = Object.values(roleFormState.perms).some(modulePerms => {
+        return modulePerms && (modulePerms.view || modulePerms.add || modulePerms.edit || modulePerms.delete)
+      })
+    }
+
+    if (!hasAtLeastOnePerm) {
+      showToast('error', 'Please select at least one module permission before saving.')
+      return
     }
 
     if (Object.keys(errors).length > 0) {
@@ -164,18 +259,26 @@ export default function RolesPage() {
 
     setRoleFormErrors({})
 
-    if (editingRoleId === 'new') {
-      const nextIdNum = systemRoles.length > 0 ? Math.max(...systemRoles.map(r => parseInt(r.id.replace('role-', '')) || 0)) + 1 : 1
-      const newId = `role-${nextIdNum}`
-      setSystemRoles([...systemRoles, { ...roleFormState, id: newId }])
-      setEditingRoleId(null)
-      localStorage.removeItem('serviq_editingRoleId')
-      showToast('success', 'Custom Role created successfully!')
-    } else {
-      setSystemRoles(systemRoles.map(r => r.id === editingRoleId ? { ...roleFormState, id: editingRoleId } : r))
-      setEditingRoleId(null)
-      localStorage.removeItem('serviq_editingRoleId')
-      showToast('success', 'Role updated successfully!')
+    try {
+      const payload = {
+        roleName: trimmedName,
+        slug: roleFormState.slug || trimmedName.toLowerCase().replace(/\s+/g, '-'),
+        type: 'SUPER_ADMIN',
+        isActive: roleFormState.status === 'Active',
+        permissions: roleFormState.perms
+      }
+
+      if (editingRoleId === 'new') {
+        await createRole(payload)
+        setEditingRoleId(null)
+        showToast('success', 'Custom Role created successfully!')
+      } else {
+        await updateRole(editingRoleId, payload)
+        setEditingRoleId(null)
+        showToast('success', 'Role updated successfully!')
+      }
+    } catch (err) {
+      showToast('error', err.message || 'Error saving role')
     }
   }
 
@@ -185,23 +288,33 @@ export default function RolesPage() {
       message: "Are you sure you want to permanently delete this role?",
       confirmText: "Confirm Delete",
       confirmColor: "#ef4444",
-      onConfirm: () => {
-        setSystemRoles(systemRoles.filter(r => r.id !== id))
-        showToast('error', 'Role has been deleted.')
+      onConfirm: async () => {
+        try {
+          await deleteRole(id)
+          showToast('error', 'Role has been deleted.')
+        } catch (err) {
+          showToast('error', 'Failed to delete role')
+        }
       }
     })
   }
 
-  const handleToggleRoleStatus = (roleId) => {
+  const handleToggleRoleStatus = async (roleId) => {
     const target = systemRoles.find(r => r.id === roleId)
     if (!target) return
     const nextStatus = target.status === 'Active' ? 'Disabled' : 'Active'
-    const updated = systemRoles.map(r => r.id === roleId ? { ...r, status: nextStatus } : r)
-    setSystemRoles(updated)
-    if (nextStatus === 'Disabled' || nextStatus === 'Inactive' || nextStatus === 'Suspended') {
-      showToast('error', `Role "${target.name}" status changed to ${nextStatus.toUpperCase()}`)
-    } else {
-      showToast('success', `Role "${target.name}" status updated to ${nextStatus.toUpperCase()}`)
+    try {
+      await updateRole(roleId, {
+        roleName: target.name,
+        isActive: nextStatus === 'Active'
+      })
+      if (nextStatus === 'Disabled') {
+        showToast('error', `Role "${target.name}" status changed to DISABLED`)
+      } else {
+        showToast('success', `Role "${target.name}" status updated to ACTIVE`)
+      }
+    } catch (err) {
+      showToast('error', 'Failed to toggle status')
     }
   }
 
@@ -219,14 +332,15 @@ export default function RolesPage() {
   }
 
   const toggleSelectAll = (action) => {
-    const allChecked = ['dashboard', 'restaurants', 'roles', 'adminUsers', 'subscriptions', 'revenue'].every(
-      module => roleFormState.perms[module]?.[action]
+    const modulesList = ['dashboard', 'coupons', 'restaurants', 'plans', 'subscriptions', 'billing', 'leads', 'tickets', 'notifications', 'reports', 'adminUsers', 'roles', 'settings', 'profile']
+    const allChecked = modulesList.every(
+      module => !!roleFormState.perms?.[module]?.[action]
     )
-    const updatedPerms = { ...roleFormState.perms }
+    const updatedPerms = { ...(roleFormState.perms || {}) }
     const nextVal = !allChecked
-    ;['dashboard', 'restaurants', 'roles', 'adminUsers', 'subscriptions', 'revenue'].forEach(module => {
+    modulesList.forEach(module => {
       updatedPerms[module] = {
-        ...updatedPerms[module],
+        ...(updatedPerms[module] || { view: false, add: false, edit: false, delete: false }),
         [action]: nextVal
       }
     })
@@ -237,8 +351,9 @@ export default function RolesPage() {
   }
 
   const isAllChecked = (action) => {
-    return ['dashboard', 'restaurants', 'roles', 'adminUsers', 'subscriptions', 'revenue'].every(
-      module => roleFormState.perms[module]?.[action]
+    const modulesList = ['dashboard', 'coupons', 'restaurants', 'plans', 'subscriptions', 'billing', 'leads', 'tickets', 'notifications', 'reports', 'adminUsers', 'roles', 'settings', 'profile']
+    return modulesList.every(
+      module => !!roleFormState.perms?.[module]?.[action]
     )
   }
 
@@ -269,7 +384,7 @@ export default function RolesPage() {
         <form onSubmit={handleSaveRole} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             <div className="form-group">
-              <label style={{ fontSize: '0.85rem', fontWeight: '700', color: roleFormErrors.name ? '#dc2626' : '#334155', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
                 Role Name <span style={{ color: '#d81b60' }}>*</span>
               </label>
               <div style={{ position: 'relative' }}>
@@ -327,26 +442,17 @@ export default function RolesPage() {
               <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
                 Role Status
               </label>
-              <select
+              <CustomSelect
+                options={[
+                  { value: 'Active', label: 'Active' },
+                  { value: 'Disabled', label: 'Disabled' }
+                ]}
                 value={roleFormState.status || 'Active'}
-                onChange={(e) => setRoleFormState({ ...roleFormState, status: e.target.value })}
-                required
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                  height: '46px',
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+                onChange={(val) => {
+                  const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                  setRoleFormState({ ...roleFormState, status: selected })
                 }}
-              >
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
-              </select>
+              />
             </div>
           </div>
 
@@ -390,18 +496,25 @@ export default function RolesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {['dashboard', 'restaurants', 'roles', 'adminUsers', 'subscriptions', 'plans', 'revenue'].map((module, idx) => {
+                  {['dashboard', 'coupons', 'restaurants', 'plans', 'subscriptions', 'billing', 'leads', 'tickets', 'notifications', 'reports', 'adminUsers', 'roles', 'settings', 'profile'].map((module, idx) => {
                     const displayNames = {
                       dashboard: 'Dashboard',
-                      restaurants: 'Restaurants',
+                      coupons: 'Coupons Management',
+                      restaurants: 'Restaurant Management',
+                      plans: 'Plans Management',
+                      subscriptions: 'Subscription Management',
+                      billing: 'Billing & Payments',
+                      leads: 'Leads/CRM',
+                      tickets: 'Support Ticket Management',
+                      notifications: 'Notifications',
+                      reports: 'Reports & Analytics',
+                      adminUsers: 'Platform Admins',
                       roles: 'Roles & Permissions',
-                      adminUsers: 'Admin Users',
-                      subscriptions: 'Subscriptions',
-                      plans: 'Plans',
-                      revenue: 'Revenue & Billing'
+                      settings: 'System Settings',
+                      profile: 'My Profile'
                     }
                     return (
-                      <tr key={module} style={{ borderBottom: idx === 6 ? 'none' : '1px solid #f1f5f9' }}>
+                      <tr key={module} style={{ borderBottom: idx === 13 ? 'none' : '1px solid #f1f5f9' }}>
                         <td style={{ padding: '16px 20px', fontWeight: '700', color: '#1e293b', fontSize: '0.85rem' }}>
                           {displayNames[module]}
                         </td>
@@ -459,29 +572,40 @@ export default function RolesPage() {
           <div>
             <h3 style={{ margin: '4px 0 0 0', fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Roles & Permissions</h3>
           </div>
-          <button
-            onClick={() => {
-              setEditingRoleId('new')
-              setRoleFormErrors({})
-              setRoleFormState({
-                name: '',
-                desc: '',
-                status: 'Active',
-                perms: {
-                  dashboard: { view: false, add: false, edit: false, delete: false },
-                  restaurants: { view: false, add: false, edit: false, delete: false },
-                  roles: { view: false, add: false, edit: false, delete: false },
-                  adminUsers: { view: false, add: false, edit: false, delete: false },
-                  subscriptions: { view: false, add: false, edit: false, delete: false },
-                  revenue: { view: false, add: false, edit: false, delete: false }
-                }
-              })
-            }}
-            className="btn-black"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} /> Add Custom Role
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                setEditingRoleId('new')
+                setRoleFormErrors({})
+                setRoleFormState({
+                  name: '',
+                  slug: '',
+                  desc: '',
+                  status: 'Active',
+                  perms: {
+                    dashboard: { view: false, add: false, edit: false, delete: false },
+                    coupons: { view: false, add: false, edit: false, delete: false },
+                    restaurants: { view: false, add: false, edit: false, delete: false },
+                    plans: { view: false, add: false, edit: false, delete: false },
+                    subscriptions: { view: false, add: false, edit: false, delete: false },
+                    billing: { view: false, add: false, edit: false, delete: false },
+                    leads: { view: false, add: false, edit: false, delete: false },
+                    tickets: { view: false, add: false, edit: false, delete: false },
+                    notifications: { view: false, add: false, edit: false, delete: false },
+                    reports: { view: false, add: false, edit: false, delete: false },
+                    adminUsers: { view: false, add: false, edit: false, delete: false },
+                    roles: { view: false, add: false, edit: false, delete: false },
+                    settings: { view: false, add: false, edit: false, delete: false },
+                    profile: { view: false, add: false, edit: false, delete: false }
+                  }
+                })
+              }}
+              className="btn-black"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              <Plus style={{ width: '16px', height: '16px' }} /> Add Custom Role
+            </button>
+          )}
         </div>
 
         <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
@@ -513,38 +637,42 @@ export default function RolesPage() {
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
-                      <button
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: '6px',
-                          color: (role.status || 'Active') === 'Active' ? '#10b981' : '#ef4444',
-                          transition: 'opacity 0.2s',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                        onClick={() => handleToggleRoleStatus(role.id)}
-                        title={(role.status || 'Active') === 'Active' ? "Disable Role" : "Enable Role"}
-                      >
-                        {(role.status || 'Active') === 'Active' ? (
-                          <Unlock style={{ width: '16px', height: '16px' }} />
-                        ) : (
-                          <Lock style={{ width: '16px', height: '16px' }} />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingRoleId(role.id)
-                          setRoleFormErrors({})
-                          setRoleFormState(role)
-                        }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                        title="Edit Role"
-                      >
-                        <Edit2 style={{ width: '16px', height: '16px' }} />
-                      </button>
-                      {role.id !== 'role-1' && (
+                      {canEdit && (
+                        <button
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '6px',
+                            color: (role.status || 'Active') === 'Active' ? '#10b981' : '#ef4444',
+                            transition: 'opacity 0.2s',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                          onClick={() => handleToggleRoleStatus(role.id)}
+                          title={(role.status || 'Active') === 'Active' ? "Disable Role" : "Enable Role"}
+                        >
+                          {(role.status || 'Active') === 'Active' ? (
+                            <Unlock style={{ width: '16px', height: '16px' }} />
+                          ) : (
+                            <Lock style={{ width: '16px', height: '16px' }} />
+                          )}
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            setEditingRoleId(role.id)
+                            setRoleFormErrors({})
+                            setRoleFormState(role)
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
+                          title="Edit Role"
+                        >
+                          <Edit2 style={{ width: '16px', height: '16px' }} />
+                        </button>
+                      )}
+                      {canDelete && role.id !== 'role-1' && (
                         <button
                           onClick={() => handleDeleteRole(role.id)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#ef4444', transition: 'opacity 0.2s', display: 'flex', alignItems: 'center' }}
@@ -552,6 +680,9 @@ export default function RolesPage() {
                         >
                           <Trash2 style={{ width: '16px', height: '16px' }} />
                         </button>
+                      )}
+                      {!canEdit && !canDelete && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
                       )}
                     </div>
                   </td>

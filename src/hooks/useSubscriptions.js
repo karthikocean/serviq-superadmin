@@ -10,7 +10,7 @@ export function useSubscriptions() {
   const fetchSubscriptions = async () => {
     setIsLoading(true);
     try {
-      const response = await getAllSubscriptionsAPI(1, 100);
+      const response = await getAllSubscriptionsAPI(0, 100);
       if (response && response.data) {
         const subsData = response.data.results || response.data;
         const mappedSubs = subsData.map(s => {
@@ -42,7 +42,7 @@ export function useSubscriptions() {
 
   const fetchSubscriptionHistory = async () => {
     try {
-      const response = await getSubscriptionHistoryAPI(1, 100);
+      const response = await getSubscriptionHistoryAPI(0, 100);
       if (response && response.data) {
         const historyData = response.data.results || response.data;
         const mappedHistory = historyData.map(h => {

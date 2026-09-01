@@ -5,6 +5,7 @@ import { ROUTES } from '../constants/routes';
 // Layouts
 import SuperAdminLayout from '../layouts/SuperAdminLayout';
 import ProtectedRoute from '../components/routing/ProtectedRoute';
+import PermissionRoute from '../components/routing/PermissionRoute';
 
 // Pages
 import LoginPage from '../pages/auth/LoginPage';
@@ -35,25 +36,25 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to={ROUTES.LOGIN} replace />} />
-      <Route 
-        path={ROUTES.LOGIN} 
+      <Route
+        path={ROUTES.LOGIN}
         element={
           isAuthenticated && isSuperAdmin ? (
             <Navigate to={ROUTES.SUPER_ADMIN.DASHBOARD} replace />
           ) : (
-            <LoginPage 
-              onLogin={login} 
-              darkMode={darkMode} 
-              onToggleDarkMode={toggleDarkMode} 
-              showToast={showToast} 
+            <LoginPage
+              onLogin={login}
+              darkMode={darkMode}
+              onToggleDarkMode={toggleDarkMode}
+              showToast={showToast}
             />
           )
-        } 
+        }
       />
 
       {/* Super Admin Routes */}
-      <Route 
-        path={ROUTES.SUPER_ADMIN.ROOT} 
+      <Route
+        path={ROUTES.SUPER_ADMIN.ROOT}
         element={
           <ProtectedRoute allowedRoles={['superadmin']}>
             <SuperAdminLayout />
@@ -61,19 +62,49 @@ export default function AppRoutes() {
         }
       >
         <Route index element={<Navigate to={ROUTES.SUPER_ADMIN.DASHBOARD} replace />} />
+
+        {/* Dashboard — accessible to all logged-in users */}
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="coupons" element={<CouponsPage />} />
-        <Route path="restaurants" element={<RestaurantsPage />} />
-        <Route path="plans" element={<PlansPage />} />
-        <Route path="subscriptions" element={<SubscriptionsPage />} />
-        <Route path="billing" element={<BillingPage />} />
-        <Route path="leads" element={<LeadsPage />} />
-        <Route path="tickets" element={<TicketsPage />} />
-        <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="users" element={<UsersPage />} />
-        <Route path="roles" element={<RolesPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+
+        {/* Permission-guarded routes */}
+        <Route path="coupons" element={
+          <PermissionRoute module="coupons"><CouponsPage /></PermissionRoute>
+        } />
+        <Route path="restaurants" element={
+          <PermissionRoute module="restaurants"><RestaurantsPage /></PermissionRoute>
+        } />
+        <Route path="plans" element={
+          <PermissionRoute module="plans"><PlansPage /></PermissionRoute>
+        } />
+        <Route path="subscriptions" element={
+          <PermissionRoute module="subscriptions"><SubscriptionsPage /></PermissionRoute>
+        } />
+        <Route path="billing" element={
+          <PermissionRoute module="billing"><BillingPage /></PermissionRoute>
+        } />
+        <Route path="leads" element={
+          <PermissionRoute module="leads"><LeadsPage /></PermissionRoute>
+        } />
+        <Route path="tickets" element={
+          <PermissionRoute module="tickets"><TicketsPage /></PermissionRoute>
+        } />
+        <Route path="notifications" element={
+          <PermissionRoute module="notifications"><NotificationsPage /></PermissionRoute>
+        } />
+        <Route path="reports" element={
+          <PermissionRoute module="reports"><ReportsPage /></PermissionRoute>
+        } />
+        <Route path="users" element={
+          <PermissionRoute module="adminUsers"><UsersPage /></PermissionRoute>
+        } />
+        <Route path="roles" element={
+          <PermissionRoute module="roles"><RolesPage /></PermissionRoute>
+        } />
+        <Route path="settings" element={
+          <PermissionRoute module="settings"><SettingsPage /></PermissionRoute>
+        } />
+
+        {/* Profile — accessible to all logged-in users */}
         <Route path="profile" element={<ProfilePage />} />
       </Route>
 

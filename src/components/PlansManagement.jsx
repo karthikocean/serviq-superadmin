@@ -11,14 +11,14 @@ import {
   Shield,
   ShieldAlert
 } from 'lucide-react'
+import { ValidatedSelect } from './common/CustomSelect'
 
-// Reusable validated input component
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
   const isNumeric = type === 'number' || allowOnlyNumbers || allowDecimal
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -75,59 +75,33 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-// Reusable validated select component
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+
 
 const CORE_FEATURES = [
-  'QR Ordering',
   'Menu Management',
   'Table Management',
   'Order Management',
   'Waiter Management',
-  'Kitchen Management'
+  'Kitchen Management',
+  'Inventory Management'
 ]
 
+import { useAuth } from '../contexts/AuthContext'
+
 export default function PlansManagement({ plans, setPlans, showToast }) {
+  const { hasPermission, isSuperOwner } = useAuth()
+  const canAdd = isSuperOwner || hasPermission('plans', 'add')
+  const canEdit = isSuperOwner || hasPermission('plans', 'edit')
+
   const [editingPlanId, setEditingPlanId] = useState(() => {
-    return localStorage.getItem('serviq_editingPlanId') || null
+    return sessionStorage.getItem('serviq_editingPlanId') || null
   })
 
   useEffect(() => {
     if (editingPlanId) {
-      localStorage.setItem('serviq_editingPlanId', editingPlanId)
+      sessionStorage.setItem('serviq_editingPlanId', editingPlanId)
     } else {
-      localStorage.removeItem('serviq_editingPlanId')
+      sessionStorage.removeItem('serviq_editingPlanId')
     }
   }, [editingPlanId])
 
@@ -136,7 +110,7 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
     const handleReset = (e) => {
       if (e.detail?.tab === 'plans') {
         setEditingPlanId(null)
-        localStorage.removeItem('serviq_editingPlanId')
+        sessionStorage.removeItem('serviq_editingPlanId')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
@@ -295,7 +269,7 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
             />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.description ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
                 Plan Description<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <textarea
@@ -349,7 +323,7 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.features ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
                 Features Included<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <div style={{
@@ -417,39 +391,37 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
         {/* Top Banner / Actions Control */}
         <div className="glass-card" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>Subscription
-            <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}></h3>
+          <div>
+            <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription</h3>
           </div>
-          <button
-            onClick={() => {
-              setEditingPlanId('new')
-              setPlanFormState({
-                name: '',
-                description: '',
-                monthlyPrice: '',
-                annualPrice: '',
-                branchLimit: 99999,
-                userLimit: 99999,
-                orderLimit: 99999,
-                features: [],
-                status: 'Active'
-              })
-              setFormErrors({})
-            }}
-            className="btn-black"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
-          </button>
+          {canAdd && (
+            <button
+              onClick={() => {
+                setEditingPlanId('new')
+                setPlanFormState({
+                  name: '',
+                  description: '',
+                  monthlyPrice: '',
+                  annualPrice: '',
+                  branchLimit: 99999,
+                  userLimit: 99999,
+                  orderLimit: 99999,
+                  features: [],
+                  status: 'Active'
+                })
+                setFormErrors({})
+              }}
+              className="btn-black"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
+            </button>
+          )}
         </div>
 
         {/* Plans Cards Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           {plans.map(plan => {
-            const isBasic = plan.name.toLowerCase().includes('basic')
-            const isStandard = plan.name.toLowerCase().includes('standard')
-            const isPremium = plan.name.toLowerCase().includes('premium')
-            
             return (
               <div key={plan.id} className="glass-card" style={{
                 padding: '28px',
@@ -484,31 +456,33 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button
-                        onClick={() => {
-                          setEditingPlanId(plan.id)
-                          setPlanFormState({
-                            name: plan.name,
-                            description: plan.description || '',
-                            monthlyPrice: plan.monthlyPrice.toString(),
-                            annualPrice: plan.annualPrice.toString(),
-                            branchLimit: (plan.branchLimit || 99999).toString(),
-                            userLimit: (plan.userLimit || 99999).toString(),
-                            orderLimit: (plan.orderLimit || 99999).toString(),
-                            features: plan.features || [],
-                            status: plan.status
-                          })
-                          setFormErrors({})
-                        }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'all 0.2s' }}
-                        title="Modify Plan Details"
-                        onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <Edit2 style={{ width: '15px', height: '15px' }} />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => {
+                            setEditingPlanId(plan.id)
+                            setPlanFormState({
+                              name: plan.name,
+                              description: plan.description || '',
+                              monthlyPrice: plan.monthlyPrice.toString(),
+                              annualPrice: plan.annualPrice.toString(),
+                              branchLimit: (plan.branchLimit || 99999).toString(),
+                              userLimit: (plan.userLimit || 99999).toString(),
+                              orderLimit: (plan.orderLimit || 99999).toString(),
+                              features: plan.features || [],
+                              status: plan.status
+                            })
+                            setFormErrors({})
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'all 0.2s' }}
+                          title="Modify Plan Details"
+                          onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        >
+                          <Edit2 style={{ width: '15px', height: '15px' }} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '12px 0 0 0', lineHeight: '1.4', fontWeight: '500' }}>
@@ -525,26 +499,31 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Annual Rate</span>
                     <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '800' }}>₹{plan.annualPrice.toLocaleString()}<span style={{ fontSize: '0.72rem', fontWeight: '600' }}>/yr</span></span>
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Branches</span>
+                    <span style={{ fontSize: '0.95rem', color: 'var(--primary)', fontWeight: '900' }}>{plan.branchLimit >= 99999 ? 'Unlimited' : plan.branchLimit}</span>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Includes Features:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {CORE_FEATURES.map((feat, idx) => {
-                      const isIncluded = plan.features?.includes(feat)
+                      const isIncluded = Array.isArray(plan.features) ? plan.features.includes(feat) : false
                       return (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.4 }}>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.42 }}>
                           <div style={{
-                            width: '14px',
-                            height: '14px',
+                            width: '15px',
+                            height: '15px',
                             borderRadius: '50%',
-                            background: isIncluded ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.1)',
+                            background: isIncluded ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: isIncluded ? '#10b981' : '#64748b'
+                            color: isIncluded ? '#10b981' : '#94a3b8',
+                            flexShrink: 0
                           }}>
-                            {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '8px', height: '8px' }} />}
+                            {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '9px', height: '9px', strokeWidth: '2.5px' }} />}
                           </div>
                           <span style={{ fontWeight: isIncluded ? '700' : '500', color: isIncluded ? 'var(--text-main)' : 'var(--text-muted)' }}>{feat}</span>
                         </div>
@@ -554,43 +533,45 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
                 </div>
 
                 {/* Direct quick action: Activate / Deactivate plan */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
-                  <button
-                    onClick={() => togglePlanStatus(plan.id)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: '800',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s',
-                      background: plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
-                      color: plan.status === 'Active' ? '#ef4444' : '#10b981'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)'
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
-                    }}
-                  >
-                    {plan.status === 'Active' ? (
-                      <>
-                        <ShieldAlert style={{ width: '14px', height: '14px' }} /> Deactivate Plan
-                      </>
-                    ) : (
-                      <>
-                        <Shield style={{ width: '14px', height: '14px' }} /> Activate Plan
-                      </>
-                    )}
-                  </button>
-                </div>
+                {canEdit && (
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => togglePlanStatus(plan.id)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.78rem',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                        background: plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                        color: plan.status === 'Active' ? '#ef4444' : '#10b981'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
+                      }}
+                    >
+                      {plan.status === 'Active' ? (
+                        <>
+                          <ShieldAlert style={{ width: '14px', height: '14px' }} /> Deactivate Plan
+                        </>
+                      ) : (
+                        <>
+                          <Shield style={{ width: '14px', height: '14px' }} /> Activate Plan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}

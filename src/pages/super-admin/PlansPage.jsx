@@ -13,6 +13,8 @@ import {
   Layers
 } from 'lucide-react'
 import ManageAddonsMasterModal from '../../components/Payment/ManageAddonsMasterModal'
+import { ValidatedSelect } from '../../components/common/CustomSelect'
+import { useAuth } from '../../contexts/AuthContext'
 
 // Reusable validated input component
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -20,7 +22,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -74,47 +76,15 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-// Reusable validated select component
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+
 
 const CORE_FEATURES = [
-  { label: 'QR Ordering', key: 'qr-code-config' },
   { label: 'Menu Management', key: 'menu' },
   { label: 'Table Management', key: 'tables' },
   { label: 'Order Management', key: 'orders' },
   { label: 'Waiter Management', key: 'waiter-list' },
-  { label: 'Kitchen Management', key: 'kitchen-list' }
+  { label: 'Kitchen Management', key: 'kitchen-list' },
+  { label: 'Inventory Management', key: 'inventory' }
 ]
 
 const initialFeatures = CORE_FEATURES.reduce((acc, feat) => {
@@ -122,31 +92,75 @@ const initialFeatures = CORE_FEATURES.reduce((acc, feat) => {
   return acc;
 }, {})
 
+const isFeatureAccessible = (plan, feat) => {
+  if (!plan) return false;
+
+  // 1. Explicit boolean in featuresIncluded object
+  if (plan.featuresIncluded && typeof plan.featuresIncluded === 'object' && !Array.isArray(plan.featuresIncluded)) {
+    if (plan.featuresIncluded[feat.key] !== undefined) {
+      return Boolean(plan.featuresIncluded[feat.key]);
+    }
+  }
+
+  // 2. Populated modules or string keys array
+  if (Array.isArray(plan.featuresIncluded) && plan.featuresIncluded.length > 0) {
+    return plan.featuresIncluded.some(item => {
+      if (typeof item === 'string') {
+        return item.toLowerCase() === feat.key.toLowerCase() || item.toLowerCase() === feat.label.toLowerCase();
+      }
+      if (item && typeof item === 'object') {
+        return (item.key && item.key.toLowerCase() === feat.key.toLowerCase()) ||
+               (item.name && item.name.toLowerCase() === feat.label.toLowerCase());
+      }
+      return false;
+    });
+  }
+
+  // 3. String features array
+  if (Array.isArray(plan.features) && plan.features.length > 0) {
+    return plan.features.some(f => 
+      typeof f === 'string' && (f.toLowerCase() === feat.label.toLowerCase() || f.toLowerCase() === feat.key.toLowerCase())
+    );
+  }
+
+  // 4. Fallback based on plan tier name
+  const pName = (plan.name || plan.planName || '').toLowerCase();
+  const isPremium = pName.includes('premium');
+  const isStandard = pName.includes('standard');
+
+  if (feat.key === 'menu' || feat.key === 'tables' || feat.key === 'orders') {
+    return true;
+  }
+  if (feat.key === 'waiter-list' || feat.key === 'kitchen-list') {
+    return isStandard || isPremium;
+  }
+  if (feat.key === 'inventory') {
+    return isPremium;
+  }
+
+  return false;
+};
+
 import { getAllPlansApi, createPlanApi, updatePlanApi, deletePlanApi } from '../../services/planService'
 import { useNotification } from '../../contexts/NotificationContext'
 
 export default function PlansPage() {
   const [plans, setPlans] = useState([])
   const { showToast } = useNotification()
-  const [editingPlanId, setEditingPlanId] = useState(() => {
-    return localStorage.getItem('serviq_editingPlanId') || null
-  })
-  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false)
+  const { hasPermission, isSuperOwner } = useAuth()
 
-  useEffect(() => {
-    if (editingPlanId) {
-      localStorage.setItem('serviq_editingPlanId', editingPlanId)
-    } else {
-      localStorage.removeItem('serviq_editingPlanId')
-    }
-  }, [editingPlanId])
+  const canAdd = isSuperOwner || hasPermission('plans', 'add')
+  const canEdit = isSuperOwner || hasPermission('plans', 'edit')
+  const canDelete = isSuperOwner || hasPermission('plans', 'delete')
+
+  const [editingPlanId, setEditingPlanId] = useState(null)
+  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false)
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
       if (e.detail?.tab === 'plans' || e.detail?.tab === 'all' || !e.detail?.tab) {
         setEditingPlanId(null)
-        localStorage.removeItem('serviq_editingPlanId')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
@@ -155,7 +169,7 @@ export default function PlansPage() {
 
   const fetchPlans = async () => {
     try {
-      const data = await getAllPlansApi(1, 100);
+      const data = await getAllPlansApi(0, 100);
       if (data.success) {
         const formattedPlans = data.data.map(p => ({
           ...p,
@@ -194,6 +208,11 @@ export default function PlansPage() {
     if (editingPlanId && editingPlanId !== 'new') {
       const planToEdit = plans.find(p => p.id === editingPlanId)
       if (planToEdit) {
+        const featuresMap = { ...initialFeatures }
+        CORE_FEATURES.forEach(feat => {
+          featuresMap[feat.key] = isFeatureAccessible(planToEdit, feat)
+        })
+
         setPlanFormState({
           name: planToEdit.name || '',
           description: planToEdit.description || '',
@@ -202,7 +221,7 @@ export default function PlansPage() {
           branchLimit: planToEdit.branchLimit || 3,
           userLimit: planToEdit.userLimit || 99999,
           orderLimit: planToEdit.orderLimit || 99999,
-          featuresIncluded: planToEdit.featuresIncluded || { ...initialFeatures },
+          featuresIncluded: featuresMap,
           status: planToEdit.status || 'Active'
         })
       }
@@ -365,7 +384,7 @@ export default function PlansPage() {
             />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.description ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
                 Plan Description<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <textarea
@@ -419,7 +438,7 @@ export default function PlansPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.featuresIncluded ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
                 Features Included<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <div style={{
@@ -501,35 +520,39 @@ export default function PlansPage() {
           <div>
             <h3 style={{ margin: '4px 0 0 0', fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription</h3>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => {
-                setEditingPlanId('new')
-                setPlanFormState({
-                  name: '',
-                  description: '',
-                  monthlyPrice: '',
-                  annualPrice: '',
-                  branchLimit: 3,
-                  userLimit: 99999,
-                  orderLimit: 99999,
-                  featuresIncluded: { ...initialFeatures },
-                  status: 'Active'
-                })
-                setFormErrors({})
-              }}
-              className="btn-black"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-            >
-              <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
-            </button>
-            <button
-              onClick={() => setIsAddonModalOpen(true)}
-              className="btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-            >
-              <Layers style={{ width: '16px', height: '16px' }} /> Manage Add-ons
-            </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {canAdd && (
+              <button
+                onClick={() => {
+                  setEditingPlanId('new')
+                  setPlanFormState({
+                    name: '',
+                    description: '',
+                    monthlyPrice: '',
+                    annualPrice: '',
+                    branchLimit: 3,
+                    userLimit: 99999,
+                    orderLimit: 99999,
+                    featuresIncluded: { ...initialFeatures },
+                    status: 'Active'
+                  })
+                  setFormErrors({})
+                }}
+                className="btn-black"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                <Plus style={{ width: '16px', height: '16px' }} /> Create Plan
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setIsAddonModalOpen(true)}
+                className="btn-outline"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                <Layers style={{ width: '16px', height: '16px' }} /> Manage Add-ons
+              </button>
+            )}
           </div>
         </div>
 
@@ -574,31 +597,33 @@ export default function PlansPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button
-                        onClick={() => {
-                          setEditingPlanId(plan.id)
-                          setPlanFormState({
-                            name: plan.name,
-                            description: plan.description || '',
-                            monthlyPrice: plan.monthlyPrice.toString(),
-                            annualPrice: plan.annualPrice.toString(),
-                            branchLimit: (plan.branchLimit || 3).toString(),
-                            userLimit: (plan.userLimit || 99999).toString(),
-                            orderLimit: (plan.orderLimit || 99999).toString(),
-                            featuresIncluded: plan.featuresIncluded || { ...initialFeatures },
-                            status: plan.status
-                          })
-                          setFormErrors({})
-                        }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'all 0.2s' }}
-                        title="Modify Plan Details"
-                        onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <Edit2 style={{ width: '15px', height: '15px' }} />
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => {
+                            setEditingPlanId(plan.id)
+                            setPlanFormState({
+                              name: plan.name,
+                              description: plan.description || '',
+                              monthlyPrice: plan.monthlyPrice.toString(),
+                              annualPrice: plan.annualPrice.toString(),
+                              branchLimit: (plan.branchLimit || 3).toString(),
+                              userLimit: (plan.userLimit || 99999).toString(),
+                              orderLimit: (plan.orderLimit || 99999).toString(),
+                              featuresIncluded: plan.featuresIncluded || { ...initialFeatures },
+                              status: plan.status
+                            })
+                            setFormErrors({})
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', borderRadius: '6px', transition: 'all 0.2s' }}
+                          title="Modify Plan Details"
+                          onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        >
+                          <Edit2 style={{ width: '15px', height: '15px' }} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '12px 0 0 0', lineHeight: '1.4', fontWeight: '500' }}>
@@ -625,20 +650,21 @@ export default function PlansPage() {
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Includes Features:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {CORE_FEATURES.map((feat, idx) => {
-                      const isIncluded = plan.featuresIncluded?.[feat.key]
+                      const isIncluded = isFeatureAccessible(plan, feat)
                       return (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.4 }}>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.42 }}>
                           <div style={{
-                            width: '14px',
-                            height: '14px',
+                            width: '15px',
+                            height: '15px',
                             borderRadius: '50%',
-                            background: isIncluded ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.1)',
+                            background: isIncluded ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: isIncluded ? '#10b981' : '#64748b'
+                            color: isIncluded ? '#10b981' : '#94a3b8',
+                            flexShrink: 0
                           }}>
-                            {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '8px', height: '8px' }} />}
+                            {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '9px', height: '9px', strokeWidth: '2.5px' }} />}
                           </div>
                           <span style={{ fontWeight: isIncluded ? '700' : '500', color: isIncluded ? 'var(--text-main)' : 'var(--text-muted)' }}>{feat.label}</span>
                         </div>
@@ -648,43 +674,45 @@ export default function PlansPage() {
                 </div>
 
                 {/* Direct quick action: Activate / Deactivate plan */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
-                  <button
-                    onClick={() => togglePlanStatus(plan.id)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: '800',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s',
-                      background: plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
-                      color: plan.status === 'Active' ? '#ef4444' : '#10b981'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)'
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
-                    }}
-                  >
-                    {plan.status === 'Active' ? (
-                      <>
-                        <ShieldAlert style={{ width: '14px', height: '14px' }} /> Deactivate Plan
-                      </>
-                    ) : (
-                      <>
-                        <Shield style={{ width: '14px', height: '14px' }} /> Activate Plan
-                      </>
-                    )}
-                  </button>
-                </div>
+                {canEdit && (
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => togglePlanStatus(plan.id)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.78rem',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                        background: plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                        color: plan.status === 'Active' ? '#ef4444' : '#10b981'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(16, 185, 129, 0.14)'
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = plan.status === 'Active' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
+                      }}
+                    >
+                      {plan.status === 'Active' ? (
+                        <>
+                          <ShieldAlert style={{ width: '14px', height: '14px' }} /> Deactivate Plan
+                        </>
+                      ) : (
+                        <>
+                          <Shield style={{ width: '14px', height: '14px' }} /> Activate Plan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}

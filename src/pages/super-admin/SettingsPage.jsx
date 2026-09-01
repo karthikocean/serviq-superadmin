@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { Save, Settings, AlertTriangle } from 'lucide-react'
 import { useNotification } from '../../contexts/NotificationContext'
 import { getSettings, updateSettings } from '../../services/settingService'
+import { ValidatedSelect } from '../../components/common/CustomSelect'
+import { useAuth } from '../../contexts/AuthContext'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
       {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
     </label>
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -37,42 +39,14 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   </div>
 )
 
-// ─── Reusable validated select component ───
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+
 
 export default function SettingsPage() {
   const { showToast } = useNotification()
+  const { hasPermission, isSuperOwner } = useAuth()
+
+  const canEdit = isSuperOwner || hasPermission('settings', 'edit')
+
   const setSystemLogs = () => { }
   const [formState, setFormState] = useState({
     name: '',
@@ -114,15 +88,58 @@ export default function SettingsPage() {
 
   const handleSaveDetails = async (e) => {
     e.preventDefault()
-    
+    const errors = {}
+
+    const name = (formState.name || '').trim()
+    const legalName = (formState.legalName || '').trim()
+    const email = (formState.email || '').trim()
+    const phone = (formState.phone || '').trim()
+
+    if (!name) {
+      errors.name = 'Brand Name is required'
+    } else if (name.length < 2) {
+      errors.name = 'Brand Name must be at least 2 characters'
+    }
+
+    if (!legalName) {
+      errors.legalName = 'Legal Company Name is required'
+    } else if (legalName.length < 2) {
+      errors.legalName = 'Legal Company Name must be at least 2 characters'
+    }
+
+    if (!email) {
+      errors.email = 'Support Email Address is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Enter a valid email address (e.g. support@domain.com)'
+    }
+
+    if (!phone) {
+      errors.phone = 'Support Hotline Mobile is required'
+    } else if (!/^[+]?[\d\s-]{10,15}$/.test(phone)) {
+      errors.phone = 'Enter a valid phone number (at least 10 digits)'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      showToast('error', 'Please resolve form validation errors before saving.')
+      return
+    }
+
+    setFormErrors({})
+
     try {
-      const savedData = await updateSettings(formState)
+      const savedData = await updateSettings({
+        name,
+        legalName,
+        email,
+        phone
+      })
       if (savedData && savedData._id) {
         setSettingsId(savedData._id)
       }
       showToast('success', 'Global system configurations successfully synchronized system-wide!')
     } catch (error) {
-      showToast('error', 'Failed to update configurations')
+      showToast('error', error.response?.data?.message || 'Failed to update configurations')
     }
   }
 
@@ -155,6 +172,8 @@ export default function SettingsPage() {
               onChange={handleInputChange}
               placeholder="e.g. Serviq Super"
               required
+              error={formErrors.name}
+              setError={(val) => setFormErrors(prev => ({ ...prev, name: val }))}
             />
             <ValidatedInput
               label="Legal Company Name"
@@ -163,6 +182,8 @@ export default function SettingsPage() {
               onChange={handleInputChange}
               placeholder="e.g. Serviq Solutions Pvt Ltd"
               required
+              error={formErrors.legalName}
+              setError={(val) => setFormErrors(prev => ({ ...prev, legalName: val }))}
             />
           </div>
 
@@ -176,6 +197,8 @@ export default function SettingsPage() {
               onChange={handleInputChange}
               placeholder="support@serviq.com"
               required
+              error={formErrors.email}
+              setError={(val) => setFormErrors(prev => ({ ...prev, email: val }))}
             />
             <ValidatedInput
               label="Support Hotline Mobile"
@@ -184,15 +207,19 @@ export default function SettingsPage() {
               onChange={handleInputChange}
               placeholder="e.g. +91 98765 43210"
               required
+              error={formErrors.phone}
+              setError={(val) => setFormErrors(prev => ({ ...prev, phone: val }))}
             />
           </div>
 
-
-
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '18px' }}>
-            <button type="submit" className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Save style={{ width: '16px', height: '16px' }} /> Save Configurations
-            </button>
+            {canEdit ? (
+              <button type="submit" className="btn-black" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Save style={{ width: '16px', height: '16px' }} /> Save Configurations
+              </button>
+            ) : (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Read-only permissions</span>
+            )}
           </div>
         </form>
       </div>
