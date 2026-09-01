@@ -1,21 +1,40 @@
 import React, { useState } from 'react';
 import { UploadCloud, Loader2 } from 'lucide-react';
 import { uploadImage } from '../../services/api';
+import CustomSelect from '../common/CustomSelect';
 
 export default function PaymentDetailsForm({ formState, setFormState, formErrors }) {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      const allowedExtensions = /\.(jpe?g|png|pdf)$/i;
+
+      if (!allowedMimes.includes(file.type) && !allowedExtensions.test(file.name)) {
+        setUploadError('Invalid file format. Please select a JPG, PNG, or PDF file.');
+        e.target.value = '';
+        return;
+      }
+
+      if (file.size > 2 * 1024 * 1024) {
+        setUploadError('File size exceeds 2MB limit. Please upload a smaller file.');
+        e.target.value = '';
+        return;
+      }
+
+      setUploadError('');
       setIsUploading(true);
       try {
         const uploadRes = await uploadImage(file);
         // Save the returned URL in the payload
-        setFormState({ ...formState, paymentProof: uploadRes.data.url, paymentProofName: file.name });
+        const url = uploadRes?.data?.url || uploadRes?.url || '';
+        setFormState({ ...formState, paymentProof: url, paymentProofName: file.name });
       } catch (error) {
         console.error("Upload failed", error);
-        alert("Failed to upload image. Please try again.");
+        setUploadError('Failed to upload file. Please try again.');
       } finally {
         setIsUploading(false);
       }
@@ -30,27 +49,22 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
         {/* Payment Method */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Payment Method <span style={{color: '#ef4444'}}>*</span></label>
-          <select
+          <CustomSelect
+            options={[
+              { value: 'Bank Transfer', label: 'Bank Transfer' },
+              { value: 'Cash', label: 'Cash' },
+              { value: 'UPI', label: 'UPI' },
+              { value: 'Cheque', label: 'Cheque' },
+              { value: 'Complimentary', label: 'Complimentary' }
+            ]}
             value={formState.paymentMethod || 'Bank Transfer'}
-            onChange={(e) => setFormState({ ...formState, paymentMethod: e.target.value })}
-            style={{
-              width: '100%',
-              padding: '9px 12px',
-              border: formErrors?.paymentMethod ? '1.5px solid #ef4444' : '1.5px solid var(--border-color)',
-              background: '#fff',
-              color: 'var(--text-main)',
-              borderRadius: '8px',
-              fontSize: '0.82rem',
-              outline: 'none',
-              cursor: 'pointer'
+            onChange={(val) => {
+              const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+              setFormState({ ...formState, paymentMethod: selected })
             }}
-          >
-            <option value="Bank Transfer">Bank Transfer</option>
-            <option value="Cash">Cash</option>
-            <option value="UPI">UPI</option>
-            <option value="Cheque">Cheque</option>
-            <option value="Complimentary">Complimentary</option>
-          </select>
+            error={formErrors?.paymentMethod}
+            placeholder="Select Payment Method"
+          />
           {formErrors?.paymentMethod && <span style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: '600' }}>{formErrors.paymentMethod}</span>}
         </div>
 
@@ -138,6 +152,7 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
               )}
             </label>
           </div>
+          {uploadError && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600', marginTop: '4px' }}>{uploadError}</span>}
         </div>
 
         {/* Notes */}

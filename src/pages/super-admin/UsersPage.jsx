@@ -12,6 +12,7 @@ import {
   EyeOff
 } from 'lucide-react'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { getManagers, createManager, updateManager, deleteManager } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -22,7 +23,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -77,39 +78,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-// ─── Reusable validated select component ───
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'

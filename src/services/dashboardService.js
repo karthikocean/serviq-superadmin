@@ -9,3 +9,14 @@ export const getDashboardMetricsApi = async () => {
     throw error;
   }
 };
+
+export const getReportsAnalyticsApi = async () => {
+  try {
+    const response = await api.get('/dashboard/reports-analytics');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching reports analytics:', error);
+    throw error;
+  }
+};
+

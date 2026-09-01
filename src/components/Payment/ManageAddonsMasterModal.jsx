@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Edit2, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { useAddons } from '../../hooks/useAddons';
 import { useAuth } from '../../contexts/AuthContext';
+import CustomSelect from '../common/CustomSelect';
 
 export default function ManageAddonsMasterModal({ onClose }) {
   const { addons, createAddon, updateAddon, deleteAddon, isLoading } = useAddons();
@@ -19,6 +20,7 @@ export default function ManageAddonsMasterModal({ onClose }) {
     annualPrice: '',
     isActive: true
   });
+  const [errors, setErrors] = useState({});
 
   const handleOpenEdit = (addon) => {
     setEditingAddon(addon._id);
@@ -29,6 +31,7 @@ export default function ManageAddonsMasterModal({ onClose }) {
       annualPrice: addon.annualPrice,
       isActive: addon.isActive
     });
+    setErrors({});
   };
 
   const handleOpenCreate = () => {
@@ -40,10 +43,41 @@ export default function ManageAddonsMasterModal({ onClose }) {
       annualPrice: '',
       isActive: true
     });
+    setErrors({});
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    const newErrors = {};
+    const addonName = (formState.addonName || '').trim();
+    const monthlyPrice = String(formState.monthlyPrice || '').trim();
+    const annualPrice = String(formState.annualPrice || '').trim();
+
+    if (!addonName) {
+      newErrors.addonName = 'Addon Name is required';
+    } else if (addonName.length < 2) {
+      newErrors.addonName = 'Addon Name must be at least 2 characters';
+    }
+
+    if (monthlyPrice === '') {
+      newErrors.monthlyPrice = 'Monthly Price is required';
+    } else if (isNaN(monthlyPrice) || Number(monthlyPrice) < 0) {
+      newErrors.monthlyPrice = 'Monthly Price must be a valid positive number';
+    }
+
+    if (annualPrice === '') {
+      newErrors.annualPrice = 'Annual Price is required';
+    } else if (isNaN(annualPrice) || Number(annualPrice) < 0) {
+      newErrors.annualPrice = 'Annual Price must be a valid positive number';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+
     if (editingAddon === 'new') {
       await createAddon(formState);
     } else {
@@ -100,40 +134,64 @@ export default function ManageAddonsMasterModal({ onClose }) {
         </h3>
 
         {editingAddon ? (
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleSave} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Addon Name</label>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Addon Name <span style={{ color: '#ef4444' }}>*</span></label>
               <input
-                type="text" required
-                value={formState.addonName} onChange={e => setFormState({ ...formState, addonName: e.target.value })}
-                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem' }}
+                type="text"
+                value={formState.addonName}
+                onChange={e => {
+                  setFormState({ ...formState, addonName: e.target.value });
+                  if (errors.addonName) setErrors({ ...errors, addonName: '' });
+                }}
+                placeholder="e.g. Extra Branch Add-on"
+                style={{ width: '100%', padding: '9px 12px', border: errors.addonName ? '1.5px solid #ef4444' : '1.5px solid var(--border-color)', background: errors.addonName ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', borderRadius: '8px', fontSize: '0.82rem', outline: 'none', transition: 'border-color 0.15s' }}
               />
+              {errors.addonName && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.addonName}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Addon Type</label>
-              <select
-                value={formState.addonType} onChange={e => setFormState({ ...formState, addonType: e.target.value })}
-                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem' }}
-              >
-                <option value="BRANCH">Branch</option>
-              </select>
+              <CustomSelect
+                options={[
+                  { value: 'BRANCH', label: 'Branch' }
+                ]}
+                value={formState.addonType}
+                onChange={(val) => {
+                  const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                  setFormState({ ...formState, addonType: selected })
+                }}
+              />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Monthly Price (₹)</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Monthly Price (₹) <span style={{ color: '#ef4444' }}>*</span></label>
                 <input
-                  type="number" required
-                  value={formState.monthlyPrice} onChange={e => setFormState({ ...formState, monthlyPrice: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem' }}
+                  type="number"
+                  min="0"
+                  value={formState.monthlyPrice}
+                  onChange={e => {
+                    setFormState({ ...formState, monthlyPrice: e.target.value });
+                    if (errors.monthlyPrice) setErrors({ ...errors, monthlyPrice: '' });
+                  }}
+                  placeholder="e.g. 500"
+                  style={{ width: '100%', padding: '9px 12px', border: errors.monthlyPrice ? '1.5px solid #ef4444' : '1.5px solid var(--border-color)', background: errors.monthlyPrice ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', borderRadius: '8px', fontSize: '0.82rem', outline: 'none', transition: 'border-color 0.15s' }}
                 />
+                {errors.monthlyPrice && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.monthlyPrice}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Annual Price (₹)</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Annual Price (₹) <span style={{ color: '#ef4444' }}>*</span></label>
                 <input
-                  type="number" required
-                  value={formState.annualPrice} onChange={e => setFormState({ ...formState, annualPrice: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--border-color)', borderRadius: '8px', fontSize: '0.82rem' }}
+                  type="number"
+                  min="0"
+                  value={formState.annualPrice}
+                  onChange={e => {
+                    setFormState({ ...formState, annualPrice: e.target.value });
+                    if (errors.annualPrice) setErrors({ ...errors, annualPrice: '' });
+                  }}
+                  placeholder="e.g. 5000"
+                  style={{ width: '100%', padding: '9px 12px', border: errors.annualPrice ? '1.5px solid #ef4444' : '1.5px solid var(--border-color)', background: errors.annualPrice ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', borderRadius: '8px', fontSize: '0.82rem', outline: 'none', transition: 'border-color 0.15s' }}
                 />
+                {errors.annualPrice && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.annualPrice}</span>}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>

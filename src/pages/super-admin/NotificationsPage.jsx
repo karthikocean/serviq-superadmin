@@ -19,6 +19,7 @@ import {
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
 import { getNotifications, createNotification, cancelNotification, sendDraftNotification, deleteNotification } from '../../services/notificationService'
 import { getAllPlansApi } from '../../services/planService'
 import { useAuth } from '../../contexts/AuthContext'
@@ -437,13 +438,15 @@ export default function NotificationsPage() {
               {/* Type */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Notification Type</label>
-                <select
+                <CustomSelect
+                  options={types.map(t => ({ value: t, label: t }))}
                   value={newNtf.type}
-                  onChange={(e) => setNewNtf({ ...newNtf, type: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                >
-                  {types.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  onChange={(val) => {
+                    const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                    setNewNtf({ ...newNtf, type: selected })
+                  }}
+                  placeholder="Select Notification Type"
+                />
               </div>
 
               {/* Target Audience Segmented Control */}
@@ -476,25 +479,25 @@ export default function NotificationsPage() {
               {/* Conditional Target Inputs */}
               {newNtf.targetType === 'PLAN' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.targetPlan ? '#ef4444' : 'var(--text-main)' }}>Select Plan *</label>
-                  <select
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Plan *</label>
+                  <CustomSelect
+                    options={plans.map(p => ({ value: p._id || p.id, label: p.planName }))}
                     value={newNtf.targetPlan}
-                    onChange={(e) => {
-                      setNewNtf({ ...newNtf, targetPlan: e.target.value })
+                    onChange={(val) => {
+                      const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                      setNewNtf({ ...newNtf, targetPlan: selected })
                       if (errors.targetPlan) setErrors({ ...errors, targetPlan: '' })
                     }}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${errors.targetPlan ? '#ef4444' : 'var(--border-color)'}`, background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                  >
-                    <option value="" disabled>-- Select Subscription Plan --</option>
-                    {plans.map(p => <option key={p._id || p.id} value={p._id || p.id}>{p.planName}</option>)}
-                  </select>
+                    error={errors.targetPlan}
+                    placeholder="-- Select Subscription Plan --"
+                  />
                   {errors.targetPlan && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.targetPlan}</span>}
                 </div>
               )}
 
               {newNtf.targetType === 'RESTAURANT' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.targetRestaurants ? '#ef4444' : 'var(--text-main)' }}>Select Restaurants *</label>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Restaurants *</label>
                   
                   <div style={{ position: 'relative' }}>
                     <div 
@@ -534,7 +537,7 @@ export default function NotificationsPage() {
 
               {/* Subject */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.subject ? '#ef4444' : 'var(--text-main)' }}>Message Subject *</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Message Subject *</label>
                 <input
                   type="text"
                   value={newNtf.subject}
@@ -550,7 +553,7 @@ export default function NotificationsPage() {
 
               {/* Message Body */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: errors.body ? '#ef4444' : 'var(--text-main)' }}>Message Body (Content) *</label>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Message Body (Content) *</label>
                 <textarea
                   rows="4"
                   value={newNtf.body}
@@ -580,7 +583,7 @@ export default function NotificationsPage() {
               {newNtf.isScheduled && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: errors.scheduledDate ? '#ef4444' : 'var(--text-main)' }}>Date *</label>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-main)' }}>Date *</label>
                     <input
                       type="date"
                       value={newNtf.scheduledDate}
@@ -593,7 +596,7 @@ export default function NotificationsPage() {
                     {errors.scheduledDate && <span style={{ fontSize: '0.65rem', color: '#ef4444' }}>{errors.scheduledDate}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: errors.scheduledTime ? '#ef4444' : 'var(--text-main)' }}>Time *</label>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-main)' }}>Time *</label>
                     <input
                       type="time"
                       value={newNtf.scheduledTime}

@@ -1,50 +1,14 @@
-import axios from "axios";
+import apiClient, { BASE_URL, IMAGE_BASE_URL, server } from "../config/index.js";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const api = apiClient;
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-api.interceptors.request.use(
-  (config) => {
-    const token = sessionStorage.getItem("superadmin_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const status = error.response?.status;
-    const code = error.response?.data?.code;
-    const isUnauthorized = status === 401;
-    const isDeactivated = status === 403 && (code === 'USER_INACTIVE' || code === 'ROLE_INACTIVE');
-
-    if ((isUnauthorized || isDeactivated) && window.location.pathname !== '/login') {
-      sessionStorage.removeItem('superadmin_token');
-      sessionStorage.removeItem('superadmin_user');
-      sessionStorage.removeItem('superadmin_roleName');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+export { BASE_URL, IMAGE_BASE_URL, server, apiClient };
 
 export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append("image", file);
   const response = await api.post("/upload", formData, {
-    baseURL: API_URL.replace(/\/super-admin\/?$/, ""),
+    baseURL: `${server}/api`,
     headers: {
       "Content-Type": "multipart/form-data",
     },

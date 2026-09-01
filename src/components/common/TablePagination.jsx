@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
 export const TableTopControls = ({
   entriesPerPage = 10,
@@ -22,27 +23,19 @@ export const TableTopControls = ({
       {showEntriesSelector ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: '500' }}>
           <span>Show</span>
-          <select
-            value={entriesPerPage}
-            onChange={(e) => onEntriesPerPageChange(Number(e.target.value))}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '8px',
-              border: '1.5px solid #cbd5e1',
-              background: '#ffffff',
-              color: '#0f172a',
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              outline: 'none'
-            }}
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
+          <div style={{ width: '80px' }}>
+            <CustomSelect
+              options={[
+                { value: 5, label: '5' },
+                { value: 10, label: '10' },
+                { value: 25, label: '25' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' }
+              ]}
+              value={entriesPerPage}
+              onChange={(val) => onEntriesPerPageChange(Number(typeof val === 'object' && val !== null && val.target ? val.target.value : val))}
+            />
+          </div>
           <span>entries</span>
         </div>
       ) : <div />}
@@ -61,7 +54,12 @@ export const TableTopControls = ({
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
+                e.preventDefault();
+              }
+            }}
+            onChange={(e) => onSearchChange(e.target.value.replace(/\s+/g, ''))}
             placeholder={searchPlaceholder}
             style={{
               width: '100%',

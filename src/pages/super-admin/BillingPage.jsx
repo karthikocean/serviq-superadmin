@@ -7,10 +7,11 @@ import {
   AlertTriangle,
   X
 } from 'lucide-react'
+import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
 
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
       {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
     </label>
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -41,38 +42,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   </div>
 )
 
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+
 
 import { useSearchParams } from 'react-router-dom'
 import { useRestaurant } from '../../hooks/useRestaurants'
@@ -113,21 +83,22 @@ export default function BillingPage() {
                   type="text"
                   placeholder="Search..."
                   value={invoiceSearchQuery}
-                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onChange={(e) => setInvoiceSearchQuery(e.target.value.replace(/\s+/g, ''))}
                   style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.75rem', width: '180px' }}
                 />
 
-                <select
-                  value={invoiceStatusFilter}
-                  onChange={(e) => setInvoiceStatusFilter(e.target.value)}
-                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.75rem', cursor: 'pointer' }}
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Failed">Failed</option>
-                  <option value="Refunded">Refunded</option>
-                </select>
+                <div style={{ width: '140px' }}>
+                  <CustomSelect
+                    options={['All', 'Paid', 'Pending', 'Failed', 'Refunded'].map(s => ({ value: s, label: s === 'All' ? 'All Statuses' : s }))}
+                    value={invoiceStatusFilter}
+                    onChange={(val) => setInvoiceStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                  />
+                </div>
               </div>
             </div>
 

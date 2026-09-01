@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight } from 'lucide-react';
 import PaymentDetailsForm from './PaymentDetailsForm';
+import CustomSelect from '../common/CustomSelect';
 import { usePlans } from '../../hooks/usePlans';
 import { prorateChangePlanAPI } from '../../services/api';
 
@@ -106,20 +107,18 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
             
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>Select New Plan</span>
-              <select
+              <CustomSelect
+                options={(plans?.filter(p => p.name !== subscription.planName && p.status === 'Active') || []).map(p => ({
+                  value: p._id,
+                  label: `${p.name} - ₹${p.monthlyPrice || p.annualPrice}`
+                }))}
                 value={selectedPlanId}
-                onChange={(e) => setSelectedPlanId(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 12px', border: '1.5px solid var(--primary)', 
-                  background: '#fff', color: 'var(--text-main)', borderRadius: '8px', 
-                  fontSize: '0.82rem', outline: 'none', cursor: 'pointer', fontWeight: '700'
+                onChange={(val) => {
+                  const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                  setSelectedPlanId(selected)
                 }}
-              >
-                <option value="" disabled>Choose Plan</option>
-                {plans?.filter(p => p.name !== subscription.planName && p.status === 'Active').map(p => (
-                  <option key={p._id} value={p._id}>{p.name} - ₹{p.monthlyPrice || p.annualPrice}</option>
-                ))}
-              </select>
+                placeholder="Choose Plan"
+              />
             </div>
           </div>
           

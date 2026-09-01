@@ -4,6 +4,7 @@ import { Plus, Unlock, Lock, Edit2, Trash2, AlertTriangle } from 'lucide-react'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useRoles } from '../../hooks/useRoles'
 import { useAuth } from '../../contexts/AuthContext'
+import CustomSelect from '../../components/common/CustomSelect'
 
 export default function RolesPage() {
   const { roles, loading, createRole, updateRole, deleteRole } = useRoles()
@@ -333,13 +334,13 @@ export default function RolesPage() {
   const toggleSelectAll = (action) => {
     const modulesList = ['dashboard', 'coupons', 'restaurants', 'plans', 'subscriptions', 'billing', 'leads', 'tickets', 'notifications', 'reports', 'adminUsers', 'roles', 'settings', 'profile']
     const allChecked = modulesList.every(
-      module => roleFormState.perms[module]?.[action]
+      module => !!roleFormState.perms?.[module]?.[action]
     )
-    const updatedPerms = { ...roleFormState.perms }
+    const updatedPerms = { ...(roleFormState.perms || {}) }
     const nextVal = !allChecked
     modulesList.forEach(module => {
       updatedPerms[module] = {
-        ...updatedPerms[module],
+        ...(updatedPerms[module] || { view: false, add: false, edit: false, delete: false }),
         [action]: nextVal
       }
     })
@@ -350,8 +351,9 @@ export default function RolesPage() {
   }
 
   const isAllChecked = (action) => {
-    return ['dashboard', 'coupons', 'restaurants', 'plans', 'subscriptions', 'billing', 'leads', 'tickets', 'notifications', 'reports', 'adminUsers', 'roles', 'settings', 'profile'].every(
-      module => roleFormState.perms[module]?.[action]
+    const modulesList = ['dashboard', 'coupons', 'restaurants', 'plans', 'subscriptions', 'billing', 'leads', 'tickets', 'notifications', 'reports', 'adminUsers', 'roles', 'settings', 'profile']
+    return modulesList.every(
+      module => !!roleFormState.perms?.[module]?.[action]
     )
   }
 
@@ -382,7 +384,7 @@ export default function RolesPage() {
         <form onSubmit={handleSaveRole} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             <div className="form-group">
-              <label style={{ fontSize: '0.85rem', fontWeight: '700', color: roleFormErrors.name ? '#dc2626' : '#334155', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
                 Role Name <span style={{ color: '#d81b60' }}>*</span>
               </label>
               <div style={{ position: 'relative' }}>
@@ -440,26 +442,17 @@ export default function RolesPage() {
               <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
                 Role Status
               </label>
-              <select
+              <CustomSelect
+                options={[
+                  { value: 'Active', label: 'Active' },
+                  { value: 'Disabled', label: 'Disabled' }
+                ]}
                 value={roleFormState.status || 'Active'}
-                onChange={(e) => setRoleFormState({ ...roleFormState, status: e.target.value })}
-                required
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                  height: '46px',
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
+                onChange={(val) => {
+                  const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                  setRoleFormState({ ...roleFormState, status: selected })
                 }}
-              >
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
-              </select>
+              />
             </div>
           </div>
 
@@ -582,10 +575,11 @@ export default function RolesPage() {
           {canAdd && (
             <button
               onClick={() => {
-                setShowAddRoleModal(true)
+                setEditingRoleId('new')
                 setRoleFormErrors({})
                 setRoleFormState({
                   name: '',
+                  slug: '',
                   desc: '',
                   status: 'Active',
                   perms: {

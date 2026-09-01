@@ -13,6 +13,7 @@ import {
   Layers
 } from 'lucide-react'
 import ManageAddonsMasterModal from '../../components/Payment/ManageAddonsMasterModal'
+import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { useAuth } from '../../contexts/AuthContext'
 
 // Reusable validated input component
@@ -21,7 +22,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -75,39 +76,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-// Reusable validated select component
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+
 
 const CORE_FEATURES = [
   { label: 'Menu Management', key: 'menu' },
@@ -122,6 +91,55 @@ const initialFeatures = CORE_FEATURES.reduce((acc, feat) => {
   acc[feat.key] = false;
   return acc;
 }, {})
+
+const isFeatureAccessible = (plan, feat) => {
+  if (!plan) return false;
+
+  // 1. Explicit boolean in featuresIncluded object
+  if (plan.featuresIncluded && typeof plan.featuresIncluded === 'object' && !Array.isArray(plan.featuresIncluded)) {
+    if (plan.featuresIncluded[feat.key] !== undefined) {
+      return Boolean(plan.featuresIncluded[feat.key]);
+    }
+  }
+
+  // 2. Populated modules or string keys array
+  if (Array.isArray(plan.featuresIncluded) && plan.featuresIncluded.length > 0) {
+    return plan.featuresIncluded.some(item => {
+      if (typeof item === 'string') {
+        return item.toLowerCase() === feat.key.toLowerCase() || item.toLowerCase() === feat.label.toLowerCase();
+      }
+      if (item && typeof item === 'object') {
+        return (item.key && item.key.toLowerCase() === feat.key.toLowerCase()) ||
+               (item.name && item.name.toLowerCase() === feat.label.toLowerCase());
+      }
+      return false;
+    });
+  }
+
+  // 3. String features array
+  if (Array.isArray(plan.features) && plan.features.length > 0) {
+    return plan.features.some(f => 
+      typeof f === 'string' && (f.toLowerCase() === feat.label.toLowerCase() || f.toLowerCase() === feat.key.toLowerCase())
+    );
+  }
+
+  // 4. Fallback based on plan tier name
+  const pName = (plan.name || plan.planName || '').toLowerCase();
+  const isPremium = pName.includes('premium');
+  const isStandard = pName.includes('standard');
+
+  if (feat.key === 'menu' || feat.key === 'tables' || feat.key === 'orders') {
+    return true;
+  }
+  if (feat.key === 'waiter-list' || feat.key === 'kitchen-list') {
+    return isStandard || isPremium;
+  }
+  if (feat.key === 'inventory') {
+    return isPremium;
+  }
+
+  return false;
+};
 
 import { getAllPlansApi, createPlanApi, updatePlanApi, deletePlanApi } from '../../services/planService'
 import { useNotification } from '../../contexts/NotificationContext'
@@ -190,6 +208,11 @@ export default function PlansPage() {
     if (editingPlanId && editingPlanId !== 'new') {
       const planToEdit = plans.find(p => p.id === editingPlanId)
       if (planToEdit) {
+        const featuresMap = { ...initialFeatures }
+        CORE_FEATURES.forEach(feat => {
+          featuresMap[feat.key] = isFeatureAccessible(planToEdit, feat)
+        })
+
         setPlanFormState({
           name: planToEdit.name || '',
           description: planToEdit.description || '',
@@ -198,7 +221,7 @@ export default function PlansPage() {
           branchLimit: planToEdit.branchLimit || 3,
           userLimit: planToEdit.userLimit || 99999,
           orderLimit: planToEdit.orderLimit || 99999,
-          featuresIncluded: planToEdit.featuresIncluded || { ...initialFeatures },
+          featuresIncluded: featuresMap,
           status: planToEdit.status || 'Active'
         })
       }
@@ -361,7 +384,7 @@ export default function PlansPage() {
             />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.description ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
                 Plan Description<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <textarea
@@ -415,7 +438,7 @@ export default function PlansPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: formErrors.featuresIncluded ? '#ef4444' : 'var(--text-main)' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
                 Features Included<span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
               <div style={{
@@ -627,22 +650,21 @@ export default function PlansPage() {
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Includes Features:</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {CORE_FEATURES.map((feat, idx) => {
-                      if (feat.key === 'inventory' && !isPremium) return null
-
-                      const isIncluded = (feat.key === 'inventory' && isPremium) || plan.featuresIncluded?.[feat.key]
+                      const isIncluded = isFeatureAccessible(plan, feat)
                       return (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.4 }}>
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', opacity: isIncluded ? 1 : 0.42 }}>
                           <div style={{
-                            width: '14px',
-                            height: '14px',
+                            width: '15px',
+                            height: '15px',
                             borderRadius: '50%',
-                            background: isIncluded ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.1)',
+                            background: isIncluded ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: isIncluded ? '#10b981' : '#64748b'
+                            color: isIncluded ? '#10b981' : '#94a3b8',
+                            flexShrink: 0
                           }}>
-                            {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '8px', height: '8px' }} />}
+                            {isIncluded ? <Check style={{ width: '10px', height: '10px', strokeWidth: '3px' }} /> : <X style={{ width: '9px', height: '9px', strokeWidth: '2.5px' }} />}
                           </div>
                           <span style={{ fontWeight: isIncluded ? '700' : '500', color: isIncluded ? 'var(--text-main)' : 'var(--text-muted)' }}>{feat.label}</span>
                         </div>

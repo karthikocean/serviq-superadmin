@@ -187,7 +187,7 @@ export default function CouponsPage() {
                 <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)' }}>
                   {editingCouponId ? 'EDIT COUPON' : 'CREATE COUPON'}
                 </h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Configure promotional codes and discounts for restaurants.</p>
+               
               </div>
             </div>
 
@@ -198,7 +198,7 @@ export default function CouponsPage() {
                 {/* Row 1 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.code ? '#ef4444' : 'var(--text-main)' }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Coupon Code <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="text" 
                       name="code"
@@ -210,7 +210,7 @@ export default function CouponsPage() {
                     {errors.code && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.code}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.name ? '#ef4444' : 'var(--text-main)' }}>Coupon Name <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Coupon Name <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="text" 
                       name="name"
@@ -239,7 +239,7 @@ export default function CouponsPage() {
                 {/* Row 3 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.type ? '#ef4444' : 'var(--text-main)' }}>Discount Type <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Discount Type <span style={{ color: '#ef4444' }}>*</span></label>
                     <div style={{ border: errors.type ? '1.5px solid #ef4444' : 'none', borderRadius: '8px', transition: 'border-color 0.15s' }}>
                       <CustomSelect 
                         options={['Percentage', 'Fixed Amount']}
@@ -251,7 +251,7 @@ export default function CouponsPage() {
                     {errors.type && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.type}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.value ? '#ef4444' : 'var(--text-main)' }}>Discount Value <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Discount Value <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="number" 
                       name="value"
@@ -298,7 +298,7 @@ export default function CouponsPage() {
 
                 {/* Applicable Plans */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.plans ? '#ef4444' : 'var(--text-main)' }}>Applicable Plans <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Applicable Plans <span style={{ color: '#ef4444' }}>*</span></label>
                   <div style={{ border: errors.plans ? '1.5px solid #ef4444' : 'none', borderRadius: '8px', transition: 'border-color 0.15s' }}>
                     <CustomSelect 
                       options={availablePlans}
@@ -314,7 +314,7 @@ export default function CouponsPage() {
                 {/* Row 5 */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.startDate ? '#ef4444' : 'var(--text-main)' }}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="date" 
                       name="startDate"
@@ -325,7 +325,7 @@ export default function CouponsPage() {
                     {errors.startDate && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.startDate}</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: errors.endDate ? '#ef4444' : 'var(--text-main)' }}>End Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-main)' }}>End Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input 
                       type="date" 
                       name="endDate"

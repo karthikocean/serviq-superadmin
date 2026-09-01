@@ -34,3 +34,27 @@ export const updatePassword = async (data) => {
   return response.data;
 };
 
+export const forgotPassword = async (email) => {
+  try {
+    const response = await api.post("/auth/forgot-password", { email });
+    return response.data;
+  } catch (error) {
+    return {
+      error: true,
+      message: error.response?.data?.message || 'Failed to request password reset'
+    };
+  }
+};
+
+export const resetPassword = async (data) => {
+  try {
+    const response = await api.post("/auth/reset-password", data);
+    return response.data;
+  } catch (error) {
+    return {
+      error: true,
+      message: error.response?.data?.message || 'Failed to reset password'
+    };
+  }
+};
+

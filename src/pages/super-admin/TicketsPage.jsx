@@ -19,6 +19,7 @@ import {
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
 import { getTickets, createTicket, updateTicketStatus, assignTicket } from '../../services/ticketService'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -44,6 +45,7 @@ export default function TicketsPage() {
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [assignUser, setAssignUser] = useState('')
   const [assignTicketId, setAssignTicketId] = useState(null)
+  const [assignError, setAssignError] = useState('')
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
@@ -114,7 +116,11 @@ export default function TicketsPage() {
 
   const handleAssignTicketSubmit = async (e) => {
     e.preventDefault()
-    if (!assignUser) return
+    if (!assignUser) {
+      setAssignError('Please select a support agent')
+      return
+    }
+    setAssignError('')
     try {
       await assignTicket(assignTicketId, assignUser)
       setAssignTicketId(null)
@@ -227,7 +233,12 @@ export default function TicketsPage() {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
+                    e.preventDefault();
+                  }
+                }}
+                onChange={(e) => setSearchTerm(e.target.value.replace(/\s+/g, ''))}
                 placeholder="Search ticket number, subject, restaurant..."
                 style={{
                   width: '100%',
@@ -245,33 +256,30 @@ export default function TicketsPage() {
             </div>
 
             {/* Filter Dropdowns */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{ padding: '9px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
-              >
-                <option value="All">All Statuses</option>
-                {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ width: '145px' }}>
+                <CustomSelect
+                  options={['All', ...statuses].map(s => ({ value: s, label: s === 'All' ? 'All Statuses' : s }))}
+                  value={statusFilter}
+                  onChange={(val) => setStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                />
+              </div>
 
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                style={{ padding: '9px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
-              >
-                <option value="All">All Priorities</option>
-                {priorities.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <div style={{ width: '145px' }}>
+                <CustomSelect
+                  options={['All', ...priorities].map(p => ({ value: p, label: p === 'All' ? 'All Priorities' : p }))}
+                  value={priorityFilter}
+                  onChange={(val) => setPriorityFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                />
+              </div>
 
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ padding: '9px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
-              >
-                <option value="All">All Categories</option>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div style={{ width: '155px' }}>
+                <CustomSelect
+                  options={['All', ...categories].map(c => ({ value: c, label: c === 'All' ? 'All Categories' : c }))}
+                  value={categoryFilter}
+                  onChange={(val) => setCategoryFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -445,18 +453,24 @@ export default function TicketsPage() {
             </h3>
 
             <form onSubmit={handleAssignTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Support Agent</label>
-                <select
+                <ValidatedSelect
+                  label="Support Agent"
+                  required
                   value={assignUser}
-                  onChange={(e) => setAssignUser(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', outline: 'none' }}
-                >
-                  <option value="">Select Agent</option>
-                  <option value="Unassigned">Unassigned</option>
-                  {supportStaff.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+                  onChange={(e) => {
+                    const selected = typeof e === 'object' && e !== null && e.target ? e.target.value : e
+                    setAssignUser(selected)
+                    if (assignError) setAssignError('')
+                  }}
+                  error={assignError}
+                  setError={setAssignError}
+                  options={[
+                    { value: '', label: 'Select Agent' },
+                    { value: 'Unassigned', label: 'Unassigned' },
+                    ...supportStaff.map(s => ({ value: s, label: s }))
+                  ]}
+                  placeholder="Select Agent"
+                />
 
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                 <button type="submit" className="btn-black" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#000000', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}>Reassign</button>

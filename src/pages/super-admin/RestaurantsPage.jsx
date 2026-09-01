@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+import { ValidatedSelect } from '../../components/common/CustomSelect'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -33,7 +34,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -122,72 +123,77 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-// ─── Reusable validated select component ───
-const ValidatedSelect = ({ label, value, onChange, required, error, setError, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <select
-      value={value}
-      onChange={(e) => {
-        onChange(e)
-        if (error && setError) setError('')
-      }}
-      required={required}
-      style={{
-        width: '100%',
-        padding: '9px 12px',
-        border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-        background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-        color: 'var(--text-main)',
-        borderRadius: '8px',
-        fontSize: '0.82rem',
-        outline: 'none',
-        cursor: 'pointer',
-        boxSizing: 'border-box',
-        transition: 'border-color 0.15s'
-      }}
-      {...rest}
-    >
-      {children}
-    </select>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
 
 // ─── Custom Image File Upload Button Component ───
-const ImageUploadButton = ({ label, value, onChange, onClear }) => {
+const ImageUploadButton = ({ label, value, onChange, onClear, error, setError }) => {
   const fileInputRef = useRef(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [localError, setLocalError] = useState('')
 
   const handleFileChange = async (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setIsUploading(true)
-      try {
-        const response = await uploadImage(file)
-        if (response.success && response.url) {
-          onChange(response.url)
-        } else if (response.data && response.data.url) {
-          onChange(response.data.url)
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+    const allowedExtensions = /\.(jpe?g|png|webp|gif|svg)$/i
+
+    // Validate file format
+    if (!allowedMimeTypes.includes(file.type) && !allowedExtensions.test(file.name)) {
+      const err = 'Invalid file format. Please select an image file (JPG, PNG, WEBP, GIF, SVG).'
+      setLocalError(err)
+      if (setError) setError(err)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      const err = 'File size exceeds 5MB limit. Please upload a smaller image.'
+      setLocalError(err)
+      if (setError) setError(err)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    setLocalError('')
+    if (setError) setError('')
+    setIsUploading(true)
+    try {
+      const response = await uploadImage(file)
+      if (response && response.success && response.url) {
+        onChange(response.url)
+      } else if (response && response.data && response.data.url) {
+        onChange(response.data.url)
+      } else if (typeof response === 'string') {
+        onChange(response)
+      } else {
+        // Fallback Data URL
+        const reader = new FileReader()
+        reader.onload = (uploadEvt) => {
+          onChange(uploadEvt.target.result)
         }
-      } catch (error) {
-        console.error("Upload failed", error)
-      } finally {
-        setIsUploading(false)
+        reader.readAsDataURL(file)
       }
+    } catch (error) {
+      console.error("Upload failed", error)
+      const err = error.response?.data?.message || 'Failed to upload image. Please try again.'
+      setLocalError(err)
+      if (setError) setError(err)
+    } finally {
+      setIsUploading(false)
     }
   }
 
+  const displayedError = localError || error
+
   return (
     <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)' }}>{label}</label>
+      {label && <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)' }}>{label}</label>}
 
       <input
         type="file"
         ref={fileInputRef}
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
         onChange={handleFileChange}
         style={{ display: 'none' }}
         disabled={isUploading}
@@ -196,33 +202,42 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            setLocalError('')
+            if (setError) setError('')
+            fileInputRef.current?.click()
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
             padding: '7px 14px',
             borderRadius: '8px',
-            background: 'var(--bg-app)',
-            border: '1px dashed var(--border-color)',
-            color: 'var(--text-main)',
+            background: displayedError ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
+            border: displayedError ? '1.5px dashed #ef4444' : '1px dashed var(--border-color)',
+            color: displayedError ? '#ef4444' : 'var(--text-main)',
             fontSize: '0.78rem',
             fontWeight: '700',
             cursor: 'pointer',
             transition: 'all 0.15s'
           }}
           onMouseOver={(e) => {
-            e.currentTarget.style.borderColor = 'var(--primary, #f95e10)'
-            e.currentTarget.style.color = 'var(--primary, #f95e10)'
+            if (!displayedError) {
+              e.currentTarget.style.borderColor = 'var(--primary, #f95e10)'
+              e.currentTarget.style.color = 'var(--primary, #f95e10)'
+            }
           }}
           onMouseOut={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border-color)'
-            e.currentTarget.style.color = 'var(--text-main)'
+            if (!displayedError) {
+              e.currentTarget.style.borderColor = 'var(--border-color)'
+              e.currentTarget.style.color = 'var(--text-main)'
+            }
           }}
         >
           <Upload style={{ width: '14px', height: '14px' }} />
           {isUploading ? 'Uploading...' : 'Choose Image File'}
         </button>
+        
 
         {value ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -234,7 +249,12 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
             <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
             <button
               type="button"
-              onClick={onClear}
+              onClick={() => {
+                setLocalError('')
+                if (setError) setError('')
+                if (fileInputRef.current) fileInputRef.current.value = ''
+                onClear()
+              }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', display: 'flex', alignItems: 'center' }}
               title="Remove image"
             >
@@ -245,6 +265,12 @@ const ImageUploadButton = ({ label, value, onChange, onClear }) => {
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>No file chosen</span>
         )}
       </div>
+
+      {displayedError && (
+        <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600', marginTop: '2px' }}>
+          {displayedError}
+        </span>
+      )}
     </div>
   )
 }
@@ -307,7 +333,7 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }} ref={dropdownRef}>
-      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: error ? '#ef4444' : 'var(--text-main)' }}>
+      <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
       </label>
       <div style={{ display: 'flex', gap: '6px' }}>
@@ -547,7 +573,9 @@ export default function RestaurantsPage() {
           openingTime: rest.openingTime || '',
           closingTime: rest.closingTime || '',
           status: rest.status || 'Active',
-          logo: rest.logo || ''
+          logo: rest.logo || '',
+          password: '',
+          confirmPassword: ''
         })
       }
     }
@@ -638,7 +666,9 @@ export default function RestaurantsPage() {
       openingTime: rest.openingTime || '',
       closingTime: rest.closingTime || '',
       status: rest.status || 'Active',
-      logo: rest.logo || ''
+      logo: rest.logo || '',
+      password: '',
+      confirmPassword: ''
     })
   }
 
@@ -749,7 +779,9 @@ export default function RestaurantsPage() {
         startDate: newRestState.startDate || undefined,
         endDate: newRestState.endDate || undefined,
         renewalDate: newRestState.renewalDate || undefined,
-        leadId: conversionLeadId || undefined
+        leadId: conversionLeadId || undefined,
+        status: newRestState.status || 'Active',
+        isActive: (newRestState.status || 'Active') === 'Active'
       };
 
       const response = await createRestaurant(payload);
@@ -897,6 +929,17 @@ export default function RestaurantsPage() {
       errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
     }
 
+    const hasPassword = editFormState.password && String(editFormState.password).trim() !== ''
+    const hasConfirmPassword = editFormState.confirmPassword && String(editFormState.confirmPassword).trim() !== ''
+
+    if (hasPassword && !hasConfirmPassword) {
+      errors.confirmPassword = 'Confirm Password is required'
+    } else if (!hasPassword && hasConfirmPassword) {
+      errors.password = 'New Password is required'
+    } else if (hasPassword && hasConfirmPassword && editFormState.password !== editFormState.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match'
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
@@ -922,7 +965,10 @@ export default function RestaurantsPage() {
         closingTime: editFormState.closingTime,
         logoUrl: editFormState.logo,
         bannerUrl: editFormState.banner,
-        websiteDomain: editFormState.website
+        websiteDomain: editFormState.website,
+        status: editFormState.status || 'Active',
+        isActive: (editFormState.status || 'Active') === 'Active',
+        ...(hasPassword ? { password: editFormState.password } : {})
       }
       
       const response = await updateRestaurantApi(targetRest._id, payload);
@@ -1096,8 +1142,16 @@ export default function RestaurantsPage() {
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
                       value={newRestState.logo}
-                      onChange={(dataUrl) => setNewRestState(prev => ({ ...prev, logo: dataUrl }))}
-                      onClear={() => setNewRestState(prev => ({ ...prev, logo: '' }))}
+                      onChange={(dataUrl) => {
+                        setNewRestState(prev => ({ ...prev, logo: dataUrl }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      onClear={() => {
+                        setNewRestState(prev => ({ ...prev, logo: '' }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      error={formErrors.logo}
+                      setError={(val) => setFormErrors(prev => ({ ...prev, logo: val }))}
                     />
                   </div>
                 </div>
@@ -1507,9 +1561,9 @@ export default function RestaurantsPage() {
                                 fontWeight: '800',
                                 padding: '4px 10px',
                                 borderRadius: '6px',
-                                background: rest.subscriptionPlan?.includes('Premium') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: rest.subscriptionPlan?.includes('Premium') ? '#3b82f6' : '#10b981',
-                                border: rest.subscriptionPlan?.includes('Premium') ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+                                background: rest.subscriptionPlan?.toLowerCase().includes('premium') ? 'rgba(59, 130, 246, 0.1)' : rest.subscriptionPlan?.toLowerCase().includes('basic') ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                color: rest.subscriptionPlan?.toLowerCase().includes('premium') ? '#3b82f6' : rest.subscriptionPlan?.toLowerCase().includes('basic') ? '#f59e0b' : '#10b981',
+                                border: rest.subscriptionPlan?.toLowerCase().includes('premium') ? '1px solid rgba(59, 130, 246, 0.2)' : rest.subscriptionPlan?.toLowerCase().includes('basic') ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
                                 display: 'inline-block',
                                 lineHeight: 1
                               }}>
@@ -1544,7 +1598,7 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
 
-                              {/* Suspend / Resume action */}
+                              {/* Suspend / Inactivate / Activate action */}
                               {canEdit && (
                                 <button
                                   style={{
@@ -1552,7 +1606,7 @@ export default function RestaurantsPage() {
                                     border: 'none',
                                     cursor: 'pointer',
                                     padding: '6px',
-                                    color: rest.status === 'Suspended' ? '#ef4444' : '#10b981',
+                                    color: (rest.status === 'Suspended' || rest.status === 'Inactive') ? '#ef4444' : '#10b981',
                                     transition: 'opacity 0.2s',
                                     display: 'flex',
                                     alignItems: 'center'
@@ -1560,7 +1614,8 @@ export default function RestaurantsPage() {
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     try {
-                                      const nextStatusStr = rest.status === 'Suspended' ? 'Active' : 'Suspended';
+                                      const isCurrentlyInactive = rest.status === 'Suspended' || rest.status === 'Inactive' || rest.isActive === false;
+                                      const nextStatusStr = isCurrentlyInactive ? 'Active' : 'Inactive';
                                       const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
                                       if (response.success) {
                                          await fetchRestaurants();
@@ -1570,9 +1625,9 @@ export default function RestaurantsPage() {
                                        showToast('error', err.response?.data?.message || 'Error updating status');
                                     }
                                   }}
-                                  title={rest.status === 'Suspended' ? "Activate Restaurant" : "Suspend Restaurant"}
+                                  title={(rest.status === 'Suspended' || rest.status === 'Inactive') ? "Activate Restaurant" : "Deactivate / Inactivate Restaurant"}
                                 >
-                                  {rest.status === 'Suspended' ? (
+                                  {(rest.status === 'Suspended' || rest.status === 'Inactive') ? (
                                     <Lock style={{ width: '16px', height: '16px' }} />
                                   ) : (
                                     <Unlock style={{ width: '16px', height: '16px' }} />
@@ -1818,6 +1873,9 @@ export default function RestaurantsPage() {
               </div>
 
               <form onSubmit={handleUpdateRestaurantSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Chrome AutoFill Trap */}
+                <input type="text" name="chrome_fake_user" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+                <input type="password" name="chrome_fake_pass" style={{ display: 'none' }} tabIndex={-1} autoComplete="new-password" />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedInput
                     label="Business Name"
@@ -2037,8 +2095,61 @@ export default function RestaurantsPage() {
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
                       value={editFormState.logo}
-                      onChange={(dataUrl) => setEditFormState(prev => ({ ...prev, logo: dataUrl }))}
-                      onClear={() => setEditFormState(prev => ({ ...prev, logo: '' }))}
+                      onChange={(dataUrl) => {
+                        setEditFormState(prev => ({ ...prev, logo: dataUrl }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      onClear={() => {
+                        setEditFormState(prev => ({ ...prev, logo: '' }))
+                        if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
+                      }}
+                      error={formErrors.logo}
+                      setError={(val) => setFormErrors(prev => ({ ...prev, logo: val }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Password Management */}
+                <div style={{
+                  background: 'var(--bg-app)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  marginTop: '8px'
+                }}>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Lock style={{ width: '15px', height: '15px', color: '#F95E10' }} />
+                    Password Management
+                  </h4>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <ValidatedInput
+                      label="New Password"
+                      type="password"
+                      value={editFormState.password || ''}
+                      onChange={(e) => setEditFormState({ ...editFormState, password: e.target.value })}
+                      placeholder="Enter new password (leave blank to keep current)"
+                      preventAutofill={true}
+                      autoComplete="new-password"
+                      name="edit_rest_new_password"
+                      error={formErrors.password}
+                      setError={(val) => setFormErrors({ ...formErrors, password: val })}
+                    />
+                    
+                    <ValidatedInput
+                      label="Confirm Password"
+                      type="password"
+                      value={editFormState.confirmPassword || ''}
+                      onChange={(e) => setEditFormState({ ...editFormState, confirmPassword: e.target.value })}
+                      placeholder="Re-enter new password"
+                      preventAutofill={true}
+                      autoComplete="new-password"
+                      name="edit_rest_confirm_password"
+                      error={formErrors.confirmPassword}
+                      setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                     />
                   </div>
                 </div>
