@@ -10,11 +10,56 @@ import {
   Sparkles,
   Shield,
   ShieldAlert,
-  Layers
+  Layers,
+  ChevronDown
 } from 'lucide-react'
 import ManageAddonsMasterModal from '../../components/Payment/ManageAddonsMasterModal'
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { useAuth } from '../../contexts/AuthContext'
+
+// Reusable validated select component matching ValidatedInput size and styling exactly
+const ValidatedSelectInput = ({ label, value, onChange, required, error, children, ...rest }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
+      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+    </label>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <select
+        value={value}
+        onChange={onChange}
+        style={{
+          width: '100%',
+          height: '38px',
+          padding: '9px 32px 9px 12px',
+          border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
+          background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
+          color: 'var(--text-main)',
+          borderRadius: '8px',
+          fontSize: '0.82rem',
+          outline: 'none',
+          boxSizing: 'border-box',
+          cursor: 'pointer',
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          transition: 'border-color 0.15s'
+        }}
+        {...rest}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        size={15}
+        style={{
+          position: 'absolute',
+          right: '12px',
+          color: 'var(--text-muted, #94a3b8)',
+          pointerEvents: 'none'
+        }}
+      />
+    </div>
+    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
+  </div>
+)
 
 // Reusable validated input component
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -58,6 +103,7 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
           placeholder={placeholder}
           style={{
             width: '100%',
+            height: '38px',
             padding: '9px 12px',
             border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
             background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
@@ -490,14 +536,14 @@ export default function PlansPage() {
                 setError={(val) => setFormErrors({ ...formErrors, branchLimit: val })}
               />
 
-              <ValidatedSelect
+              <ValidatedSelectInput
                 label="Status"
                 value={planFormState.status}
                 onChange={(e) => setPlanFormState({ ...planFormState, status: e.target.value })}
               >
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
-              </ValidatedSelect>
+              </ValidatedSelectInput>
 
               {/* Hidden but preserved limits to maintain data schema compatibility */}
               <div style={{ display: 'none' }}>

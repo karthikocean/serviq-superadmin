@@ -229,6 +229,27 @@ export default function LeadsPage() {
   const openLeadsCount = leads.filter(lead => !['Won', 'Lost', 'Converted'].includes(lead.leadStatus)).length
   const wonLeadsCount = leads.filter(lead => lead.leadStatus === 'Won' || lead.leadStatus === 'Converted').length
   const upcomingFollowUpsCount = leads.filter(lead => lead.followUpDate && !['Won', 'Lost', 'Converted'].includes(lead.leadStatus)).length
+  const getLeadStatusStyle = (status) => {
+    switch (status) {
+      case 'Won':
+      case 'Converted':
+        return { bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)', dot: '#10b981' }
+      case 'Lost':
+      case 'Not Interested':
+        return { bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', dot: '#ef4444' }
+      case 'Interested':
+      case 'Proposal Sent':
+      case 'Negotiation':
+        return { bg: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.25)', dot: '#f59e0b' }
+      case 'Follow-up':
+      case 'Demo Scheduled':
+        return { bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.25)', dot: '#3b82f6' }
+      case 'New Lead':
+      case 'Contacted':
+      default:
+        return { bg: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)', dot: '#8b5cf6' }
+    }
+  }
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -285,8 +306,7 @@ export default function LeadsPage() {
                 type="button"
                 className={showCreateLeadForm ? 'btn-outline' : 'btn-black'}
                 onClick={() => {
-                  setFormErrors({})
-                  resetLeadForm()
+                  if (!showCreateLeadForm) resetLeadForm()
                   setShowCreateLeadForm(!showCreateLeadForm)
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', padding: '7px 14px' }}
@@ -296,6 +316,7 @@ export default function LeadsPage() {
             )}
           </div>
         </div>
+
 
         {showCreateLeadForm && (
           <div className="animate-fade-in" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
@@ -315,7 +336,7 @@ export default function LeadsPage() {
               />
               <ValidatedInput
                 label="Mobile Number"
-                type="text"
+                type="tel"
                 inputMode="numeric"
                 value={leadFormState.mobileNumber}
                 onChange={(e) => {
@@ -372,7 +393,7 @@ export default function LeadsPage() {
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Lead</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '180px' }}>Contact</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '110px' }}>Source</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '150px' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '170px' }}>Status</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '160px' }}>Assigned To</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '140px' }}>Follow-up</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Remarks</th>
@@ -383,7 +404,7 @@ export default function LeadsPage() {
                 {paginatedLeads.map((lead, idx) => (
                   <tr key={lead._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap', width: '65px' }}>
-                      {(currentPage - 1) * entriesPerPage + idx + 1}
+                      {currentPage * entriesPerPage + idx + 1}
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '200px' }}>
                       <strong style={{ color: 'var(--text-main)', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{lead.businessName}</strong>
@@ -397,15 +418,84 @@ export default function LeadsPage() {
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: 'nowrap', width: '110px' }}>
                       {lead.leadSource}
                     </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '150px' }}>
-                      <div style={{ width: '130px' }}>
-                        <CustomSelect
-                          options={leadStatuses.map(status => ({ value: status, label: status }))}
-                          value={lead.leadStatus}
-                          disabled={!canEdit}
-                          onChange={(val) => handleLeadStatusChange(lead._id, typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
-                        />
-                      </div>
+                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '170px' }}>
+                      {canEdit ? (
+                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: '100%', maxWidth: '150px' }}>
+                          <select
+                            value={lead.leadStatus}
+                            onChange={(e) => handleLeadStatusChange(lead._id, e.target.value)}
+                            style={{
+                              width: '100%',
+                              appearance: 'none',
+                              WebkitAppearance: 'none',
+                              padding: '6px 24px 6px 22px',
+                              borderRadius: '20px',
+                              fontSize: '0.74rem',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              background: getLeadStatusStyle(lead.leadStatus).bg,
+                              color: getLeadStatusStyle(lead.leadStatus).color,
+                              border: getLeadStatusStyle(lead.leadStatus).border,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {leadStatuses.map((st) => (
+                              <option key={st} value={st} style={{ background: '#ffffff', color: '#0f172a' }}>
+                                {st}
+                              </option>
+                            ))}
+                          </select>
+                          <span
+                            style={{
+                              position: 'absolute',
+                              left: '9px',
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              background: getLeadStatusStyle(lead.leadStatus).dot,
+                              pointerEvents: 'none'
+                            }}
+                          />
+                          <svg
+                            style={{
+                              position: 'absolute',
+                              right: '8px',
+                              width: '12px',
+                              height: '12px',
+                              color: getLeadStatusStyle(lead.leadStatus).color,
+                              pointerEvents: 'none'
+                            }}
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '5px 12px',
+                            borderRadius: '20px',
+                            fontSize: '0.74rem',
+                            fontWeight: '700',
+                            background: getLeadStatusStyle(lead.leadStatus).bg,
+                            color: getLeadStatusStyle(lead.leadStatus).color,
+                            border: getLeadStatusStyle(lead.leadStatus).border
+                          }}
+                        >
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: getLeadStatusStyle(lead.leadStatus).dot }} />
+                          {lead.leadStatus}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '160px' }}>
                       <input

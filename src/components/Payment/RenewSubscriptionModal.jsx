@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RefreshCw } from 'lucide-react';
 import PaymentDetailsForm from './PaymentDetailsForm';
 
@@ -10,6 +11,14 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
     notes: ''
   });
   const [formErrors, setFormErrors] = useState({});
+
+  useEffect(() => {
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = orig;
+    };
+  }, []);
 
   if (!subscription) return null;
 
@@ -36,15 +45,16 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
     });
   };
 
-  return (
+  return createPortal(
     <div
       style={{
         position: 'fixed',
         top: 0, left: 0, width: '100vw', height: '100vh',
-        background: 'rgba(9, 13, 22, 0.45)',
+        background: 'rgba(9, 13, 22, 0.55)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', justifyContent: 'center', alignItems: 'center',
-        zIndex: 1100, padding: '20px'
+        zIndex: 99999, padding: '20px',
+        overflowY: 'auto'
       }}
       onClick={onClose}
     >
@@ -52,15 +62,17 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
         className="animate-fade-in"
         style={{
           background: '#ffffff',
-          borderRadius: '20px', padding: '32px',
-          width: '95%', maxWidth: '500px',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+          borderRadius: '20px', padding: '28px',
+          width: '100%', maxWidth: '540px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
           position: 'relative', textAlign: 'left',
-          maxHeight: '90vh', overflowY: 'auto'
+          maxHeight: 'calc(100vh - 40px)',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '900', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <RefreshCw style={{ width: '18px', height: '18px', color: '#10b981' }} />
             Renew Subscription
@@ -70,7 +82,7 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Restaurant</span>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800' }}>{subscription.restaurantName}</span>
@@ -80,7 +92,7 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
             <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800' }}>{subscription.planName}</span>
           </div>
           
-          <div style={{ background: 'var(--bg-app)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+          <div style={{ background: 'var(--bg-app)', padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Plan Price</span>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700' }}>₹{planPrice.toLocaleString()}</span>
@@ -96,11 +108,11 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
               <span style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: '900' }}>₹{finalAmount.toLocaleString()}</span>
             </div>
           </div>
+
+          <PaymentDetailsForm formState={formState} setFormState={setFormState} formErrors={formErrors} />
         </div>
 
-        <PaymentDetailsForm formState={formState} setFormState={setFormState} formErrors={formErrors} />
-
-        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
           <button className="btn-outline" style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }} onClick={onClose}>
             Cancel
           </button>
@@ -109,6 +121,7 @@ export default function RenewSubscriptionModal({ subscription, onClose, onConfir
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

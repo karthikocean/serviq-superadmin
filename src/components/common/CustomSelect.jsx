@@ -134,6 +134,7 @@ export default function CustomSelect({
                       border: 'none',
                       padding: 0,
                       color: '#F95E10',
+
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center'
@@ -321,6 +322,7 @@ export function ValidatedSelect({
       onChange(e);
     }
     if (error && typeof setError === 'function') {
+      
       setError('');
     }
   };

@@ -416,7 +416,8 @@ export default function NotificationsPage() {
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 99999,
-          padding: '20px'
+          padding: '20px',
+          overflowY: 'auto'
         }} onClick={() => setShowCreateModal(false)}>
           <div className="menu-edit-panel animate-fade-in" style={{
             background: 'var(--bg-card)',
@@ -424,16 +425,20 @@ export default function NotificationsPage() {
             borderRadius: '16px',
             padding: '28px',
             width: '90%',
-            maxWidth: '520px',
+            maxWidth: '540px',
             boxShadow: 'var(--shadow-premium)',
             position: 'relative',
-            top: 'auto'
+            top: 'auto',
+            maxHeight: 'calc(100vh - 40px)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
           }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 20px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 16px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexShrink: 0 }}>
               Compose Broadcast Notification
             </h3>
 
-            <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px', flex: 1 }}>
               
               {/* Type */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -612,7 +617,7 @@ export default function NotificationsPage() {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '16px', flexShrink: 0 }}>
                 <button type="submit" className="btn-black" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#000000', color: '#ffffff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                   {newNtf.isScheduled ? <Calendar style={{ width: '15px', height: '15px' }} /> : <Send style={{ width: '15px', height: '15px' }} />}
                   {newNtf.isScheduled ? 'Schedule dispatch' : 'Broadcast Now'}
