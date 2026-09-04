@@ -13,14 +13,16 @@ import {
   UserPlus,
   RefreshCw,
   Tag,
-  ChevronDown
+  ChevronDown,
+  MessageSquare,
+  Send
 } from 'lucide-react'
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
-import { getTickets, createTicket, updateTicketStatus, assignTicket } from '../../services/ticketService'
+import { getTickets, createTicket, updateTicketStatus, assignTicket, replyToTicket } from '../../services/ticketService'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function TicketsPage() {
@@ -43,8 +45,10 @@ export default function TicketsPage() {
 
   // Modals & Forms State
   const [selectedTicket, setSelectedTicket] = useState(null)
+  const [replyText, setReplyText] = useState('')
   const [assignUser, setAssignUser] = useState('')
   const [assignTicketId, setAssignTicketId] = useState(null)
+  const [assignTicketData, setAssignTicketData] = useState(null) // full ticket obj for assign
   const [assignError, setAssignError] = useState('')
 
   // Listen for sidebar click reset event to open main module list
@@ -52,6 +56,7 @@ export default function TicketsPage() {
     const handleReset = () => {
       setSelectedTicket(null)
       setAssignTicketId(null)
+      setAssignTicketData(null)
     }
     window.addEventListener('reset_module_view', handleReset)
     return () => window.removeEventListener('reset_module_view', handleReset)
@@ -60,7 +65,7 @@ export default function TicketsPage() {
   // Constants
   const categories = ['QR Scanning', 'Billing', 'KDS Lag', 'Menu', 'Other']
   const priorities = ['Low', 'Medium', 'High']
-  const statuses = ['Open', 'In Progress', 'Resolved', 'Closed']
+  const statuses = ['Open', 'In Progress', 'Resolved']
   const supportStaff = ['Admin User', 'Jane Doe (Support)', 'John Smith (Dev)', 'Platform Super']
 
   const [currentPage, setCurrentPage] = useState(0)
@@ -78,7 +83,7 @@ export default function TicketsPage() {
         categoryFilter
       })
       setTickets(data.data || [])
-      setTotalRecords(data.pagination?.totalItems || 0)
+      setTotalRecords(data.pagination?.totalItems ?? data.total ?? data.count ?? (data.data ? data.data.length : 0))
     } catch (error) {
       console.error(error)
       showToast('error', 'Failed to fetch tickets')
@@ -104,6 +109,19 @@ export default function TicketsPage() {
     }
   }
 
+  const handleMarkInProgress = async (ticketId) => {
+    try {
+      await updateTicketStatus(ticketId, 'In Progress')
+      showToast('success', `Ticket marked as IN PROGRESS.`)
+      fetchTickets()
+      if (selectedTicket && selectedTicket._id === ticketId) {
+        setSelectedTicket(prev => prev ? { ...prev, status: 'In Progress' } : null)
+      }
+    } catch (error) {
+      showToast('error', 'Failed to update ticket status')
+    }
+  }
+
   const handleUpdateStatus = async (ticketId, nextStatus) => {
     try {
       await updateTicketStatus(ticketId, nextStatus)
@@ -111,6 +129,20 @@ export default function TicketsPage() {
       fetchTickets()
     } catch (error) {
       showToast('error', 'Failed to update ticket status')
+    }
+  }
+
+  const handleSendReply = async () => {
+    if (!replyText.trim()) return
+    try {
+      if (typeof replyToTicket === 'function') {
+        await replyToTicket(selectedTicket._id, replyText.trim())
+      }
+      showToast('success', 'Reply sent successfully.')
+      setReplyText('')
+      fetchTickets()
+    } catch (error) {
+      showToast('error', 'Failed to send reply')
     }
   }
 
@@ -124,6 +156,7 @@ export default function TicketsPage() {
     try {
       await assignTicket(assignTicketId, assignUser)
       setAssignTicketId(null)
+      setAssignTicketData(null)
       setAssignUser('')
       showToast('success', `Ticket successfully assigned to ${assignUser}`)
       fetchTickets()
@@ -133,13 +166,17 @@ export default function TicketsPage() {
   }
 
 
-  const paginatedTickets = tickets
+  const isTicketUnassigned = (t) => {
+    const u = t?.assignedUser || t?.assignedTo
+    return !u || u.trim() === '' || u.toLowerCase() === 'unassigned' || u === 'null' || u === 'undefined'
+  }
+
+  const paginatedTickets = tickets.filter(t => t.status !== 'Closed')
 
   // Statistics
   const openCount = tickets.filter(t => t.status === 'Open').length
   const progressCount = tickets.filter(t => t.status === 'In Progress').length
   const resolvedCount = tickets.filter(t => t.status === 'Resolved').length
-  const closedCount = tickets.filter(t => t.status === 'Closed').length
 
   const getPriorityStyle = (priority) => {
     switch (priority) {
@@ -169,12 +206,11 @@ export default function TicketsPage() {
     }}>
       
       {/* Overview Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         {[
           { label: 'Open Tickets', count: openCount, bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.12)', color: '#ef4444' },
           { label: 'In Progress', count: progressCount, bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' },
           { label: 'Resolved', count: resolvedCount, bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)', color: '#10b981' },
-          { label: 'Closed', count: closedCount, bg: 'rgba(100, 116, 139, 0.04)', border: 'rgba(100, 116, 139, 0.12)', color: '#64748b' }
         ].map((stat, idx) => (
           <div key={idx} className="glass-card" style={{
             padding: '20px',
@@ -221,7 +257,6 @@ export default function TicketsPage() {
           <div>
             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Support Ticket Management</h3>
           </div>
-
         </div>
 
         {/* Controls Bar */}
@@ -280,38 +315,47 @@ export default function TicketsPage() {
                   onChange={(val) => setCategoryFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
                 />
               </div>
+
+              <button
+                onClick={() => {
+                  setSearchTerm('')
+                  setStatusFilter('All')
+                  setPriorityFilter('All')
+                  setCategoryFilter('All')
+                  setCurrentPage(0)
+                }}
+                className="btn-outline"
+                style={{ padding: '8px 12px', borderRadius: '10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                title="Reset Filters"
+              >
+                <RefreshCw style={{ width: '13px', height: '13px' }} />
+                Reset
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Tickets Table Grid */}
-        <TableTopControls
-          entriesPerPage={entriesPerPage}
-          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
-          searchTerm={searchTerm}
-          onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(0); }}
-          searchPlaceholder="Search tickets..."
-          showSearch={false}
-        />
+        {/* Table View */}
         <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-          <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '90px' }}>Ticket No.</th>
+                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Ticket #</th>
                 <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Restaurant</th>
-                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', maxWidth: '300px' }}>Subject</th>
-                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '110px' }}>Category</th>
-                <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '80px' }}>Priority</th>
-                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '150px' }}>Assigned User</th>
-                <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '110px' }}>Status</th>
-                <th style={{ textAlign: 'right', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '180px' }}>Actions</th>
+                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Subject</th>
+                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Category</th>
+                <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Priority</th>
+                <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Assigned To</th>
+                <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Status</th>
+                <th style={{ textAlign: 'right', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {paginatedTickets.length > 0 ? (
-                paginatedTickets.map(ticket => {
+                paginatedTickets.map((ticket) => {
                   const priorityStyle = getPriorityStyle(ticket.priority)
                   const statusStyle = getStatusStyle(ticket.status)
+                  const isUnassigned = isTicketUnassigned(ticket)
 
                   return (
                     <tr key={ticket._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
@@ -343,7 +387,7 @@ export default function TicketsPage() {
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', verticalAlign: 'middle' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <User style={{ width: '12px', height: '12px', color: 'var(--text-muted)' }} />
-                          <span>{ticket.assignedUser}</span>
+                          <span>{isUnassigned ? 'Unassigned' : ticket.assignedUser}</span>
                         </div>
                       </td>
                       <td style={{ padding: '14px 18px', verticalAlign: 'middle', textAlign: 'center' }}>
@@ -359,42 +403,35 @@ export default function TicketsPage() {
                           color: statusStyle.text
                         }}>
                           {statusStyle.icon}
-                          <span>{statusStyle.text}</span>
+                          <span>{ticket.status}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '14px 18px', verticalAlign: 'middle', textAlign: 'right', width: '180px' }}>
+                      <td style={{ padding: '14px 18px', verticalAlign: 'middle', textAlign: 'right', width: '160px' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           {canView && (
                             <button
-                              onClick={() => setSelectedTicket(ticket)}
+                              onClick={() => { setSelectedTicket(ticket); setReplyText(''); }}
                               className="btn-outline"
                               style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer' }}
                             >
                               View
                             </button>
                           )}
-                          {canEdit && (
+                          {canEdit && isUnassigned && (
                             <button
                               onClick={() => {
                                 setAssignTicketId(ticket._id)
-                                setAssignUser(ticket.assignedUser === 'Unassigned' ? '' : ticket.assignedUser)
+                                setAssignTicketData(ticket)
+                                setAssignUser('')
                               }}
                               className="btn-outline"
                               style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
                             >
-                              <UserPlus style={{ width: '11px', height: '11px' }} /> Assign
+                              <UserPlus style={{ width: '11px', height: '11px' }} />
+                              Assign
                             </button>
                           )}
-                          {canEdit && ticket.status !== 'Resolved' && ticket.status !== 'Closed' && (
-                            <button
-                              onClick={() => handleQuickResolve(ticket._id)}
-                              className="btn-black"
-                              style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer', background: '#10b981', border: 'none', color: '#ffffff' }}
-                            >
-                              Resolve
-                            </button>
-                          )}
-                          {!canView && !canEdit && (
+                          {!canView && (!canEdit || !isUnassigned) && (
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
                           )}
                         </div>
@@ -404,9 +441,8 @@ export default function TicketsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="8" style={{ padding: '40px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    <LifeBuoy style={{ width: '28px', height: '28px', margin: '0 auto 10px auto', opacity: 0.5, display: 'block' }} />
-                    No support tickets matching current filters.
+                  <td colSpan="6" style={{ padding: '40px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    No support tickets found matching current criteria.
                   </td>
                 </tr>
               )}
@@ -415,7 +451,7 @@ export default function TicketsPage() {
         </div>
 
         <TableBottomPagination
-          totalEntries={totalRecords}
+          totalEntries={totalRecords || tickets.length}
           currentPage={currentPage}
           entriesPerPage={entriesPerPage}
           onPageChange={setCurrentPage}
@@ -423,7 +459,7 @@ export default function TicketsPage() {
       </div>
 
 
-      {/* ASSIGN USER MODAL OVERLAY */}
+      {/* ASSIGN TICKET MODAL OVERLAY */}
       {assignTicketId && createPortal(
         <div style={{
           position: 'fixed',
@@ -436,7 +472,7 @@ export default function TicketsPage() {
           alignItems: 'center',
           zIndex: 99999,
           padding: '20px'
-        }} onClick={() => setAssignTicketId(null)}>
+        }} onClick={() => { setAssignTicketId(null); setAssignTicketData(null); }}>
           <div className="menu-edit-panel animate-fade-in" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
@@ -448,9 +484,12 @@ export default function TicketsPage() {
             position: 'relative',
             top: 'auto'
           }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '1.02rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 16px 0' }}>
-              Reassign Ticket {assignTicketId}
+            <h3 style={{ fontSize: '1.02rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 4px 0' }}>
+              Assign Ticket
             </h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
+              Ticket: <strong>{assignTicketData?.ticketNumber}</strong>
+            </p>
 
             <form onSubmit={handleAssignTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <ValidatedSelect
@@ -466,15 +505,16 @@ export default function TicketsPage() {
                   setError={setAssignError}
                   options={[
                     { value: '', label: 'Select Agent' },
-                    { value: 'Unassigned', label: 'Unassigned' },
                     ...supportStaff.map(s => ({ value: s, label: s }))
                   ]}
                   placeholder="Select Agent"
                 />
 
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                <button type="submit" className="btn-black" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#000000', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}>Reassign</button>
-                <button type="button" className="btn-outline" onClick={() => setAssignTicketId(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" className="btn-black" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#000000', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}>
+                  Assign
+                </button>
+                <button type="button" className="btn-outline" onClick={() => { setAssignTicketId(null); setAssignTicketData(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
               </div>
             </form>
           </div>
@@ -492,9 +532,10 @@ export default function TicketsPage() {
           WebkitBackdropFilter: 'blur(8px)',
           display: 'flex',
           justifyContent: 'center',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           zIndex: 99999,
-          padding: '20px'
+          padding: '40px 20px',
+          overflowY: 'auto'
         }} onClick={() => setSelectedTicket(null)}>
           <div className="menu-edit-panel animate-fade-in" style={{
             background: 'var(--bg-card)',
@@ -505,7 +546,9 @@ export default function TicketsPage() {
             maxWidth: '520px',
             boxShadow: 'var(--shadow-premium)',
             position: 'relative',
-            top: 'auto'
+            top: 'auto',
+            marginTop: 'auto',
+            marginBottom: 'auto'
           }} onClick={(e) => e.stopPropagation()}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
@@ -542,7 +585,7 @@ export default function TicketsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Assigned Support Agent</span>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.assignedUser}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.assignedUser || 'Unassigned'}</span>
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Priority Urgency</span>
@@ -572,20 +615,67 @@ export default function TicketsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                {selectedTicket.status !== 'Resolved' && selectedTicket.status !== 'Closed' && (
-                  <button
-                    onClick={() => {
-                      handleQuickResolve(selectedTicket._id)
-                      setSelectedTicket(null)
+              {/* Reply Field */}
+              {canEdit && (
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    <MessageSquare style={{ width: '11px', height: '11px', display: 'inline', marginRight: '4px' }} />
+                    Reply to Customer
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Type your reply here..."
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border-color)',
+                      background: 'var(--bg-app)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.82rem',
+                      outline: 'none',
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
                     }}
-                    className="btn-black"
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendReply}
+                    disabled={!replyText.trim()}
+                    style={{
+                      marginTop: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      background: replyText.trim() ? '#3b82f6' : 'var(--border-color)',
+                      color: replyText.trim() ? '#fff' : 'var(--text-muted)',
+                      border: 'none',
+                      fontSize: '0.78rem',
+                      fontWeight: '700',
+                      cursor: replyText.trim() ? 'pointer' : 'not-allowed'
+                    }}
                   >
-                    Mark Resolved
+                    <Send style={{ width: '13px', height: '13px' }} /> Send Reply
+                  </button>
+                </div>
+              )}
+
+              {/* Status Action Buttons */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                {canEdit && selectedTicket.status !== 'In Progress' && (
+                  <button
+                    onClick={() => handleMarkInProgress(selectedTicket._id)}
+                    className="btn-outline"
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1.5px solid #f59e0b', color: '#f59e0b', background: 'rgba(245,158,11,0.06)', fontWeight: '700', cursor: 'pointer', fontSize: '0.82rem' }}
+                  >
+                    Mark In Progress
                   </button>
                 )}
-                <button type="button" className="btn-outline" onClick={() => setSelectedTicket(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Close Details</button>
+                <button type="button" className="btn-outline" onClick={() => setSelectedTicket(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.82rem' }}>Close Details</button>
               </div>
 
             </div>

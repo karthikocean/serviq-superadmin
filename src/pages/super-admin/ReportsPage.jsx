@@ -20,7 +20,9 @@ import { useSubscriptions } from '../../hooks/useSubscriptions'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useAuth } from '../../contexts/AuthContext'
 import CustomSelect from '../../components/common/CustomSelect'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { getReportsAnalyticsApi } from '../../services/dashboardService'
+import { formatDate } from '../../utils/dateFormat'
 
 export default function ReportsPage() {
   const { restaurants } = useRestaurant()
@@ -33,6 +35,8 @@ export default function ReportsPage() {
   const [activeReportTab, setActiveReportTab] = useState('revenue')
   const [selectedPlan, setSelectedPlan] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
+  const [ledgerPage, setLedgerPage] = useState(0)
+  const [ledgerEntriesPerPage, setLedgerEntriesPerPage] = useState(10)
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [reportsData, setReportsData] = useState(null)
@@ -110,6 +114,11 @@ export default function ReportsPage() {
     const matchesPlan = selectedPlan === 'All' || s.plan.toLowerCase().includes(selectedPlan.toLowerCase())
     return matchesSearch && matchesPlan
   })
+
+  const paginatedSubs = filteredSubs.slice(
+    ledgerPage * ledgerEntriesPerPage,
+    (ledgerPage + 1) * ledgerEntriesPerPage
+  )
 
   // SVG Chart Calculations
   const maxRevenueVal = Math.max(...monthlyRevenueList.map(d => d.revenue || 0), 1000) * 1.15
@@ -544,7 +553,10 @@ export default function ReportsPage() {
                       e.preventDefault();
                     }
                   }}
-                  onChange={(e) => setSearchQuery(e.target.value.replace(/\s+/g, ''))}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value.replace(/\s+/g, ''));
+                    setLedgerPage(0);
+                  }}
                   placeholder="Search restaurant name..."
                   style={{ padding: '8px 10px 8px 30px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.78rem', outline: 'none', width: '200px' }}
                 />
@@ -560,17 +572,30 @@ export default function ReportsPage() {
                     { value: 'Premium', label: 'Premium' }
                   ]}
                   value={selectedPlan}
-                  onChange={(val) => setSelectedPlan(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                  onChange={(val) => {
+                    setSelectedPlan(typeof val === 'object' && val !== null && val.target ? val.target.value : val);
+                    setLedgerPage(0);
+                  }}
                 />
               </div>
             </div>
           </div>
+
+          <TableTopControls
+            entriesPerPage={ledgerEntriesPerPage}
+            onEntriesPerPageChange={(val) => {
+              setLedgerEntriesPerPage(val);
+              setLedgerPage(0);
+            }}
+            showSearch={false}
+          />
 
           {/* Table */}
           <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
             <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                  <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '60px' }}>S.No</th>
                   <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>ID</th>
                   <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Restaurant Branch</th>
                   <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800' }}>Tier</th>
@@ -580,11 +605,14 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredSubs.length > 0 ? (
-                  filteredSubs.map(sub => {
+                {paginatedSubs.length > 0 ? (
+                  paginatedSubs.map((sub, idx) => {
                     const planColor = getPlanColor(sub.plan)
                     return (
                       <tr key={sub.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', width: '60px' }}>
+                          {ledgerPage * ledgerEntriesPerPage + idx + 1}
+                        </td>
                         <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800' }}>{sub.id}</td>
                         <td style={{ padding: '14px 18px', fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{sub.name}</td>
                         <td style={{ padding: '14px 18px' }}>
@@ -597,8 +625,8 @@ export default function ReportsPage() {
                             color: planColor
                           }}>{sub.plan}</span>
                         </td>
-                        <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{sub.startDate}</td>
-                        <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{sub.expiryDate}</td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{formatDate(sub.startDate)}</td>
+                        <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{formatDate(sub.expiryDate)}</td>
                         <td style={{ padding: '14px 18px', textAlign: 'center' }}>
                           <span style={{
                             fontSize: '0.68rem',
@@ -614,12 +642,19 @@ export default function ReportsPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="6" style={{ padding: '40px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No subscriptions match search parameters.</td>
+                    <td colSpan="7" style={{ padding: '40px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No subscriptions match search parameters.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          <TableBottomPagination
+            totalEntries={filteredSubs.length}
+            currentPage={ledgerPage}
+            entriesPerPage={ledgerEntriesPerPage}
+            onPageChange={(page) => setLedgerPage(page)}
+          />
         </div>
       )}
 

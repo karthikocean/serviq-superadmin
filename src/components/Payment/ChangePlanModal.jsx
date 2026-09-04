@@ -90,9 +90,9 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
         WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         zIndex: 99999,
-        padding: '20px',
+        padding: '40px 20px',
         overflowY: 'auto'
       }}
       onClick={onClose}
@@ -108,10 +108,8 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
           position: 'relative',
           textAlign: 'left',
-          maxHeight: 'calc(100vh - 40px)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden'
+          marginTop: 'auto',
+          marginBottom: 'auto'
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -127,7 +125,7 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
         </div>
 
         {/* Scrollable Body */}
-        <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Plan Selection */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '12px' }}>
             <div style={{ padding: '12px', background: 'var(--bg-app)', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
@@ -140,9 +138,14 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>Select New Plan</span>
               <CustomSelect
-                options={(plans?.filter(p => p.name !== subscription.planName && p.status === 'Active') || []).map(p => ({
-                  value: p._id,
-                  label: `${p.name} - ₹${p.monthlyPrice || p.annualPrice}`
+                options={(plans?.filter(p => {
+                  const pName = p.name || p.planName;
+                  const subName = subscription?.planName || subscription?.plan?.planName;
+                  const isActive = p.status?.toLowerCase() === 'active' || p.isActive !== false || !p.status;
+                  return pName !== subName && isActive;
+                }) || []).map(p => ({
+                  value: p._id || p.id,
+                  label: `${p.name || p.planName} - ₹${(p.monthlyPrice || p.annualPrice || p.price || 0).toLocaleString()}`
                 }))}
                 value={selectedPlanId}
                 onChange={(val) => {

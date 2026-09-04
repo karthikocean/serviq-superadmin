@@ -5,6 +5,7 @@ import CustomSelect from '../../components/common/CustomSelect';
 import { getCouponsApi, createCouponApi, updateCouponApi, deleteCouponApi } from '../../services/couponService';
 import { getAllPlansApi } from '../../services/planService';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDate } from '../../utils/dateFormat';
 
 export default function CouponsPage() {
   const { hasPermission, isSuperOwner } = useAuth();
@@ -26,7 +27,7 @@ export default function CouponsPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const defaultFormState = {
     code: '', name: '', description: '', type: 'Percentage', value: '', maxDiscount: '', minAmount: '',
@@ -48,7 +49,7 @@ export default function CouponsPage() {
         }));
         setCoupons(formattedData);
         setTotalPages(data.totalPages || 1);
-        setTotalItems(data.total || 0);
+        setTotalItems(data.total !== undefined ? data.total : (data.count !== undefined ? data.count : (data.data ? data.data.length : 0)));
       }
     } catch (error) {
       console.error("Error fetching coupons:", error);
@@ -76,7 +77,7 @@ export default function CouponsPage() {
 
   useEffect(() => {
     fetchCoupons();
-  }, [currentPage, searchQuery]);
+  }, [currentPage, itemsPerPage, searchQuery]);
 
 
 
@@ -482,7 +483,7 @@ export default function CouponsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div>
                   <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700' }}>VALIDITY</p>
-                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: '600' }}>{activeCoupon?.startDate} to {activeCoupon?.endDate}</p>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: '600' }}>{formatDate(activeCoupon?.startDate)} to {formatDate(activeCoupon?.endDate)}</p>
                 </div>
                 <div>
                   <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700' }}>APPLICABLE PLANS</p>
@@ -556,6 +557,11 @@ export default function CouponsPage() {
             <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }}></div>
 
             <TableTopControls
+              entriesPerPage={itemsPerPage}
+              onEntriesPerPageChange={(newLimit) => {
+                setItemsPerPage(newLimit);
+                setCurrentPage(0);
+              }}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               placeholder="Search coupon code or name..."
@@ -587,7 +593,7 @@ export default function CouponsPage() {
                         {coupon.type === 'Percentage' ? `${coupon.value}%` : `₹${coupon.value}`}
                       </td>
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                        {coupon.endDate}
+                        {formatDate(coupon.endDate)}
                       </td>
                       <td style={{ padding: '14px 18px' }}>
                         {coupon.plans && coupon.plans.length > 0 ? (

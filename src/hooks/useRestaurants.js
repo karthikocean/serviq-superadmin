@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getRestaurants, createRestaurant, updateRestaurant, deleteRestaurant } from '../services/api';
+import { getRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, getAllSubscriptionsAPI } from '../services/api';
 
 export function useRestaurant() {
   const [restaurants, setRestaurantsState] = useState([]);
@@ -10,10 +10,24 @@ export function useRestaurant() {
   const fetchRestaurants = async () => {
     setIsLoading(true);
     try {
-      const response = await getRestaurants(0, 100);
+      const [response, subsResponse] = await Promise.all([
+        getRestaurants(0, 100),
+        getAllSubscriptionsAPI(0, 100).catch(() => ({ data: [] }))
+      ]);
+
       if (response.success) {
         const backendRest = response.data.results || response.data;
+        const allSubs = subsResponse?.data?.results || subsResponse?.data || [];
+
         const mapped = backendRest.map(r => {
+          // Find matching subscription by restaurant ID or restaurant code
+          const restSub = allSubs.find(s => 
+            (s.restaurant?._id && String(s.restaurant._id) === String(r._id)) ||
+            (s.restaurant?.restaurantId && s.restaurant.restaurantId === r.restaurantId) ||
+            (s.restaurant && String(s.restaurant) === String(r._id)) ||
+            (s.restaurantId && s.restaurantId === r.restaurantId)
+          ) || r.subscription || r.currentSubscription || {};
+
           const rawStatus = (r.status || '').toLowerCase();
           let formattedStatus = 'Active';
           if (rawStatus === 'inactive' || r.isActive === false) {
@@ -23,6 +37,14 @@ export function useRestaurant() {
           } else if (r.status) {
             formattedStatus = r.status.charAt(0).toUpperCase() + r.status.slice(1).toLowerCase();
           }
+
+          const planName = restSub.plan?.planName || restSub.planName || r.subscriptionPlan?.planName || (typeof r.subscriptionPlan === 'string' ? r.subscriptionPlan : 'Standard');
+          const subStatus = restSub.status || r.subscription?.status || (r.isActive ? 'Active' : 'Inactive');
+          const startDate = restSub.startDate?.split('T')[0] || r.subscription?.startDate?.split('T')[0] || '';
+          const endDate = restSub.endDate?.split('T')[0] || restSub.renewalDate?.split('T')[0] || r.subscription?.endDate?.split('T')[0] || '';
+          const renewalDate = restSub.renewalDate?.split('T')[0] || restSub.endDate?.split('T')[0] || r.subscription?.renewalDate?.split('T')[0] || '';
+          const billingCycle = restSub.billingCycle || r.subscription?.billingCycle || 'Monthly';
+          const planId = restSub.plan?._id || restSub.planId || r.subscription?.plan?._id || '';
 
           return {
             _id: r._id,
@@ -44,17 +66,17 @@ export function useRestaurant() {
             serviceCharge: r.serviceFee || 0,
             openingTime: r.openingTime || '',
             closingTime: r.closingTime || '',
-            subscriptionPlan: r.subscriptionPlan?.planName || (typeof r.subscriptionPlan === 'string' ? r.subscriptionPlan : (r.subscription?.plan?.planName || 'Standard')),
-            subscriptionStatus: r.subscription?.status || (r.isActive ? 'Active' : 'Inactive'),
+            subscriptionPlan: planName,
+            subscriptionStatus: subStatus,
             status: formattedStatus,
             isActive: formattedStatus === 'Active',
             logo: r.logoUrl || '',
             banner: r.bannerUrl || '',
-            startDate: r.subscription?.startDate || '',
-            endDate: r.subscription?.endDate || '',
-            renewalDate: r.subscription?.renewalDate || '',
-            billingCycle: r.subscription?.billingCycle || 'Monthly',
-            planId: r.subscription?.plan?._id || ''
+            startDate,
+            endDate,
+            renewalDate,
+            billingCycle,
+            planId
           };
         });
         setRestaurantsState(mapped);

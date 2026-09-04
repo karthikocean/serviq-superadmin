@@ -364,12 +364,14 @@ export default function UsersPage() {
 
     try {
       const res = await updateManager(resettingPasswordAdminId, { password: passwordResetValue })
-      if (res.success) {
+      if (res && res.success !== false) {
         setResettingPasswordAdminId(null)
         setPasswordResetValue('')
         setPasswordConfirmValue('')
-        showToast('success', 'User security password successfully updated!')
+        showToast('success', res.message || 'User security password successfully updated!')
         fetchPlatformAdmins()
+      } else {
+        showToast('error', res?.message || 'Failed to update password.')
       }
     } catch (err) {
       console.error(err)
@@ -467,8 +469,13 @@ export default function UsersPage() {
                 label="Phone Number"
                 type="text"
                 value={adminFormState.phone}
-                onChange={(e) => setAdminFormState({ ...adminFormState, phone: e.target.value })}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setAdminFormState({ ...adminFormState, phone: digits })
+                }}
                 placeholder="e.g. 9876543210 (10 digits)"
+                inputMode="numeric"
+                maxLength={10}
                 required
                 error={formErrors.phone}
                 setError={(val) => setFormErrors({ ...formErrors, phone: val })}
@@ -573,8 +580,13 @@ export default function UsersPage() {
                 label="Phone Number"
                 type="text"
                 value={adminFormState.phone}
-                onChange={(e) => setAdminFormState({ ...adminFormState, phone: e.target.value })}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setAdminFormState({ ...adminFormState, phone: digits })
+                }}
                 placeholder="e.g. 9876543210 (10 digits)"
+                inputMode="numeric"
+                maxLength={10}
                 required
                 error={formErrors.phone}
                 setError={(val) => setFormErrors({ ...formErrors, phone: val })}

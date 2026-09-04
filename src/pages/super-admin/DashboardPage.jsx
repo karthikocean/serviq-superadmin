@@ -216,6 +216,7 @@ export default function DashboardPage() {
   ])
 
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
+  const [selectedDashboardPlan, setSelectedDashboardPlan] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
 
   const [systemLogs, setSystemLogs] = useState([
@@ -1104,7 +1105,20 @@ export default function DashboardPage() {
                 {/* Card 4: Basic Plan Count */}
                 <div
                   className="glass-card"
-                  onClick={() => navigate('/super-admin/subscriptions')}
+                  onClick={() => {
+                    const p = plans.find(x => x.name?.toLowerCase().includes('basic')) || {
+                      name: 'Basic Plan',
+                      description: 'Essential tools for small eateries, QR menu ordering and simple table management.',
+                      monthlyPrice: 999,
+                      annualPrice: 9999,
+                      branchLimit: 1,
+                      userLimit: 3,
+                      orderLimit: 500,
+                      features: ['Menu Management', 'Table Management', 'Order Management'],
+                      status: 'Active'
+                    };
+                    setSelectedDashboardPlan({ ...p, activeCount: basicActiveCount, totalCount: basicCount });
+                  }}
                   style={{
                     padding: '20px',
                     display: 'flex',
@@ -1117,7 +1131,7 @@ export default function DashboardPage() {
                     cursor: 'pointer',
                     transition: 'transform 0.18s, box-shadow 0.18s'
                   }}
-                  title="View Basic Plan Subscriptions"
+                  title="View Basic Plan Details"
                 >
                   <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Award style={{ width: '22px', height: '22px' }} />
@@ -1134,7 +1148,20 @@ export default function DashboardPage() {
                 {/* Card 5: Standard Plan Count */}
                 <div
                   className="glass-card"
-                  onClick={() => navigate('/super-admin/subscriptions')}
+                  onClick={() => {
+                    const p = plans.find(x => x.name?.toLowerCase().includes('standard')) || {
+                      name: 'Standard Plan',
+                      description: 'Includes everything in Basic, plus tableside waiter service and app integrations.',
+                      monthlyPrice: 1999,
+                      annualPrice: 19999,
+                      branchLimit: 2,
+                      userLimit: 5,
+                      orderLimit: 1000,
+                      features: ['Menu Management', 'Table Management', 'Order Management', 'Waiter Management', 'Kitchen Management'],
+                      status: 'Active'
+                    };
+                    setSelectedDashboardPlan({ ...p, activeCount: standardActiveCount, totalCount: standardCount });
+                  }}
                   style={{
                     padding: '20px',
                     display: 'flex',
@@ -1147,7 +1174,7 @@ export default function DashboardPage() {
                     cursor: 'pointer',
                     transition: 'transform 0.18s, box-shadow 0.18s'
                   }}
-                  title="View Standard Plan Subscriptions"
+                  title="View Standard Plan Details"
                 >
                   <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Award style={{ width: '22px', height: '22px' }} />
@@ -1164,7 +1191,20 @@ export default function DashboardPage() {
                 {/* Card 6: Premium Plan Count */}
                 <div
                   className="glass-card"
-                  onClick={() => navigate('/super-admin/subscriptions')}
+                  onClick={() => {
+                    const p = plans.find(x => x.name?.toLowerCase().includes('premium')) || {
+                      name: 'Premium Plan',
+                      description: 'Advanced operations with integrated Kitchen KDS displays and advanced billing.',
+                      monthlyPrice: 4999,
+                      annualPrice: 49999,
+                      branchLimit: 5,
+                      userLimit: 15,
+                      orderLimit: 5000,
+                      features: ['Menu Management', 'Table Management', 'Order Management', 'Waiter Management', 'Kitchen Management', 'Inventory Management'],
+                      status: 'Active'
+                    };
+                    setSelectedDashboardPlan({ ...p, activeCount: premiumActiveCount, totalCount: premiumCount });
+                  }}
                   style={{
                     padding: '20px',
                     display: 'flex',
@@ -1177,7 +1217,7 @@ export default function DashboardPage() {
                     cursor: 'pointer',
                     transition: 'transform 0.18s, box-shadow 0.18s'
                   }}
-                  title="View Premium Plan Subscriptions"
+                  title="View Premium Plan Details"
                 >
                   <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Award style={{ width: '22px', height: '22px' }} />
@@ -1889,6 +1929,195 @@ export default function DashboardPage() {
                 className="btn-black"
                 style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}
                 onClick={() => setViewingSubscriptionRest(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Details Modal Overlay */}
+      {selectedDashboardPlan && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(9, 13, 22, 0.5)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1100,
+            padding: '20px'
+          }}
+          onClick={() => setSelectedDashboardPlan(null)}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '28px',
+              width: '95%',
+              maxWidth: '480px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+              position: 'relative',
+              textAlign: 'left'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: selectedDashboardPlan.name?.toLowerCase().includes('premium') ? 'rgba(59, 130, 246, 0.1)' : selectedDashboardPlan.name?.toLowerCase().includes('standard') ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                  color: selectedDashboardPlan.name?.toLowerCase().includes('premium') ? '#3b82f6' : selectedDashboardPlan.name?.toLowerCase().includes('standard') ? '#10b981' : '#f59e0b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Award style={{ width: '22px', height: '22px' }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                    {selectedDashboardPlan.name || selectedDashboardPlan.planName}
+                  </h3>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: selectedDashboardPlan.status === 'Active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    color: selectedDashboardPlan.status === 'Active' ? '#10b981' : '#ef4444',
+                    display: 'inline-block',
+                    marginTop: '4px'
+                  }}>
+                    {selectedDashboardPlan.status || 'Active'}
+                  </span>
+                </div>
+              </div>
+              <button
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
+                onClick={() => setSelectedDashboardPlan(null)}
+              >
+                <X style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+
+            {/* Description */}
+            {selectedDashboardPlan.description && (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                {selectedDashboardPlan.description}
+              </p>
+            )}
+
+            {/* Pricing & Usage Stats Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Monthly Rate</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)', marginTop: '2px', display: 'block' }}>
+                  ₹{(selectedDashboardPlan.monthlyPrice || 0).toLocaleString('en-IN')}<span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)' }}> / mo</span>
+                </span>
+              </div>
+              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Annual Rate</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)', marginTop: '2px', display: 'block' }}>
+                  ₹{(selectedDashboardPlan.annualPrice || 0).toLocaleString('en-IN')}<span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)' }}> / yr</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Plan Limits */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px', background: 'var(--bg-app)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Active Subscribers</span>
+                <span style={{ color: '#10b981', fontWeight: '800' }}>{selectedDashboardPlan.activeCount || 0} active ({selectedDashboardPlan.totalCount || 0} total)</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Branch Limit</span>
+                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>{selectedDashboardPlan.branchLimit || 1} Branches</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>User / Staff Limit</span>
+                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>{selectedDashboardPlan.userLimit || 'Unlimited'} Users</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Monthly Order Limit</span>
+                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>{selectedDashboardPlan.orderLimit ? selectedDashboardPlan.orderLimit.toLocaleString() : 'Unlimited'} Orders</span>
+              </div>
+            </div>
+
+            {/* Features Included */}
+            {selectedDashboardPlan.features && selectedDashboardPlan.features.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                  Features Included
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {selectedDashboardPlan.features.map((feat, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: '700',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        background: 'rgba(249, 94, 16, 0.08)',
+                        color: 'var(--primary, #f95e10)',
+                        border: '1px solid rgba(249, 94, 16, 0.2)'
+                      }}
+                    >
+                      ✓ {feat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => {
+                  setSelectedDashboardPlan(null);
+                  navigate('/super-admin/subscriptions');
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.78rem',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  color: 'var(--text-main)'
+                }}
+              >
+                View Subscriptions
+              </button>
+              <button
+                type="button"
+                className="btn-black"
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  fontSize: '0.8rem',
+                  background: '#000000',
+                  color: '#ffffff',
+                  border: 'none'
+                }}
+                onClick={() => setSelectedDashboardPlan(null)}
               >
                 Close
               </button>

@@ -160,7 +160,7 @@ export default function CustomSelect({
   return (
     <div
       className={className}
-      style={{ position: 'relative', width: '100%', userSelect: 'none', ...style }}
+      style={{ position: 'relative', width: '100%', userSelect: 'none', zIndex: isOpen ? 100 : 'auto', ...style }}
       ref={dropdownRef}
     >
       <div
@@ -328,7 +328,7 @@ export function ValidatedSelect({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', ...style }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', ...style }}>
       {label && (
         <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main, #0f172a)' }}>
           {label}

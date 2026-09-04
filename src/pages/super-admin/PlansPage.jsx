@@ -19,11 +19,11 @@ import { useAuth } from '../../contexts/AuthContext'
 
 // Reusable validated select component matching ValidatedInput size and styling exactly
 const ValidatedSelectInput = ({ label, value, onChange, required, error, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', width: '100%' }}>
     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
       {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
     </label>
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
       <select
         value={value}
         onChange={onChange}

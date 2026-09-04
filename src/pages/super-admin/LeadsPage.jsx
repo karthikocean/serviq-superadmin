@@ -1,6 +1,139 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, AlertTriangle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Plus, AlertTriangle, ChevronDown, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+// ─── Custom Floating Lead Status Dropdown ───
+const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle, leadStatuses }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  const style = getLeadStatusStyle(lead.leadStatus)
+
+  if (!canEdit) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 12px',
+          borderRadius: '20px',
+          fontSize: '0.74rem',
+          fontWeight: '700',
+          background: style.bg,
+          color: style.color,
+          border: style.border
+        }}
+      >
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: style.dot }} />
+        {lead.leadStatus}
+      </span>
+    )
+  }
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 12px',
+          borderRadius: '20px',
+          fontSize: '0.74rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          outline: 'none',
+          background: style.bg,
+          color: style.color,
+          border: style.border,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          transition: 'all 0.15s ease'
+        }}
+      >
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: style.dot }} />
+        <span>{lead.leadStatus}</span>
+        <ChevronDown style={{ width: '12px', height: '12px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            minWidth: '160px',
+            background: '#ffffff',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+            padding: '4px',
+            zIndex: 9999,
+            maxHeight: '230px',
+            overflowY: 'auto'
+          }}
+        >
+          {leadStatuses.map((st) => {
+            const stStyle = getLeadStatusStyle(st)
+            const isSelected = lead.leadStatus === st
+            return (
+              <button
+                key={st}
+                type="button"
+                onClick={() => {
+                  onStatusChange(lead._id, st)
+                  setIsOpen(false)
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                  color: isSelected ? '#2563eb' : 'var(--text-main, #0f172a)',
+                  fontSize: '0.76rem',
+                  fontWeight: isSelected ? '700' : '500',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.12s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'rgba(0, 0, 0, 0.04)'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: stStyle.dot }} />
+                  <span>{st}</span>
+                </div>
+                {isSelected && <Check style={{ width: '13px', height: '13px', color: '#2563eb' }} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -91,7 +224,7 @@ export default function LeadsPage() {
         leadStatusFilter 
       })
       setLeads(data.data || [])
-      setTotalRecords(data.pagination?.totalItems || 0)
+      setTotalRecords(data.pagination?.totalItems || data.total || data.count || (data.data ? data.data.length : 0))
     } catch (error) {
       console.error(error)
       showToast('error', 'Failed to fetch leads')
@@ -272,7 +405,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      <div className="glass-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden' }}>
+      <div className="glass-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: showCreateLeadForm ? 'visible' : 'hidden' }}>
         <div style={{ padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', gap: '12px', flexWrap: 'wrap' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '900' }}>{showCreateLeadForm ? 'Create Lead' : 'Leads / CRM Pipeline'}</h3>
@@ -319,8 +452,8 @@ export default function LeadsPage() {
 
 
         {showCreateLeadForm && (
-          <div className="animate-fade-in" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-            <form onSubmit={handleCreateLeadSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px', alignItems: 'end' }}>
+          <div className="animate-fade-in" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', overflow: 'visible' }}>
+            <form onSubmit={handleCreateLeadSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px', alignItems: 'end', position: 'relative', zIndex: 5 }}>
               <ValidatedInput label="Business Name" value={leadFormState.businessName} onChange={(e) => setLeadFormState({ ...leadFormState, businessName: e.target.value })} placeholder="e.g. Green Bowl Cafe" required error={formErrors.businessName} setError={(val) => setFormErrors({ ...formErrors, businessName: val })} />
               <ValidatedInput
                 label="Contact Person"
@@ -419,83 +552,13 @@ export default function LeadsPage() {
                       {lead.leadSource}
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '170px' }}>
-                      {canEdit ? (
-                        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: '100%', maxWidth: '150px' }}>
-                          <select
-                            value={lead.leadStatus}
-                            onChange={(e) => handleLeadStatusChange(lead._id, e.target.value)}
-                            style={{
-                              width: '100%',
-                              appearance: 'none',
-                              WebkitAppearance: 'none',
-                              padding: '6px 24px 6px 22px',
-                              borderRadius: '20px',
-                              fontSize: '0.74rem',
-                              fontWeight: '700',
-                              cursor: 'pointer',
-                              outline: 'none',
-                              background: getLeadStatusStyle(lead.leadStatus).bg,
-                              color: getLeadStatusStyle(lead.leadStatus).color,
-                              border: getLeadStatusStyle(lead.leadStatus).border,
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            {leadStatuses.map((st) => (
-                              <option key={st} value={st} style={{ background: '#ffffff', color: '#0f172a' }}>
-                                {st}
-                              </option>
-                            ))}
-                          </select>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              left: '9px',
-                              width: '6px',
-                              height: '6px',
-                              borderRadius: '50%',
-                              background: getLeadStatusStyle(lead.leadStatus).dot,
-                              pointerEvents: 'none'
-                            }}
-                          />
-                          <svg
-                            style={{
-                              position: 'absolute',
-                              right: '8px',
-                              width: '12px',
-                              height: '12px',
-                              color: getLeadStatusStyle(lead.leadStatus).color,
-                              pointerEvents: 'none'
-                            }}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
-                        </div>
-                      ) : (
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '5px 12px',
-                            borderRadius: '20px',
-                            fontSize: '0.74rem',
-                            fontWeight: '700',
-                            background: getLeadStatusStyle(lead.leadStatus).bg,
-                            color: getLeadStatusStyle(lead.leadStatus).color,
-                            border: getLeadStatusStyle(lead.leadStatus).border
-                          }}
-                        >
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: getLeadStatusStyle(lead.leadStatus).dot }} />
-                          {lead.leadStatus}
-                        </span>
-                      )}
+                      <LeadStatusDropdown
+                        lead={lead}
+                        canEdit={canEdit}
+                        onStatusChange={handleLeadStatusChange}
+                        getLeadStatusStyle={getLeadStatusStyle}
+                        leadStatuses={leadStatuses}
+                      />
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '160px' }}>
                       <input
