@@ -7,13 +7,27 @@ export { BASE_URL, IMAGE_BASE_URL, server, apiClient };
 export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append("image", file);
-  const response = await api.post("/upload", formData, {
-    baseURL: `${server}/api`,
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
-  return response.data;
+  formData.append("file", file);
+
+  try {
+    const response = await api.post("/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  } catch (err1) {
+    try {
+      const response = await api.post("/restaurants/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (err2) {
+      throw err2;
+    }
+  }
 };
 
 export const getRestaurants = async (page = 0, limit = 10) => {

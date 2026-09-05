@@ -95,8 +95,15 @@ export default function NotificationsPage() {
         limit: entriesPerPage,
         filterType
       })
-      setNotifications(data.data || [])
-      setTotalRecords(data.pagination?.totalItems ?? data.total ?? data.count ?? (data.data ? data.data.length : 0))
+      const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      setNotifications(list)
+      const count = data?.pagination?.totalItems 
+        ?? data?.total 
+        ?? data?.totalCount 
+        ?? data?.count 
+        ?? data?.totalRecords
+        ?? (Array.isArray(data?.data) ? data.data.length : list.length)
+      setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
     } catch (error) {
       console.error(error)
       showToast('error', 'Failed to fetch notifications')

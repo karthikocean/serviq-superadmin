@@ -19,18 +19,60 @@ export default function CustomSelect({
   className = ''
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpwards, setOpenUpwards] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Close dropdown when clicking outside
+  // Calculate position and handle boundary / collision detection
+  const checkPosition = () => {
+    if (!dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const count = parsedOptions.length || 5;
+    const estimatedHeight = Math.min(count * 38 + 12, 230);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Check if inside a modal / dialog / panel container
+    const modalEl = dropdownRef.current.closest('.animate-fade-in, [role="dialog"], .glass-card');
+    if (modalEl) {
+      const modalRect = modalEl.getBoundingClientRect();
+      const spaceBelowInModal = modalRect.bottom - rect.bottom;
+      const spaceAboveInModal = rect.top - modalRect.top;
+
+      // If opening downwards would overflow the modal bottom and there is space upwards inside modal or viewport
+      if (spaceBelowInModal < estimatedHeight + 10 && (spaceAboveInModal > spaceBelowInModal || spaceAbove > spaceBelow)) {
+        setOpenUpwards(true);
+        return;
+      }
+    }
+
+    if (spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow) {
+      setOpenUpwards(true);
+    } else {
+      setOpenUpwards(false);
+    }
+  };
+
+  // Close dropdown when clicking outside and recalculate collision on open, scroll, or resize
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     };
+
+    if (isOpen) {
+      checkPosition();
+      window.addEventListener('resize', checkPosition);
+      window.addEventListener('scroll', checkPosition, true);
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', checkPosition);
+      window.removeEventListener('scroll', checkPosition, true);
+    };
+  }, [isOpen]);
 
   // Parse options from either `options` prop or `<option>` children
   let parsedOptions = Array.isArray(options) && options.length > 0 ? options : [];
@@ -203,10 +245,11 @@ export default function CustomSelect({
           className="animate-fade-in"
           style={{
             position: 'absolute',
-            top: '100%',
+            top: openUpwards ? 'auto' : '100%',
+            bottom: openUpwards ? 'calc(100% + 4px)' : 'auto',
             left: 0,
             right: 0,
-            marginTop: '4px',
+            marginTop: openUpwards ? 0 : '4px',
             background: '#ffffff',
             border: '1px solid var(--border-color, #cbd5e1)',
             borderRadius: '10px',

@@ -96,12 +96,12 @@ export const TableBottomPagination = ({
   itemsPerPage,
   onPageChange = () => {}
 }) => {
-  const count = Number((totalEntries !== undefined ? totalEntries : totalItems) ?? 0);
-  const limit = Number((entriesPerPage !== undefined ? entriesPerPage : itemsPerPage) ?? 10) || 10;
-  const totalPages = Math.ceil(count / limit) || 1;
+  const count = Math.max(0, Number((totalEntries !== undefined ? totalEntries : totalItems) ?? 0) || 0);
+  const limit = Math.max(1, Number((entriesPerPage !== undefined ? entriesPerPage : itemsPerPage) ?? 10) || 10);
+  const totalPages = Math.max(1, Math.ceil(count / limit));
   const safeCurrentPage = count === 0 ? 0 : Math.min(Math.max(0, currentPage), totalPages - 1);
-  const startEntry = count === 0 ? 0 : (safeCurrentPage) * limit + 1;
-  const endEntry = Math.min((safeCurrentPage + 1) * limit, count);
+  const startEntry = count === 0 ? 0 : safeCurrentPage * limit + 1;
+  const endEntry = count === 0 ? 0 : Math.min((safeCurrentPage + 1) * limit, count);
 
   const getPageNumbers = () => {
     const pages = [];

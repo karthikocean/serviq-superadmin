@@ -219,7 +219,7 @@ export default function BillingPage() {
               </div>
 
               <TableBottomPagination
-                totalEntries={total}
+                totalEntries={total !== undefined && total > 0 ? total : invoices.length}
                 currentPage={currentPage}
                 entriesPerPage={entriesPerPage}
                 onPageChange={(page) => setCurrentPage(page)}

@@ -39,8 +39,9 @@ export default function CouponsPage() {
   const fetchCoupons = async () => {
     try {
       const data = await getCouponsApi(currentPage, itemsPerPage, searchQuery);
-      if (data.success) {
-        const formattedData = data.data.map(c => ({
+      if (data && (data.success || Array.isArray(data.data) || Array.isArray(data))) {
+        const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+        const formattedData = list.map(c => ({
           ...c,
           id: c._id,
           startDate: c.startDate ? new Date(c.startDate).toISOString().split('T')[0] : '',
@@ -49,7 +50,13 @@ export default function CouponsPage() {
         }));
         setCoupons(formattedData);
         setTotalPages(data.totalPages || 1);
-        setTotalItems(data.total !== undefined ? data.total : (data.count !== undefined ? data.count : (data.data ? data.data.length : 0)));
+        const count = data.pagination?.totalItems 
+          ?? data.total 
+          ?? data.totalCount 
+          ?? data.count 
+          ?? data.totalRecords
+          ?? (Array.isArray(data.data) ? data.data.length : list.length);
+        setTotalItems(Number(count) || (list.length > 0 ? list.length : 0));
       }
     } catch (error) {
       console.error("Error fetching coupons:", error);
@@ -661,7 +668,7 @@ export default function CouponsPage() {
             <TableBottomPagination
               currentPage={currentPage}
               totalPages={totalPages}
-              totalItems={totalItems}
+              totalItems={totalItems !== undefined && totalItems > 0 ? totalItems : coupons.length}
               itemsPerPage={itemsPerPage}
               onPageChange={(page) => setCurrentPage(page)}
             />

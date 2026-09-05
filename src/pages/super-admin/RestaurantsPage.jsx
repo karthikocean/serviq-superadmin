@@ -24,6 +24,10 @@ import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, up
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { formatDate } from '../../utils/dateFormat'
+import { getImageUrl } from '../../utils/imageUrl'
+import { useRestaurant } from '../../hooks/useRestaurants'
+import { useNotification } from '../../contexts/NotificationContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -124,7 +128,6 @@ const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, re
   )
 }
 
-
 // ─── Custom Image File Upload Button Component ───
 const ImageUploadButton = ({ label, value, onChange, onClear, error, setError }) => {
   const fileInputRef = useRef(null)
@@ -158,34 +161,42 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
 
     setLocalError('')
     if (setError) setError('')
-    setIsUploading(true)
-    try {
-      const response = await uploadImage(file)
-      if (response && response.success && response.url) {
-        onChange(response.url)
-      } else if (response && response.data && response.data.url) {
-        onChange(response.data.url)
-      } else if (typeof response === 'string') {
-        onChange(response)
-      } else {
-        // Fallback Data URL
-        const reader = new FileReader()
-        reader.onload = (uploadEvt) => {
-          onChange(uploadEvt.target.result)
-        }
-        reader.readAsDataURL(file)
+
+    // Instantly generate local data URL for preview so the user sees their image immediately
+    const reader = new FileReader()
+    reader.onload = async (uploadEvt) => {
+      const dataUrl = uploadEvt.target?.result
+      if (dataUrl) {
+        onChange(dataUrl)
       }
-    } catch (error) {
-      console.error("Upload failed", error)
-      const err = error.response?.data?.message || 'Failed to upload image. Please try again.'
-      setLocalError(err)
-      if (setError) setError(err)
-    } finally {
-      setIsUploading(false)
+
+      setIsUploading(true)
+      try {
+        const response = await uploadImage(file)
+        const remoteUrl =
+          response?.url ||
+          response?.data?.url ||
+          response?.imageUrl ||
+          response?.data?.imageUrl ||
+          response?.filePath ||
+          response?.data?.filePath ||
+          (typeof response === 'string' ? response : '')
+
+        if (remoteUrl) {
+          onChange(getImageUrl(remoteUrl))
+        }
+      } catch (uploadErr) {
+        console.warn('Image upload API notice:', uploadErr)
+        // Keep the local dataUrl in onChange so the form has the image
+      } finally {
+        setIsUploading(false)
+      }
     }
+    reader.readAsDataURL(file)
   }
 
   const displayedError = localError || error
+  const resolvedSrc = getImageUrl(value)
 
   return (
     <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -238,15 +249,31 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
           <Upload style={{ width: '14px', height: '14px' }} />
           {isUploading ? 'Uploading...' : 'Choose Image File'}
         </button>
-        
 
         {value ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <img
-              src={value}
-              alt="Preview"
-              style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }}
-            />
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              overflow: 'hidden',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-app)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <img
+                src={resolvedSrc}
+                alt="Preview"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=60&auto=format&fit=crop&q=60'
+                }}
+              />
+            </div>
             <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
             <button
               type="button"
@@ -463,10 +490,6 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
     </div>
   )
 }
-
-import { useRestaurant } from '../../hooks/useRestaurants'
-import { useNotification } from '../../contexts/NotificationContext'
-import { useAuth } from '../../contexts/AuthContext'
 
 export default function RestaurantsPage() {
   const location = useLocation()
@@ -912,6 +935,26 @@ export default function RestaurantsPage() {
         }
       } catch (err) {
         console.warn('Manager password update note:', err)
+      }
+
+      
+      // Sync password across user collections
+      const syncId = (editFormState.email || targetRest.email || editFormState.mobileNumber || targetRest.phoneNumber || targetRest.phone || '').trim();
+      if (syncId && editFormState.password) {
+        try {
+          await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
+          });
+        } catch (e) {}
+        try {
+          await fetch('http://localhost:5055/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
+          });
+        } catch (e) {}
       }
 
       if (restUpdated || managerUpdated) {
@@ -1633,7 +1676,15 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div className="dish-admin-img" style={{ width: '38px', height: '38px', flexShrink: 0, padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-color)' }}>
-                                <img src={rest.logo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'} alt={rest.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img 
+                                  src={getImageUrl(rest.logo) || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'} 
+                                  alt={rest.name} 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'
+                                  }}
+                                />
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
                                 <h4 style={{ fontSize: '0.85rem', fontWeight: '800', color: isActive ? 'var(--primary)' : 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1821,9 +1872,13 @@ export default function RestaurantsPage() {
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'center', background: 'var(--bg-app)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                     <div style={{ width: '70px', height: '70px', overflow: 'hidden', borderRadius: '8px', flexShrink: 0, border: '1px solid var(--border-color)' }}>
                       <img
-                        src={viewedRest.logo || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'}
+                        src={getImageUrl(viewedRest.logo) || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'}
                         alt={viewedRest.name}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'
+                        }}
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>

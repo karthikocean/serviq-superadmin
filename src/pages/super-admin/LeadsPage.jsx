@@ -1,23 +1,71 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, AlertTriangle, ChevronDown, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 // ─── Custom Floating Lead Status Dropdown ───
 const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle, leadStatuses }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef(null)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 170 })
+
+  const updatePosition = () => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const estimatedHeight = Math.min(leadStatuses.length * 36 + 12, 240)
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpwards = spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow
+
+    const left = Math.max(10, Math.min(rect.left, window.innerWidth - 180))
+    const top = openUpwards
+      ? Math.max(10, rect.top - estimatedHeight - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - estimatedHeight - 10)
+
+    setCoords({
+      top,
+      left,
+      width: Math.max(rect.width, 165)
+    })
+  }
+
+  const handleToggle = (e) => {
+    e.stopPropagation()
+    if (!isOpen) {
+      updatePosition()
+      setIsOpen(true)
+    } else {
+      setIsOpen(false)
+    }
+  }
 
   useEffect(() => {
+    if (!isOpen) return
+
+    const handleScrollOrResize = () => {
+      updatePosition()
+    }
+
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
         setIsOpen(false)
       }
     }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
+
+    window.addEventListener('resize', handleScrollOrResize)
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      document.removeEventListener('mousedown', handleClickOutside)
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
+  }, [isOpen, leadStatuses])
 
   const style = getLeadStatusStyle(lead.leadStatus)
 
@@ -44,10 +92,11 @@ const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle,
   }
 
   return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -70,19 +119,20 @@ const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle,
         <ChevronDown style={{ width: '12px', height: '12px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
+          ref={menuRef}
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            minWidth: '160px',
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            minWidth: `${coords.width}px`,
             background: '#ffffff',
             borderRadius: '10px',
             border: '1px solid var(--border-color, #e2e8f0)',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-            padding: '4px',
-            zIndex: 9999,
+            boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 6px 12px -2px rgba(0, 0, 0, 0.08)',
+            padding: '5px',
+            zIndex: 999999,
             maxHeight: '230px',
             overflowY: 'auto'
           }}
@@ -129,9 +179,10 @@ const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle,
               </button>
             )
           })}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
 
@@ -223,8 +274,15 @@ export default function LeadsPage() {
         leadSearchQuery, 
         leadStatusFilter 
       })
-      setLeads(data.data || [])
-      setTotalRecords(data.pagination?.totalItems || data.total || data.count || (data.data ? data.data.length : 0))
+      const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      setLeads(list)
+      const count = data?.pagination?.totalItems 
+        ?? data?.total 
+        ?? data?.totalCount 
+        ?? data?.count 
+        ?? data?.totalRecords
+        ?? (Array.isArray(data?.data) ? data.data.length : list.length)
+      setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
     } catch (error) {
       console.error(error)
       showToast('error', 'Failed to fetch leads')
@@ -518,6 +576,11 @@ export default function LeadsPage() {
 
         {!showCreateLeadForm && (
           <div style={{ padding: '20px 20px 10px' }}>
+            <TableTopControls
+              entriesPerPage={entriesPerPage}
+              onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
+              showSearch={false}
+            />
             <div className="dish-admin-list" style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
               <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px', tableLayout: 'fixed' }}>
               <thead>
@@ -636,7 +699,7 @@ export default function LeadsPage() {
             </div>
 
             <TableBottomPagination
-              totalEntries={totalRecords}
+              totalEntries={totalRecords !== undefined && totalRecords > 0 ? totalRecords : leads.length}
               currentPage={currentPage}
               entriesPerPage={entriesPerPage}
               onPageChange={setCurrentPage}

@@ -2379,3 +2379,36 @@
   justify-content: space-between;
   height: 100%;
 }
+
+
+/* Universal Table Header Seamless Styling */
+.menu-data-table,
+table {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+.menu-data-table thead,
+table thead,
+.menu-data-table thead tr,
+table thead tr {
+  background-color: #000000 !important;
+  background: #000000 !important;
+  border-spacing: 0 !important;
+}
+
+.menu-data-table thead th,
+.menu-data-table th,
+table thead th,
+table th {
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 2.5px solid #ff5a1f !important;
+  border-spacing: 0 !important;
+  background-color: #000000 !important;
+  background: #000000 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
