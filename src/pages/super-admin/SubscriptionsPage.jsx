@@ -25,12 +25,14 @@ import RenewSubscriptionModal from '../../components/Payment/RenewSubscriptionMo
 import ChangePlanModal from '../../components/Payment/ChangePlanModal'
 import ManageAddonsModal from '../../components/Payment/ManageAddonsModal'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { useAuth } from '../../contexts/AuthContext'
+import { formatDate } from '../../utils/dateFormat'
 
 export default function SubscriptionsPage() {
   const { subscriptions, fetchSubscriptions, subscriptionHistory, fetchSubscriptionHistory } = useSubscriptions()
   const { plans } = usePlans()
-  const { restaurants, setRestaurants } = useRestaurant()
+  const { restaurants, setRestaurants, fetchRestaurants } = useRestaurant()
   const { addons } = useAddons()
   const { showToast } = useNotification()
   const { hasPermission, isSuperOwner } = useAuth()
@@ -52,6 +54,15 @@ export default function SubscriptionsPage() {
   const [historySearchTerm, setHistorySearchTerm] = useState('')
   const [historyPlanFilter, setHistoryPlanFilter] = useState('All Plans')
   const [historyStatusFilter, setHistoryStatusFilter] = useState('All Status')
+  const [historyOutletFilter, setHistoryOutletFilter] = useState('All Outlets')
+  const [historyRenewalFilter, setHistoryRenewalFilter] = useState('All Subscriptions')
+  const [historyEntriesPerPage, setHistoryEntriesPerPage] = useState(10)
+  const [historyTablePage, setHistoryTablePage] = useState(0)
+
+  // Current Subscriptions pagination & search
+  const [currentSearchTerm, setCurrentSearchTerm] = useState('')
+  const [currentEntriesPerPage, setCurrentEntriesPerPage] = useState(10)
+  const [currentTablePage, setCurrentTablePage] = useState(0)
 
   const [formState, setFormState] = useState({
     restaurantId: '',
@@ -93,12 +104,44 @@ export default function SubscriptionsPage() {
   const expiredSubscribed = subscriptions.filter(s => s.status === 'Expired').length
   const cancelledSubscribed = subscriptions.filter(s => s.status === 'Cancelled' || s.status === 'Suspended').length
 
+  const filteredSubscriptions = (subscriptions || []).filter(sub => {
+    const matchFilter = currentFilter === 'All' || sub.status === currentFilter;
+    const sTerm = currentSearchTerm.toLowerCase().trim();
+    const matchSearch = !sTerm ||
+      sub.restaurantName?.toLowerCase().includes(sTerm) ||
+      sub.restaurantCode?.toLowerCase().includes(sTerm) ||
+      sub.planName?.toLowerCase().includes(sTerm);
+    return matchFilter && matchSearch;
+  });
+
+  const paginatedSubscriptions = filteredSubscriptions.slice(
+    currentTablePage * currentEntriesPerPage,
+    (currentTablePage + 1) * currentEntriesPerPage
+  );
+
   const filteredHistory = (subscriptionHistory || []).filter(record => {
-    const matchSearch = record.restaurantName?.toLowerCase().includes(historySearchTerm.toLowerCase()) || false;
+    const sTerm = historySearchTerm.toLowerCase().trim();
+    const matchSearch = !sTerm ||
+      record.restaurantName?.toLowerCase().includes(sTerm) ||
+      record.restaurantCode?.toLowerCase().includes(sTerm) ||
+      record.id?.toLowerCase().includes(sTerm) ||
+      record.planName?.toLowerCase().includes(sTerm);
     const matchPlan = historyPlanFilter === 'All Plans' || record.planName?.includes(historyPlanFilter);
     const matchStatus = historyStatusFilter === 'All Status' || record.status === historyStatusFilter;
-    return matchSearch && matchPlan && matchStatus;
+    const matchOutlet = historyOutletFilter === 'All Outlets' ||
+      record.restaurantName === historyOutletFilter ||
+      record.restaurantId === historyOutletFilter;
+    const isRenewed = Boolean(record.previousSubscriptionId || record.isRenewal || record.renewed || (record.type && record.type.toLowerCase().includes('renew')));
+    const matchRenewal = historyRenewalFilter === 'All Subscriptions' ||
+      (historyRenewalFilter === 'Renewed Subscriptions' && isRenewed) ||
+      (historyRenewalFilter === 'New Subscriptions' && !isRenewed);
+    return matchSearch && matchPlan && matchStatus && matchOutlet && matchRenewal;
   });
+
+  const paginatedHistory = filteredHistory.slice(
+    historyTablePage * historyEntriesPerPage,
+    (historyTablePage + 1) * historyEntriesPerPage
+  );
 
   // Calculate Prices for the Assign Plan Form
   const selectedPlanObj = plans.find(p => p.name === formState.planName);
@@ -231,14 +274,18 @@ export default function SubscriptionsPage() {
       return r
     })
 
-    // Fetch real history from API if we are assigning
+    // Fetch real history & subscriptions from API if we are assigning
     if (!editingSubscriptionRest) {
-      fetchSubscriptionHistory();
+      await fetchSubscriptions();
+      await fetchSubscriptionHistory();
     }
-
-    onUpdateRestaurants(updated)
-    setIsAssignModalOpen(false)
-    setEditingSubscriptionRest(null)
+    setRestaurants(updated);
+    if (typeof fetchRestaurants === 'function') {
+      await fetchRestaurants();
+    }
+    setIsAssignModalOpen(false);
+    setEditingSubscriptionRest(null);
+    setActiveTab('current');
   }
 
   const handleQuickRenew = (restaurant) => {
@@ -672,7 +719,10 @@ export default function SubscriptionsPage() {
                 {['All', 'Active', 'Expiring Soon', 'Expired', 'Cancelled'].map(filter => (
                   <button
                     key={filter}
-                    onClick={() => setCurrentFilter(filter)}
+                    onClick={() => {
+                      setCurrentFilter(filter);
+                      setCurrentTablePage(0);
+                    }}
                     style={{
                       padding: '6px 14px',
                       borderRadius: '20px',
@@ -691,6 +741,20 @@ export default function SubscriptionsPage() {
                 ))}
               </div>
 
+              <TableTopControls
+                entriesPerPage={currentEntriesPerPage}
+                onEntriesPerPageChange={(val) => {
+                  setCurrentEntriesPerPage(val);
+                  setCurrentTablePage(0);
+                }}
+                searchTerm={currentSearchTerm}
+                onSearchChange={(val) => {
+                  setCurrentSearchTerm(val);
+                  setCurrentTablePage(0);
+                }}
+                searchPlaceholder="Search restaurant or plan..."
+              />
+
               <div style={{ overflowX: 'auto', paddingBottom: activeDropdown ? '160px' : '0', transition: 'padding 0.2s', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
@@ -706,9 +770,7 @@ export default function SubscriptionsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {subscriptions
-                      .filter(sub => currentFilter === 'All' || sub.status === currentFilter)
-                      .map((sub, idx) => {
+                    {paginatedSubscriptions.map((sub, idx) => {
                         const isPremium = sub.planName?.toLowerCase().includes('premium')
                         const isStandard = sub.planName?.toLowerCase().includes('standard')
                         const isBasic = sub.planName?.toLowerCase().includes('basic')
@@ -722,7 +784,7 @@ export default function SubscriptionsPage() {
                         return (
                           <tr key={sub.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', width: '60px', whiteSpace: 'nowrap' }}>
-                              {idx + 1}
+                              {currentTablePage * currentEntriesPerPage + idx + 1}
                             </td>
                             <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -748,13 +810,13 @@ export default function SubscriptionsPage() {
                               </div>
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {sub.startDate || '—'}
+                              {formatDate(sub.startDate)}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {sub.endDate || '—'}
+                              {formatDate(sub.endDate)}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {sub.renewalDate || sub.endDate || '—'}
+                              {formatDate(sub.renewalDate || sub.endDate)}
                             </td>
                             <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                               <span style={{
@@ -876,9 +938,23 @@ export default function SubscriptionsPage() {
                           </tr>
                         )
                       })}
+                    {paginatedSubscriptions.length === 0 && (
+                      <tr>
+                        <td colSpan="8" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: '600' }}>
+                          No subscriptions found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              <TableBottomPagination
+                totalEntries={filteredSubscriptions.length}
+                currentPage={currentTablePage}
+                entriesPerPage={currentEntriesPerPage}
+                onPageChange={(page) => setCurrentTablePage(page)}
+              />
             </div>
           )}
 
@@ -950,19 +1026,19 @@ export default function SubscriptionsPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Start Date</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', fontFamily: 'monospace' }}>
-                      {viewingSubscriptionRest.createdDate || '—'}
+                      {formatDate(viewingSubscriptionRest.createdDate || viewingSubscriptionRest.startDate)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>End Date</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', fontFamily: 'monospace' }}>
-                      {viewingSubscriptionRest.expiryDate || '—'}
+                      {formatDate(viewingSubscriptionRest.expiryDate || viewingSubscriptionRest.endDate)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Renewal Date</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', fontFamily: 'monospace' }}>
-                      {viewingSubscriptionRest.renewalDate || viewingSubscriptionRest.expiryDate || '—'}
+                      {formatDate(viewingSubscriptionRest.renewalDate || viewingSubscriptionRest.expiryDate || viewingSubscriptionRest.endDate)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px' }}>
@@ -997,11 +1073,11 @@ export default function SubscriptionsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="glass-card animate-fade-in" style={{ padding: '24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div>
                 <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '900', color: 'var(--text-main)' }}>Subscription History</h4>
               </div>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   placeholder="Search restaurant..."
@@ -1011,38 +1087,84 @@ export default function SubscriptionsPage() {
                       e.preventDefault();
                     }
                   }}
-                  onChange={(e) => setHistorySearchTerm(e.target.value.replace(/\s+/g, ''))}
+                  onChange={(e) => {
+                    setHistorySearchTerm(e.target.value.replace(/\s+/g, ''));
+                    setHistoryTablePage(0);
+                  }}
                   style={{
-                    padding: '8px 14px',
+                    padding: '8px 12px',
                     borderRadius: '8px',
                     border: '1.5px solid var(--border-color)',
                     background: 'var(--bg-app)',
                     fontSize: '0.75rem',
                     outline: 'none',
-                    minWidth: '200px'
+                    minWidth: '160px'
                   }}
                 />
-                <div style={{ width: '140px' }}>
+                <div style={{ width: '150px' }}>
+                  <CustomSelect
+                    options={[
+                      { value: 'All Outlets', label: 'All Branch Outlets' },
+                      ...restaurants.map(r => ({ value: r.name, label: r.name }))
+                    ]}
+                    value={historyOutletFilter}
+                    onChange={(val) => {
+                      setHistoryOutletFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val);
+                      setHistoryTablePage(0);
+                    }}
+                  />
+                </div>
+                <div style={{ width: '135px' }}>
                   <CustomSelect
                     options={['All Plans', 'Premium', 'Standard', 'Basic'].map(p => ({ value: p, label: p }))}
                     value={historyPlanFilter}
-                    onChange={(val) => setHistoryPlanFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                    onChange={(val) => {
+                      setHistoryPlanFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val);
+                      setHistoryTablePage(0);
+                    }}
                   />
                 </div>
-                <div style={{ width: '140px' }}>
+                <div style={{ width: '155px' }}>
+                  <CustomSelect
+                    options={[
+                      { value: 'All Subscriptions', label: 'All Types' },
+                      { value: 'Renewed Subscriptions', label: 'Renewed Only' },
+                      { value: 'New Subscriptions', label: 'New Plans Only' }
+                    ]}
+                    value={historyRenewalFilter}
+                    onChange={(val) => {
+                      setHistoryRenewalFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val);
+                      setHistoryTablePage(0);
+                    }}
+                  />
+                </div>
+                <div style={{ width: '125px' }}>
                   <CustomSelect
                     options={['All Status', 'Active', 'Completed', 'Cancelled'].map(s => ({ value: s, label: s }))}
                     value={historyStatusFilter}
-                    onChange={(val) => setHistoryStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                    onChange={(val) => {
+                      setHistoryStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val);
+                      setHistoryTablePage(0);
+                    }}
                   />
                 </div>
               </div>
             </div>
 
+            <TableTopControls
+              entriesPerPage={historyEntriesPerPage}
+              onEntriesPerPageChange={(val) => {
+                setHistoryEntriesPerPage(val);
+                setHistoryTablePage(0);
+              }}
+              showSearch={false}
+            />
+
             <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
               <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', width: '60px', whiteSpace: 'nowrap' }}>S.No</th>
                     <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Restaurant</th>
                     <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Subscription ID</th>
                     <th style={{ textAlign: 'left', padding: '14px 18px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap' }}>Plan</th>
@@ -1053,10 +1175,13 @@ export default function SubscriptionsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredHistory.map((historyRecord, idx) => {
+                  {paginatedHistory.map((historyRecord, idx) => {
                     const statusStyles = getStatusColor(historyRecord.status || 'Completed')
                     return (
                       <tr key={historyRecord.id || idx} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                        <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', width: '60px', whiteSpace: 'nowrap' }}>
+                          {historyTablePage * historyEntriesPerPage + idx + 1}
+                        </td>
                         <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>
                           {historyRecord.restaurantName}
                         </td>
@@ -1067,10 +1192,10 @@ export default function SubscriptionsPage() {
                           {historyRecord.planName}
                         </td>
                         <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                          {historyRecord.startDate}
+                          {formatDate(historyRecord.startDate)}
                         </td>
                         <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                          {historyRecord.endDate}
+                          {formatDate(historyRecord.endDate)}
                         </td>
                         <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>
                           ₹{(historyRecord.amount || 0).toLocaleString()}
@@ -1090,9 +1215,9 @@ export default function SubscriptionsPage() {
                       </tr>
                     )
                   })}
-                  {filteredHistory.length === 0 && (
+                  {paginatedHistory.length === 0 && (
                     <tr>
-                      <td colSpan="7" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600' }}>
+                      <td colSpan="8" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600' }}>
                         No historical records found.
                       </td>
                     </tr>
@@ -1100,6 +1225,13 @@ export default function SubscriptionsPage() {
                 </tbody>
               </table>
             </div>
+
+            <TableBottomPagination
+              totalEntries={filteredHistory.length}
+              currentPage={historyTablePage}
+              entriesPerPage={historyEntriesPerPage}
+              onPageChange={(page) => setHistoryTablePage(page)}
+            />
           </div>
         </div>
       )}
@@ -1247,8 +1379,17 @@ export default function SubscriptionsPage() {
               };
               await renewSubscriptionAPI(payload);
               showToast('success', `Renewed subscription for ${actionModal.subscription?.restaurantName}`);
-              fetchSubscriptionHistory();
-              fetchSubscriptions();
+              await fetchSubscriptionHistory();
+              await fetchSubscriptions();
+              if (typeof fetchRestaurants === 'function') {
+                await fetchRestaurants();
+              }
+              setRestaurants(prev => prev.map(r => {
+                if (r.id === actionModal.subscription?.restaurantCode || r._id === actionModal.subscription?.restaurantId) {
+                  return { ...r, subscriptionStatus: 'Active' };
+                }
+                return r;
+              }));
               setActionModal({ type: null, subscription: null });
             } catch (err) {
               console.error(err);
@@ -1274,8 +1415,11 @@ export default function SubscriptionsPage() {
               };
               await changePlanAPI(payload);
               showToast('success', `Changed plan for ${actionModal.subscription?.restaurantName}`);
-              fetchSubscriptionHistory();
-              fetchSubscriptions();
+              await fetchSubscriptionHistory();
+              await fetchSubscriptions();
+              if (typeof fetchRestaurants === 'function') {
+                await fetchRestaurants();
+              }
               setActionModal({ type: null, subscription: null });
             } catch (err) {
               console.error(err);

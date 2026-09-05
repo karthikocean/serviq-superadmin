@@ -4,13 +4,22 @@ import CustomSelect from './CustomSelect';
 
 export const TableTopControls = ({
   entriesPerPage = 10,
+  itemsPerPage,
   onEntriesPerPageChange = () => {},
+  onItemsPerPageChange,
   searchTerm = '',
+  searchQuery = '',
   onSearchChange = () => {},
   searchPlaceholder = 'Search...',
+  placeholder = '',
   showEntriesSelector = true,
   showSearch = true
 }) => {
+  const currentEntries = itemsPerPage !== undefined ? itemsPerPage : entriesPerPage;
+  const handleEntriesChange = onItemsPerPageChange || onEntriesPerPageChange;
+  const currentSearch = searchTerm || searchQuery || '';
+  const currentPlaceholder = placeholder || searchPlaceholder || 'Search...';
+
   return (
     <div style={{
       display: 'flex',
@@ -32,8 +41,8 @@ export const TableTopControls = ({
                 { value: 50, label: '50' },
                 { value: 100, label: '100' }
               ]}
-              value={entriesPerPage}
-              onChange={(val) => onEntriesPerPageChange(Number(typeof val === 'object' && val !== null && val.target ? val.target.value : val))}
+              value={currentEntries}
+              onChange={(val) => handleEntriesChange(Number(typeof val === 'object' && val !== null && val.target ? val.target.value : val))}
             />
           </div>
           <span>entries</span>
@@ -53,14 +62,14 @@ export const TableTopControls = ({
           }} />
           <input
             type="text"
-            value={searchTerm}
+            value={currentSearch}
             onKeyDown={(e) => {
               if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
                 e.preventDefault();
               }
             }}
             onChange={(e) => onSearchChange(e.target.value.replace(/\s+/g, ''))}
-            placeholder={searchPlaceholder}
+            placeholder={currentPlaceholder}
             style={{
               width: '100%',
               padding: '7px 12px 7px 34px',
@@ -80,19 +89,24 @@ export const TableTopControls = ({
 };
 
 export const TableBottomPagination = ({
-  totalEntries = 0,
+  totalEntries,
+  totalItems,
   currentPage = 0,
-  entriesPerPage = 10,
+  entriesPerPage,
+  itemsPerPage,
   onPageChange = () => {}
 }) => {
-  const totalPages = Math.ceil(totalEntries / entriesPerPage) || 1;
-  const startEntry = totalEntries === 0 ? 0 : (currentPage) * entriesPerPage + 1;
-  const endEntry = Math.min((currentPage + 1) * entriesPerPage, totalEntries);
+  const count = Math.max(0, Number((totalEntries !== undefined ? totalEntries : totalItems) ?? 0) || 0);
+  const limit = Math.max(1, Number((entriesPerPage !== undefined ? entriesPerPage : itemsPerPage) ?? 10) || 10);
+  const totalPages = Math.max(1, Math.ceil(count / limit));
+  const safeCurrentPage = count === 0 ? 0 : Math.min(Math.max(0, currentPage), totalPages - 1);
+  const startEntry = count === 0 ? 0 : safeCurrentPage * limit + 1;
+  const endEntry = count === 0 ? 0 : Math.min((safeCurrentPage + 1) * limit, count);
 
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    let startPage = Math.max(0, currentPage - Math.floor(maxVisible / 2));
+    let startPage = Math.max(0, safeCurrentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages - 1, startPage + maxVisible - 1);
 
     if (endPage - startPage + 1 < maxVisible) {
@@ -120,24 +134,24 @@ export const TableBottomPagination = ({
     }}>
       {/* Left Info Text */}
       <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '500' }}>
-        Showing {startEntry} to {endEntry} of {totalEntries} entries
+        Showing {startEntry} to {endEntry} of {count} entries
       </div>
 
       {/* Right Pagination Buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <button
           type="button"
-          disabled={currentPage === 0}
-          onClick={() => onPageChange(currentPage - 1)}
+          disabled={safeCurrentPage === 0}
+          onClick={() => onPageChange(safeCurrentPage - 1)}
           style={{
             padding: '6px 14px',
             borderRadius: '8px',
             border: '1px solid #e2e8f0',
-            background: currentPage === 0 ? '#f8fafc' : '#ffffff',
-            color: currentPage === 0 ? '#cbd5e1' : '#334155',
+            background: safeCurrentPage === 0 ? '#f8fafc' : '#ffffff',
+            color: safeCurrentPage === 0 ? '#cbd5e1' : '#334155',
             fontSize: '0.82rem',
             fontWeight: '600',
-            cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+            cursor: safeCurrentPage === 0 ? 'not-allowed' : 'pointer',
             transition: 'all 0.15s ease'
           }}
         >
@@ -154,13 +168,13 @@ export const TableBottomPagination = ({
               height: '34px',
               padding: '0 8px',
               borderRadius: '8px',
-              border: page === currentPage ? 'none' : '1px solid #e2e8f0',
-              background: page === currentPage ? '#000000' : '#ffffff',
-              color: page === currentPage ? '#ffffff' : '#334155',
+              border: page === safeCurrentPage ? 'none' : '1px solid #e2e8f0',
+              background: page === safeCurrentPage ? '#000000' : '#ffffff',
+              color: page === safeCurrentPage ? '#ffffff' : '#334155',
               fontSize: '0.85rem',
               fontWeight: '700',
               cursor: 'pointer',
-              boxShadow: page === currentPage ? '0 3px 10px rgba(0,0,0,0.25)' : 'none',
+              boxShadow: page === safeCurrentPage ? '0 3px 10px rgba(0,0,0,0.25)' : 'none',
               transition: 'all 0.15s ease'
             }}
           >
@@ -170,17 +184,17 @@ export const TableBottomPagination = ({
 
         <button
           type="button"
-          disabled={currentPage >= totalPages - 1}
-          onClick={() => onPageChange(currentPage + 1)}
+          disabled={safeCurrentPage >= totalPages - 1}
+          onClick={() => onPageChange(safeCurrentPage + 1)}
           style={{
             padding: '6px 14px',
             borderRadius: '8px',
             border: '1px solid #e2e8f0',
-            background: currentPage >= totalPages - 1 ? '#f8fafc' : '#ffffff',
-            color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#334155',
+            background: safeCurrentPage >= totalPages - 1 ? '#f8fafc' : '#ffffff',
+            color: safeCurrentPage >= totalPages - 1 ? '#cbd5e1' : '#334155',
             fontSize: '0.82rem',
             fontWeight: '600',
-            cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+            cursor: safeCurrentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
             transition: 'all 0.15s ease'
           }}
         >

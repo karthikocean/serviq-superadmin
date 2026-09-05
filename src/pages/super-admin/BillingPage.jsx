@@ -8,6 +8,7 @@ import {
   X
 } from 'lucide-react'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
+import { formatDate } from '../../utils/dateFormat'
 
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
@@ -50,12 +51,13 @@ import { usePlans } from '../../hooks/usePlans'
 import { useBilling } from '../../hooks/useBilling'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useAuth } from '../../contexts/AuthContext'
+import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 
 export default function BillingPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { restaurants } = useRestaurant()
   const { plans } = usePlans()
-  const { invoices, fetchInvoices, downloadReceipt } = useBilling()
+  const { invoices, fetchInvoices, downloadReceipt, total } = useBilling()
   const { showToast } = useNotification()
   const { hasPermission, isSuperOwner } = useAuth()
 
@@ -64,10 +66,12 @@ export default function BillingPage() {
   const [viewingInvoice, setViewingInvoice] = useState(null)
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('')
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All')
+  const [currentPage, setCurrentPage] = useState(0)
+  const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   useEffect(() => {
-    fetchInvoices(0, 100, invoiceSearchQuery, invoiceStatusFilter)
-  }, [invoiceSearchQuery, invoiceStatusFilter, fetchInvoices])
+    fetchInvoices(currentPage, entriesPerPage, invoiceSearchQuery, invoiceStatusFilter)
+  }, [currentPage, entriesPerPage, invoiceSearchQuery, invoiceStatusFilter, fetchInvoices])
 
   return (
     <>
@@ -79,30 +83,34 @@ export default function BillingPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={invoiceSearchQuery}
-                  onKeyDown={(e) => {
-                    if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => setInvoiceSearchQuery(e.target.value.replace(/\s+/g, ''))}
-                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.75rem', width: '180px' }}
-                />
-
                 <div style={{ width: '140px' }}>
                   <CustomSelect
                     options={['All', 'Paid', 'Pending', 'Failed', 'Refunded'].map(s => ({ value: s, label: s === 'All' ? 'All Statuses' : s }))}
                     value={invoiceStatusFilter}
-                    onChange={(val) => setInvoiceStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                    onChange={(val) => {
+                      setInvoiceStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val);
+                      setCurrentPage(0);
+                    }}
                   />
                 </div>
               </div>
             </div>
 
-            <div style={{ padding: '20px 20px 10px' }}>
+            <div style={{ padding: '20px' }}>
+              <TableTopControls
+                entriesPerPage={entriesPerPage}
+                onEntriesPerPageChange={(val) => {
+                  setEntriesPerPage(val);
+                  setCurrentPage(0);
+                }}
+                searchTerm={invoiceSearchQuery}
+                onSearchChange={(val) => {
+                  setInvoiceSearchQuery(val);
+                  setCurrentPage(0);
+                }}
+                searchPlaceholder="Search invoices, restaurants, plans..."
+              />
+
               <div className="dish-admin-list" style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
                 <table className="menu-data-table">
                   <thead>
@@ -124,7 +132,7 @@ export default function BillingPage() {
                       .map((inv, idx) => (
                         <tr key={inv._id || inv.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                           <td style={{ padding: '14px 24px', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                            {idx + 1}
+                            {currentPage * entriesPerPage + idx + 1}
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontWeight: '700', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -151,12 +159,7 @@ export default function BillingPage() {
                             ₹{(inv.taxAmount !== undefined ? inv.taxAmount : Math.round(inv.amount * 0.18)).toLocaleString()}
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                            {inv.paymentDate && inv.paymentDate !== '—'
-                              ? (() => {
-                                  const [yyyy, mm, dd] = inv.paymentDate.split('-');
-                                  return yyyy && mm && dd ? `${dd}-${mm}-${yyyy}` : inv.paymentDate;
-                                })()
-                              : '—'}
+                            {formatDate(inv.paymentDate || inv.createdAt)}
                           </td>
                           <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                             <span style={{
@@ -214,6 +217,13 @@ export default function BillingPage() {
                   </tbody>
                 </table>
               </div>
+
+              <TableBottomPagination
+                totalEntries={total !== undefined && total > 0 ? total : invoices.length}
+                currentPage={currentPage}
+                entriesPerPage={entriesPerPage}
+                onPageChange={(page) => setCurrentPage(page)}
+              />
             </div>
           </div>
         </div>
@@ -285,11 +295,11 @@ export default function BillingPage() {
                 <div style={{ textAlign: 'right' }}>
                   <div>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Invoice Date: </span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.paymentDate || viewingInvoice.dueDate}</span>
+                    <span style={{ fontWeight: '700' }}>{formatDate(viewingInvoice.paymentDate || viewingInvoice.dueDate || viewingInvoice.createdAt)}</span>
                   </div>
                   <div style={{ marginTop: '4px' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Due Date: </span>
-                    <span style={{ fontWeight: '700' }}>{viewingInvoice.dueDate || '—'}</span>
+                    <span style={{ fontWeight: '700' }}>{formatDate(viewingInvoice.dueDate)}</span>
                   </div>
                   <div style={{ marginTop: '4px' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Payment Method: </span>

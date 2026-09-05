@@ -1,6 +1,190 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, AlertTriangle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { Plus, AlertTriangle, ChevronDown, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+// ─── Custom Floating Lead Status Dropdown ───
+const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle, leadStatuses }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 170 })
+
+  const updatePosition = () => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const estimatedHeight = Math.min(leadStatuses.length * 36 + 12, 240)
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpwards = spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow
+
+    const left = Math.max(10, Math.min(rect.left, window.innerWidth - 180))
+    const top = openUpwards
+      ? Math.max(10, rect.top - estimatedHeight - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - estimatedHeight - 10)
+
+    setCoords({
+      top,
+      left,
+      width: Math.max(rect.width, 165)
+    })
+  }
+
+  const handleToggle = (e) => {
+    e.stopPropagation()
+    if (!isOpen) {
+      updatePosition()
+      setIsOpen(true)
+    } else {
+      setIsOpen(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleScrollOrResize = () => {
+      updatePosition()
+    }
+
+    const handleClickOutside = (e) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleScrollOrResize)
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen, leadStatuses])
+
+  const style = getLeadStatusStyle(lead.leadStatus)
+
+  if (!canEdit) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 12px',
+          borderRadius: '20px',
+          fontSize: '0.74rem',
+          fontWeight: '700',
+          background: style.bg,
+          color: style.color,
+          border: style.border
+        }}
+      >
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: style.dot }} />
+        {lead.leadStatus}
+      </span>
+    )
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleToggle}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 12px',
+          borderRadius: '20px',
+          fontSize: '0.74rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          outline: 'none',
+          background: style.bg,
+          color: style.color,
+          border: style.border,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          transition: 'all 0.15s ease'
+        }}
+      >
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: style.dot }} />
+        <span>{lead.leadStatus}</span>
+        <ChevronDown style={{ width: '12px', height: '12px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            minWidth: `${coords.width}px`,
+            background: '#ffffff',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 6px 12px -2px rgba(0, 0, 0, 0.08)',
+            padding: '5px',
+            zIndex: 999999,
+            maxHeight: '230px',
+            overflowY: 'auto'
+          }}
+        >
+          {leadStatuses.map((st) => {
+            const stStyle = getLeadStatusStyle(st)
+            const isSelected = lead.leadStatus === st
+            return (
+              <button
+                key={st}
+                type="button"
+                onClick={() => {
+                  onStatusChange(lead._id, st)
+                  setIsOpen(false)
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                  color: isSelected ? '#2563eb' : 'var(--text-main, #0f172a)',
+                  fontSize: '0.76rem',
+                  fontWeight: isSelected ? '700' : '500',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.12s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'rgba(0, 0, 0, 0.04)'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: stStyle.dot }} />
+                  <span>{st}</span>
+                </div>
+                {isSelected && <Check style={{ width: '13px', height: '13px', color: '#2563eb' }} />}
+              </button>
+            )
+          })}
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => (
@@ -90,8 +274,15 @@ export default function LeadsPage() {
         leadSearchQuery, 
         leadStatusFilter 
       })
-      setLeads(data.data || [])
-      setTotalRecords(data.pagination?.totalItems || 0)
+      const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      setLeads(list)
+      const count = data?.pagination?.totalItems 
+        ?? data?.total 
+        ?? data?.totalCount 
+        ?? data?.count 
+        ?? data?.totalRecords
+        ?? (Array.isArray(data?.data) ? data.data.length : list.length)
+      setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
     } catch (error) {
       console.error(error)
       showToast('error', 'Failed to fetch leads')
@@ -229,6 +420,27 @@ export default function LeadsPage() {
   const openLeadsCount = leads.filter(lead => !['Won', 'Lost', 'Converted'].includes(lead.leadStatus)).length
   const wonLeadsCount = leads.filter(lead => lead.leadStatus === 'Won' || lead.leadStatus === 'Converted').length
   const upcomingFollowUpsCount = leads.filter(lead => lead.followUpDate && !['Won', 'Lost', 'Converted'].includes(lead.leadStatus)).length
+  const getLeadStatusStyle = (status) => {
+    switch (status) {
+      case 'Won':
+      case 'Converted':
+        return { bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)', dot: '#10b981' }
+      case 'Lost':
+      case 'Not Interested':
+        return { bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.25)', dot: '#ef4444' }
+      case 'Interested':
+      case 'Proposal Sent':
+      case 'Negotiation':
+        return { bg: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.25)', dot: '#f59e0b' }
+      case 'Follow-up':
+      case 'Demo Scheduled':
+        return { bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.25)', dot: '#3b82f6' }
+      case 'New Lead':
+      case 'Contacted':
+      default:
+        return { bg: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)', dot: '#8b5cf6' }
+    }
+  }
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -251,7 +463,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      <div className="glass-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: 'hidden' }}>
+      <div className="glass-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', overflow: showCreateLeadForm ? 'visible' : 'hidden' }}>
         <div style={{ padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', gap: '12px', flexWrap: 'wrap' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '900' }}>{showCreateLeadForm ? 'Create Lead' : 'Leads / CRM Pipeline'}</h3>
@@ -285,8 +497,7 @@ export default function LeadsPage() {
                 type="button"
                 className={showCreateLeadForm ? 'btn-outline' : 'btn-black'}
                 onClick={() => {
-                  setFormErrors({})
-                  resetLeadForm()
+                  if (!showCreateLeadForm) resetLeadForm()
                   setShowCreateLeadForm(!showCreateLeadForm)
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', padding: '7px 14px' }}
@@ -297,9 +508,10 @@ export default function LeadsPage() {
           </div>
         </div>
 
+
         {showCreateLeadForm && (
-          <div className="animate-fade-in" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-            <form onSubmit={handleCreateLeadSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px', alignItems: 'end' }}>
+          <div className="animate-fade-in" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', overflow: 'visible' }}>
+            <form onSubmit={handleCreateLeadSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px', alignItems: 'end', position: 'relative', zIndex: 5 }}>
               <ValidatedInput label="Business Name" value={leadFormState.businessName} onChange={(e) => setLeadFormState({ ...leadFormState, businessName: e.target.value })} placeholder="e.g. Green Bowl Cafe" required error={formErrors.businessName} setError={(val) => setFormErrors({ ...formErrors, businessName: val })} />
               <ValidatedInput
                 label="Contact Person"
@@ -315,7 +527,7 @@ export default function LeadsPage() {
               />
               <ValidatedInput
                 label="Mobile Number"
-                type="text"
+                type="tel"
                 inputMode="numeric"
                 value={leadFormState.mobileNumber}
                 onChange={(e) => {
@@ -364,6 +576,11 @@ export default function LeadsPage() {
 
         {!showCreateLeadForm && (
           <div style={{ padding: '20px 20px 10px' }}>
+            <TableTopControls
+              entriesPerPage={entriesPerPage}
+              onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
+              showSearch={false}
+            />
             <div className="dish-admin-list" style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
               <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px', tableLayout: 'fixed' }}>
               <thead>
@@ -372,7 +589,7 @@ export default function LeadsPage() {
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Lead</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '180px' }}>Contact</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '110px' }}>Source</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '150px' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '170px' }}>Status</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '160px' }}>Assigned To</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '140px' }}>Follow-up</th>
                   <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Remarks</th>
@@ -383,7 +600,7 @@ export default function LeadsPage() {
                 {paginatedLeads.map((lead, idx) => (
                   <tr key={lead._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap', width: '65px' }}>
-                      {(currentPage - 1) * entriesPerPage + idx + 1}
+                      {currentPage * entriesPerPage + idx + 1}
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '200px' }}>
                       <strong style={{ color: 'var(--text-main)', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{lead.businessName}</strong>
@@ -397,15 +614,14 @@ export default function LeadsPage() {
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: 'nowrap', width: '110px' }}>
                       {lead.leadSource}
                     </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '150px' }}>
-                      <div style={{ width: '130px' }}>
-                        <CustomSelect
-                          options={leadStatuses.map(status => ({ value: status, label: status }))}
-                          value={lead.leadStatus}
-                          disabled={!canEdit}
-                          onChange={(val) => handleLeadStatusChange(lead._id, typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
-                        />
-                      </div>
+                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '170px' }}>
+                      <LeadStatusDropdown
+                        lead={lead}
+                        canEdit={canEdit}
+                        onStatusChange={handleLeadStatusChange}
+                        getLeadStatusStyle={getLeadStatusStyle}
+                        leadStatuses={leadStatuses}
+                      />
                     </td>
                     <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '160px' }}>
                       <input
@@ -483,7 +699,7 @@ export default function LeadsPage() {
             </div>
 
             <TableBottomPagination
-              totalEntries={totalRecords}
+              totalEntries={totalRecords !== undefined && totalRecords > 0 ? totalRecords : leads.length}
               currentPage={currentPage}
               entriesPerPage={entriesPerPage}
               onPageChange={setCurrentPage}

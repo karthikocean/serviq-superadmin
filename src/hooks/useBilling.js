@@ -10,9 +10,30 @@ export function useBilling() {
     setIsLoading(true);
     try {
       const response = await getPaymentsAPI(page, limit, search, status);
-      if (response.success) {
-        setInvoices(response.data.results || response.data || []);
-        setTotal(response.data.total || (response.data.results ? response.data.results.length : 0));
+      if (response && (response.success || Array.isArray(response.data) || Array.isArray(response))) {
+        const list = Array.isArray(response.data?.results)
+          ? response.data.results
+          : Array.isArray(response.data?.payments)
+          ? response.data.payments
+          : Array.isArray(response.data?.invoices)
+          ? response.data.invoices
+          : Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response)
+          ? response
+          : [];
+        setInvoices(list);
+
+        const resolvedTotal = response.pagination?.totalItems
+          ?? response.data?.pagination?.totalItems
+          ?? response.total
+          ?? response.totalCount
+          ?? response.totalItems
+          ?? response.data?.total
+          ?? response.data?.totalCount
+          ?? response.data?.count
+          ?? list.length;
+        setTotal(Number(resolvedTotal) || (list.length > 0 ? list.length : 0));
       }
     } catch (error) {
       console.error('Error fetching invoices:', error);

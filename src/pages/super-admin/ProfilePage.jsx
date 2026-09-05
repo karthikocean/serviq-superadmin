@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Check, Lock, Save, Camera, Mail, Phone, Hash } from 'lucide-react';
+import { User, Shield, Check, Lock, Save, Camera, Mail, Phone, Hash, ArrowLeft } from 'lucide-react';
 import { getProfile, updateProfile, updatePassword } from '../../services/authService';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function ProfilePage() {
   const { showToast } = useNotification();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('personal');
   const [loading, setLoading] = useState(true);
 
@@ -76,8 +78,8 @@ export default function ProfilePage() {
 
     if (!phoneNumber) {
       errors.phoneNumber = 'Phone Number is required';
-    } else if (!/^[+]?[\d\s-]{10,15}$/.test(phoneNumber)) {
-      errors.phoneNumber = 'Enter a valid phone number (10-15 digits)';
+    } else if (!/^\d{10}$/.test(phoneNumber)) {
+      errors.phoneNumber = 'Enter a valid 10-digit mobile number';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -145,6 +147,19 @@ export default function ProfilePage() {
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+
+      {/* Back Button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-main)', transition: 'all 0.2s' }}
+          onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+          onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+        >
+          <ArrowLeft size={15} /> Back
+        </button>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>My Profile</span>
+      </div>
 
       <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
 
@@ -227,8 +242,15 @@ export default function ProfilePage() {
                     type="text"
                     name="phoneNumber"
                     value={formData.phoneNumber}
-                    onChange={handleFormChange}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      setFormData(prev => ({ ...prev, phoneNumber: digits }))
+                      if (personalErrors.phoneNumber) setPersonalErrors(prev => ({ ...prev, phoneNumber: '' }))
+                    }}
+                    inputMode="numeric"
+                    maxLength={10}
                     required
+                    placeholder="10-digit mobile number"
                     style={{ padding: '10px 14px', borderRadius: '8px', border: personalErrors.phoneNumber ? '1.5px solid #ef4444' : '1px solid var(--border-color)', background: personalErrors.phoneNumber ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.15s' }}
                   />
                   {personalErrors.phoneNumber && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{personalErrors.phoneNumber}</span>}

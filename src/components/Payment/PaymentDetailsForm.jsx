@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { UploadCloud, Loader2 } from 'lucide-react';
 import { uploadImage } from '../../services/api';
 import CustomSelect from '../common/CustomSelect';
@@ -6,6 +6,7 @@ import CustomSelect from '../common/CustomSelect';
 export default function PaymentDetailsForm({ formState, setFormState, formErrors }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef(null);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -113,24 +114,16 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
               <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>JPG, PNG or PDF (Max 2MB)</span>
             </div>
             <input 
+              ref={fileInputRef}
               type="file" 
               accept=".jpg,.jpeg,.png,.pdf"
               onChange={handleFileChange}
               disabled={formState.paymentMethod === 'Complimentary' || isUploading}
-              style={{
-                position: 'absolute',
-                width: '1px',
-                height: '1px',
-                padding: 0,
-                margin: '-1px',
-                overflow: 'hidden',
-                clip: 'rect(0,0,0,0)',
-                border: 0
-              }}
-              id="payment-proof-upload"
+              style={{ display: 'none' }}
             />
-            <label 
-              htmlFor="payment-proof-upload" 
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
               className="btn-outline" 
               style={{ 
                 padding: '6px 12px', 
@@ -150,7 +143,7 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
               ) : (
                 'Browse'
               )}
-            </label>
+            </button>
           </div>
           {uploadError && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600', marginTop: '4px' }}>{uploadError}</span>}
         </div>

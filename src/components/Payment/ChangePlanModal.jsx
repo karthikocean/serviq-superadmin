@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ArrowRight } from 'lucide-react';
 import PaymentDetailsForm from './PaymentDetailsForm';
 import CustomSelect from '../common/CustomSelect';
@@ -18,6 +19,15 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
 
   const [prorationData, setProrationData] = useState(null);
   const [isLoadingProration, setIsLoadingProration] = useState(false);
+
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   if (!subscription) return null;
 
@@ -65,26 +75,46 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
     });
   };
 
-  return (
+  return createPortal(
     <div
       style={{
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        background: 'rgba(9, 13, 22, 0.45)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        zIndex: 1100, padding: '20px'
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(9, 13, 22, 0.55)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        zIndex: 99999,
+        padding: '40px 20px',
+        overflowY: 'auto'
       }}
       onClick={onClose}
     >
       <div
         className="animate-fade-in"
         style={{
-          background: '#ffffff', borderRadius: '20px', padding: '32px',
-          width: '95%', maxWidth: '500px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-          position: 'relative', textAlign: 'left', maxHeight: '90vh', overflowY: 'auto'
+          background: '#ffffff',
+          borderRadius: '20px',
+          padding: '28px',
+          width: '100%',
+          maxWidth: '560px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          position: 'relative',
+          textAlign: 'left',
+          marginTop: 'auto',
+          marginBottom: 'auto'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '900', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ArrowRight style={{ width: '18px', height: '18px', color: '#3b82f6' }} />
             Change Subscription Plan
@@ -94,8 +124,8 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
+        {/* Scrollable Body */}
+        <div style={{ paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Plan Selection */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '12px' }}>
             <div style={{ padding: '12px', background: 'var(--bg-app)', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
@@ -108,9 +138,14 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>Select New Plan</span>
               <CustomSelect
-                options={(plans?.filter(p => p.name !== subscription.planName && p.status === 'Active') || []).map(p => ({
-                  value: p._id,
-                  label: `${p.name} - ₹${p.monthlyPrice || p.annualPrice}`
+                options={(plans?.filter(p => {
+                  const pName = p.name || p.planName;
+                  const subName = subscription?.planName || subscription?.plan?.planName;
+                  const isActive = p.status?.toLowerCase() === 'active' || p.isActive !== false || !p.status;
+                  return pName !== subName && isActive;
+                }) || []).map(p => ({
+                  value: p._id || p.id,
+                  label: `${p.name || p.planName} - ₹${(p.monthlyPrice || p.annualPrice || p.price || 0).toLocaleString()}`
                 }))}
                 value={selectedPlanId}
                 onChange={(val) => {
@@ -193,13 +228,14 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
               )}
             </div>
           )}
+
+          {selectedPlanId && (
+            <PaymentDetailsForm formState={formState} setFormState={setFormState} formErrors={formErrors} />
+          )}
         </div>
 
-        {selectedPlanId && (
-          <PaymentDetailsForm formState={formState} setFormState={setFormState} formErrors={formErrors} />
-        )}
-
-        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+        {/* Footer Actions */}
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexShrink: 0 }}>
           <button className="btn-outline" style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }} onClick={onClose}>
             Cancel
           </button>
@@ -217,6 +253,7 @@ export default function ChangePlanModal({ subscription, onClose, onConfirm }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

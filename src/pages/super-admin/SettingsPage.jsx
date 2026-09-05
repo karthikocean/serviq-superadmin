@@ -115,8 +115,8 @@ export default function SettingsPage() {
 
     if (!phone) {
       errors.phone = 'Support Hotline Mobile is required'
-    } else if (!/^[+]?[\d\s-]{10,15}$/.test(phone)) {
-      errors.phone = 'Enter a valid phone number (at least 10 digits)'
+    } else if (!/^\d{10}$/.test(phone)) {
+      errors.phone = 'Enter a valid 10-digit mobile number'
     }
 
     if (Object.keys(errors).length > 0) {
@@ -204,8 +204,14 @@ export default function SettingsPage() {
               label="Support Hotline Mobile"
               name="phone"
               value={formState.phone || ''}
-              onChange={handleInputChange}
-              placeholder="e.g. +91 98765 43210"
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                setFormState(prev => ({ ...prev, phone: digits }))
+                if (formErrors.phone) setFormErrors(prev => ({ ...prev, phone: '' }))
+              }}
+              placeholder="e.g. 9876543210 (10 digits)"
+              inputMode="numeric"
+              maxLength={10}
               required
               error={formErrors.phone}
               setError={(val) => setFormErrors(prev => ({ ...prev, phone: val }))}

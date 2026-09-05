@@ -126,14 +126,50 @@ textarea {
   font-size: inherit;
 }
 
-/* Global Table Header Style - Premium Orange */
+/* Global Table Header Style - Seamless Unified */
+table,
+.tables-table,
+.menu-data-table,
+.orders-data-table,
+.dish-admin-list table {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+table thead,
+.tables-table thead,
+.menu-data-table thead,
+.orders-data-table thead,
+.dish-admin-list table thead {
+  background-color: #000000 !important;
+  border-spacing: 0 !important;
+}
+
+table thead tr,
+.tables-table thead tr,
+.menu-data-table thead tr,
+.orders-data-table thead tr,
+.dish-admin-list table thead tr {
+  background-color: #000000 !important;
+  border-spacing: 0 !important;
+}
+
 th,
+table th,
+table thead th,
 .tables-table th,
 .menu-data-table th,
-.orders-data-table th {
-  background-color: #F95E10 !important;
+.orders-data-table th,
+.dish-admin-list table thead th {
+  background-color: #000000 !important;
   color: #ffffff !important;
-  border-bottom: none !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 2.5px solid #ff5a1f !important;
+  border-spacing: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 /* Global Table Body Style - White */

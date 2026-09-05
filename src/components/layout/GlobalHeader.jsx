@@ -3,13 +3,37 @@ import { Menu, LogOut, Bell, UserCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import NotificationPopup from './NotificationPopup';
 
 export default function GlobalHeader({ isSidebarCollapsed, setIsSidebarCollapsed }) {
   const { role, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [adminProfileDropdownOpen, setAdminProfileDropdownOpen] = useState(false);
+  const [notificationPopupOpen, setNotificationPopupOpen] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   const adminProfileRef = useRef(null);
+  const notificationBtnRef = useRef(null);
   const [currentDateTime, setCurrentDateTime] = useState('');
+
+  useEffect(() => {
+    const checkUnread = () => {
+      try {
+        const readIds = JSON.parse(localStorage.getItem('serviq_read_notifications') || '[]');
+        // If user has read all default ones, remove dot
+        if (readIds.length >= 4) {
+          setHasUnreadNotifications(false);
+        } else {
+          setHasUnreadNotifications(true);
+        }
+      } catch {
+        setHasUnreadNotifications(true);
+      }
+    };
+
+    checkUnread();
+    window.addEventListener('serviq_notifications_updated', checkUnread);
+    return () => window.removeEventListener('serviq_notifications_updated', checkUnread);
+  }, []);
 
   useEffect(() => {
     const formatDateTime = () => {
@@ -141,13 +165,56 @@ export default function GlobalHeader({ isSidebarCollapsed, setIsSidebarCollapsed
                   {currentDateTime}
                 </span>
               )}
-              <button className="header-profile-btn" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Notifications">
-                <Bell style={{ width: '18px', height: '18px' }} />
-                <span style={{ position: 'absolute', top: '4px', right: '4px', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', border: '2px solid var(--bg-app)' }}></span>
-              </button>
 
+              {/* Notification Bell Dropdown Button */}
+              <div ref={notificationBtnRef} style={{ position: 'relative' }}>
+                <button
+                  className="header-profile-btn"
+                  onClick={() => {
+                    setNotificationPopupOpen(!notificationPopupOpen);
+                    if (adminProfileDropdownOpen) setAdminProfileDropdownOpen(false);
+                  }}
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: notificationPopupOpen ? 'var(--bg-hover, #f1f5f9)' : undefined
+                  }}
+                  title="Notifications"
+                >
+                  <Bell style={{ width: '18px', height: '18px' }} />
+                  {hasUnreadNotifications && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      width: '8px',
+                      height: '8px',
+                      background: '#ef4444',
+                      borderRadius: '50%',
+                      border: '2px solid var(--bg-app, #ffffff)'
+                    }} />
+                  )}
+                </button>
+
+                <NotificationPopup
+                  isOpen={notificationPopupOpen}
+                  onClose={() => setNotificationPopupOpen(false)}
+                  anchorRef={notificationBtnRef}
+                />
+              </div>
+
+              {/* Profile Dropdown */}
               <div ref={adminProfileRef} style={{ position: 'relative' }}>
-                <button className="header-profile-btn" onClick={() => setAdminProfileDropdownOpen(!adminProfileDropdownOpen)} title="Admin Profile">
+                <button
+                  className="header-profile-btn"
+                  onClick={() => {
+                    setAdminProfileDropdownOpen(!adminProfileDropdownOpen);
+                    if (notificationPopupOpen) setNotificationPopupOpen(false);
+                  }}
+                  title="Admin Profile"
+                >
                   <UserCheck style={{ width: '18px', height: '18px' }} />
                 </button>
                 {adminProfileDropdownOpen && (
