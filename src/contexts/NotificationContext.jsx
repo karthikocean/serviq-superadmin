@@ -151,7 +151,10 @@ export function NotificationProvider({ children }) {
     }
 
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, type, message: msg }]);
+    setToasts(prev => {
+      const filtered = prev.filter(t => t.message !== msg);
+      return [...filtered.slice(-3), { id, type, message: msg }];
+    });
   };
 
   const showConfirm = (title, message, onConfirm) => {

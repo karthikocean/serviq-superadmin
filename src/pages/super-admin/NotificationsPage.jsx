@@ -39,7 +39,7 @@ export default function NotificationsPage() {
   const canView = isSuperOwner || hasPermission('notifications', 'view')
 
   const [plans, setPlans] = useState([])
-  
+
   // Form states
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedNotification, setSelectedNotification] = useState(null)
@@ -57,7 +57,25 @@ export default function NotificationsPage() {
   const [deliveryOption, setDeliveryOption] = useState('broadcast') // 'broadcast' | 'schedule' | 'draft'
   const [errors, setErrors] = useState({})
   const [resDropdownOpen, setResDropdownOpen] = useState(false)
+  const resDropdownRef = useRef(null)
   const [filterType, setFilterType] = useState('All')
+
+  // Close restaurant dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (resDropdownRef.current && !resDropdownRef.current.contains(e.target)) {
+        setResDropdownOpen(false)
+      }
+    }
+    if (resDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('pointerdown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('pointerdown', handleClickOutside)
+    }
+  }, [resDropdownOpen])
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
@@ -71,7 +89,7 @@ export default function NotificationsPage() {
 
   // Constants
   const types = ['Subscription Expiry', 'Maintenance Notice', 'Feature Updates', 'Promotional Messages']
-  
+
   const fetchPlans = async () => {
     try {
       const data = await getAllPlansApi(0, 100);
@@ -97,10 +115,10 @@ export default function NotificationsPage() {
       })
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
       setNotifications(list)
-      const count = data?.pagination?.totalItems 
-        ?? data?.total 
-        ?? data?.totalCount 
-        ?? data?.count 
+      const count = data?.pagination?.totalItems
+        ?? data?.total
+        ?? data?.totalCount
+        ?? data?.count
         ?? data?.totalRecords
         ?? (Array.isArray(data?.data) ? data.data.length : list.length)
       setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
@@ -299,7 +317,7 @@ export default function NotificationsPage() {
       boxSizing: 'border-box',
       position: 'relative'
     }}>
-      
+
       {/* Counters Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         {[
@@ -346,7 +364,7 @@ export default function NotificationsPage() {
         flexDirection: 'column',
         gap: '20px'
       }}>
-        
+
         {/* Header Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
           <div>
@@ -382,7 +400,7 @@ export default function NotificationsPage() {
           entriesPerPage={entriesPerPage}
           onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
           searchTerm=""
-          onSearchChange={() => {}}
+          onSearchChange={() => { }}
           showSearch={false}
         />
         <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
@@ -518,7 +536,7 @@ export default function NotificationsPage() {
             </h3>
 
             <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px', flex: 1 }}>
-              
+
               {/* Type */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Notification Type</label>
@@ -582,9 +600,9 @@ export default function NotificationsPage() {
               {newNtf.targetType === 'RESTAURANT' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Restaurants *</label>
-                  
-                  <div style={{ position: 'relative' }}>
-                    <div 
+
+                  <div style={{ position: 'relative' }} ref={resDropdownRef}>
+                    <div
                       onClick={() => setResDropdownOpen(!resDropdownOpen)}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${errors.targetRestaurants ? '#ef4444' : 'var(--border-color)'}`, background: 'var(--bg-app)', color: 'var(--text-main)', fontSize: '0.82rem', cursor: 'pointer' }}
                     >
@@ -775,7 +793,7 @@ export default function NotificationsPage() {
             position: 'relative',
             top: 'auto'
           }} onClick={(e) => e.stopPropagation()}>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
               <div>
                 <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Broadcast Message</span>
@@ -790,7 +808,7 @@ export default function NotificationsPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Message Category</span>

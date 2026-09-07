@@ -1,6 +1,42 @@
 import { useState, useEffect } from 'react';
 import { getSubscriptionHistoryAPI, getAllSubscriptionsAPI } from '../services/api';
 
+export const normalizeSubscriptionStatus = (status, startDate, endDate) => {
+  if (!status) return 'Active';
+  const s = String(status).trim().toLowerCase();
+  if (s === 'cancelled' || s === 'canceled' || s === 'suspended') {
+    return 'Cancelled';
+  }
+  if (s === 'expired') {
+    return 'Expired';
+  }
+  if (s === 'expiring soon' || s === 'expiring_soon' || s === 'expiring') {
+    return 'Expiring Soon';
+  }
+  if (s === 'scheduled') {
+    if (endDate) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      if (!isNaN(end.getTime()) && end < now) {
+        return 'Expired';
+      }
+    }
+    return 'Active';
+  }
+
+  if (endDate) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    if (!isNaN(end.getTime()) && end < now) {
+      return 'Expired';
+    }
+  }
+
+  return 'Active';
+};
+
 export function useSubscriptions() {
   const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionHistory, setSubscriptionHistory] = useState([]);
@@ -14,6 +50,7 @@ export function useSubscriptions() {
       if (response && response.data) {
         const subsData = response.data.results || response.data;
         const mappedSubs = subsData.map(s => {
+          const normStatus = normalizeSubscriptionStatus(s.status, s.startDate, s.endDate);
           return {
             id: s._id,
             restaurantId: s.restaurant?._id || '',
@@ -26,7 +63,7 @@ export function useSubscriptions() {
             startDate: s.startDate?.split('T')[0] || '',
             endDate: s.endDate?.split('T')[0] || '',
             renewalDate: s.renewalDate?.split('T')[0] || '',
-            status: s.status,
+            status: normStatus,
             extraBranches: s.extraBranches || 0,
             paymentProof: s.latestPaymentProof || null
           };
@@ -47,6 +84,7 @@ export function useSubscriptions() {
         const historyData = response.data.results || response.data;
         const mappedHistory = historyData.map(h => {
           const shortId = h.subscription?.subscriptionId || `SUB-${h._id.toString().slice(-4).toUpperCase()}`;
+          const normStatus = normalizeSubscriptionStatus(h.subscription?.status || h.status, h.subscription?.startDate, h.subscription?.endDate);
           return {
             id: shortId,
             restaurantId: h.restaurant?.restaurantId || '',
@@ -55,7 +93,7 @@ export function useSubscriptions() {
             startDate: h.subscription?.startDate?.split('T')[0] || '',
             endDate: h.subscription?.endDate?.split('T')[0] || '',
             amount: h.amountPaid || 0,
-            status: h.subscription?.status || 'Active'
+            status: normStatus
           };
         });
         setSubscriptionHistory(mappedHistory);
@@ -72,3 +110,4 @@ export function useSubscriptions() {
 
   return { subscriptions, fetchSubscriptions, subscriptionHistory, setSubscriptionHistory, viewingSubscriptionRest, setViewingSubscriptionRest, fetchSubscriptionHistory, isLoading };
 }
+

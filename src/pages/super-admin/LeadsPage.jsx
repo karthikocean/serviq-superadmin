@@ -1,7 +1,230 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, AlertTriangle, ChevronDown, Check } from 'lucide-react'
+import { Plus, AlertTriangle, ChevronDown, Check, UserPlus, User, Edit2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+// ─── Custom Floating Lead Assign Text Box Popup ───
+const LeadAssignPopup = ({ lead, canEdit, onAssign }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [assigneeName, setAssigneeName] = useState(lead.assignedTo || '')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
+  const inputRef = useRef(null)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 230 })
+
+  useEffect(() => {
+    setAssigneeName(lead.assignedTo || '')
+  }, [lead.assignedTo])
+
+  const updatePosition = () => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const estimatedHeight = 110
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpwards = spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow
+
+    const menuWidth = 230
+    let left = rect.left
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = window.innerWidth - menuWidth - 10
+    }
+    if (left < 10) left = 10
+
+    const top = openUpwards
+      ? Math.max(10, rect.top - estimatedHeight - 6)
+      : Math.min(rect.bottom + 6, window.innerHeight - estimatedHeight - 10)
+
+    setCoords({
+      top,
+      left,
+      width: menuWidth
+    })
+  }
+
+  const handleOpen = (e) => {
+    e.stopPropagation()
+    if (!canEdit) return
+    setAssigneeName(lead.assignedTo || '')
+    updatePosition()
+    setIsOpen(true)
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 50)
+
+    const handleScrollOrResize = () => {
+      updatePosition()
+    }
+
+    const handleClickOutside = (e) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleScrollOrResize)
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('pointerdown', handleClickOutside)
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('pointerdown', handleClickOutside)
+    }
+  }, [isOpen])
+
+  const handleSubmit = async (e) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    const trimmed = assigneeName.trim()
+    setIsSubmitting(true)
+    try {
+      await onAssign(lead._id, trimmed)
+      setIsOpen(false)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const isAssigned = Boolean(lead.assignedTo && lead.assignedTo.trim())
+
+  if (!canEdit) {
+    return (
+      <span style={{ fontSize: '0.8rem', color: isAssigned ? 'var(--text-main)' : 'var(--text-muted)', fontWeight: '600' }}>
+        {isAssigned ? lead.assignedTo : 'Unassigned'}
+      </span>
+    )
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleOpen}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 10px',
+          borderRadius: '8px',
+          border: isAssigned ? '1px solid var(--border-color)' : '1px dashed var(--border-color)',
+          background: isAssigned ? 'var(--bg-app)' : 'transparent',
+          color: isAssigned ? 'var(--text-main)' : 'var(--text-muted)',
+          fontSize: '0.78rem',
+          fontWeight: isAssigned ? '700' : '500',
+          cursor: 'pointer',
+          maxWidth: '150px',
+          textOverflow: 'ellipsis',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          transition: 'all 0.15s ease'
+        }}
+        title="Click to assign lead"
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {isAssigned ? lead.assignedTo : '+ Assign'}
+        </span>
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            background: '#ffffff',
+            borderRadius: '12px',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            boxShadow: '0 14px 35px -4px rgba(0, 0, 0, 0.18), 0 6px 14px -2px rgba(0, 0, 0, 0.08)',
+            padding: '12px',
+            zIndex: 999999,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Assign Lead
+          </div>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: 0 }}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={assigneeName}
+              onChange={(e) => setAssigneeName(e.target.value)}
+              placeholder="Enter assignee name..."
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setIsOpen(false)
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '7px 10px',
+                borderRadius: '6px',
+                border: '1.5px solid hsl(var(--primary-hue, 24), 95%, 52%)',
+                background: 'var(--bg-app, #f8fafc)',
+                color: 'var(--text-main, #0f172a)',
+                fontSize: '0.78rem',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="btn-outline"
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.72rem',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="btn-black"
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.72rem',
+                  fontWeight: '700',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isSubmitting ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
 
 // ─── Custom Floating Lead Status Dropdown ───
 const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle, leadStatuses }) => {
@@ -59,11 +282,13 @@ const LeadStatusDropdown = ({ lead, canEdit, onStatusChange, getLeadStatusStyle,
     window.addEventListener('resize', handleScrollOrResize)
     window.addEventListener('scroll', handleScrollOrResize, true)
     document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('pointerdown', handleClickOutside)
 
     return () => {
       window.removeEventListener('resize', handleScrollOrResize)
       window.removeEventListener('scroll', handleScrollOrResize, true)
       document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('pointerdown', handleClickOutside)
     }
   }, [isOpen, leadStatuses])
 
@@ -262,24 +487,24 @@ export default function LeadsPage() {
   const [leadStatusFilter, setLeadStatusFilter] = useState('All')
   const [showCreateLeadForm, setShowCreateLeadForm] = useState(false)
   const [formErrors, setFormErrors] = useState({})
-  
+
   const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   const fetchLeads = async () => {
     try {
-      const data = await getLeads({ 
-        page: currentPage, 
-        limit: entriesPerPage, 
-        leadSearchQuery, 
-        leadStatusFilter 
+      const data = await getLeads({
+        page: currentPage,
+        limit: entriesPerPage,
+        leadSearchQuery,
+        leadStatusFilter
       })
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
       setLeads(list)
-      const count = data?.pagination?.totalItems 
-        ?? data?.total 
-        ?? data?.totalCount 
-        ?? data?.count 
+      const count = data?.pagination?.totalItems
+        ?? data?.total
+        ?? data?.totalCount
+        ?? data?.count
         ?? data?.totalRecords
         ?? (Array.isArray(data?.data) ? data.data.length : list.length)
       setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
@@ -583,119 +808,104 @@ export default function LeadsPage() {
             />
             <div className="dish-admin-list" style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
               <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px', tableLayout: 'fixed' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '65px' }}>S.No.</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Lead</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '180px' }}>Contact</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '110px' }}>Source</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '170px' }}>Status</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '160px' }}>Assigned To</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '140px' }}>Follow-up</th>
-                  <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Remarks</th>
-                  <th style={{ textAlign: 'right', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '180px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedLeads.map((lead, idx) => (
-                  <tr key={lead._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap', width: '65px' }}>
-                      {currentPage * entriesPerPage + idx + 1}
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '200px' }}>
-                      <strong style={{ color: 'var(--text-main)', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{lead.businessName}</strong>
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '180px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
-                        <strong style={{ fontSize: '0.82rem', color: 'var(--text-main)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{lead.contactPerson}</strong>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lead.mobileNumber}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: 'nowrap', width: '110px' }}>
-                      {lead.leadSource}
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '170px' }}>
-                      <LeadStatusDropdown
-                        lead={lead}
-                        canEdit={canEdit}
-                        onStatusChange={handleLeadStatusChange}
-                        getLeadStatusStyle={getLeadStatusStyle}
-                        leadStatuses={leadStatuses}
-                      />
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '160px' }}>
-                      <input
-                        type="text"
-                        disabled={!canEdit}
-                        value={lead.assignedTo || ''}
-                        onChange={(e) => handleLeadAssignmentChange(lead._id, e.target.value)}
-                        placeholder="Unassigned"
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)',
-                          background: 'var(--bg-app)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.75rem',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                          width: '100%',
-                          cursor: canEdit ? 'text' : 'not-allowed',
-                          opacity: canEdit ? 1 : 0.7
-                        }}
-                      />
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '140px' }}>
-                      <input
-                        type="date"
-                        disabled={!canEdit}
-                        value={lead.followUpDate ? lead.followUpDate.substring(0, 10) : ''}
-                        onChange={(e) => handleLeadFollowUpChange(lead._id, e.target.value)}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)',
-                          background: 'var(--bg-app)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.75rem',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                          width: '100%',
-                          cursor: canEdit ? 'text' : 'not-allowed',
-                          opacity: canEdit ? 1 : 0.7
-                        }}
-                      />
-                    </td>
-                    <td
-                      title={lead.remarks || ''}
-                      style={{ padding: '12px 14px', verticalAlign: 'middle', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.4, width: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: lead.remarks ? 'pointer' : 'default' }}
-                    >
-                      {lead.remarks || '-'}
-                    </td>
-                    <td style={{ padding: '12px 14px', verticalAlign: 'middle', textAlign: 'right', width: '180px', whiteSpace: 'nowrap' }}>
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          className="btn-outline"
-                          disabled={Boolean(lead.convertedRestaurantId) || lead.leadStatus === 'Lost'}
-                          onClick={() => handleConvertLeadToRestaurant(lead)}
-                          style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '8px', cursor: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 'not-allowed' : 'pointer', opacity: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 0.55 : 1 }}
-                        >
-                          {lead.convertedRestaurantId ? `Converted ${lead.convertedRestaurantId}` : 'Convert to Restaurant'}
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
-                      )}
-                    </td>
+                <thead>
+                  <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '65px' }}>S.No.</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Lead</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '180px' }}>Contact</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '110px' }}>Source</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '170px' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '160px' }}>Assigned To</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '140px' }}>Follow-up</th>
+                    <th style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '200px' }}>Remarks</th>
+                    <th style={{ textAlign: 'right', padding: '12px 14px', fontSize: '0.75rem', fontWeight: '800', whiteSpace: 'nowrap', textTransform: 'uppercase', width: '180px' }}>Actions</th>
                   </tr>
-                ))}
-                {paginatedLeads.length === 0 && (
-                  <tr>
-                    <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No leads found matching your filters.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginatedLeads.map((lead, idx) => (
+                    <tr key={lead._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap', width: '65px' }}>
+                        {currentPage * entriesPerPage + idx + 1}
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '200px' }}>
+                        <strong style={{ color: 'var(--text-main)', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{lead.businessName}</strong>
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '180px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                          <strong style={{ fontSize: '0.82rem', color: 'var(--text-main)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{lead.contactPerson}</strong>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lead.mobileNumber}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600', whiteSpace: 'nowrap', width: '110px' }}>
+                        {lead.leadSource}
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '170px' }}>
+                        <LeadStatusDropdown
+                          lead={lead}
+                          canEdit={canEdit}
+                          onStatusChange={handleLeadStatusChange}
+                          getLeadStatusStyle={getLeadStatusStyle}
+                          leadStatuses={leadStatuses}
+                        />
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '160px' }}>
+                        <LeadAssignPopup
+                          lead={lead}
+                          canEdit={canEdit}
+                          onAssign={handleLeadAssignmentChange}
+                        />
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', whiteSpace: 'nowrap', width: '140px' }}>
+                        <input
+                          type="date"
+                          disabled={!canEdit}
+                          value={lead.followUpDate ? lead.followUpDate.substring(0, 10) : ''}
+                          onChange={(e) => handleLeadFollowUpChange(lead._id, e.target.value)}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-app)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.75rem',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            width: '100%',
+                            cursor: canEdit ? 'text' : 'not-allowed',
+                            opacity: canEdit ? 1 : 0.7
+                          }}
+                        />
+                      </td>
+                      <td
+                        title={lead.remarks || ''}
+                        style={{ padding: '12px 14px', verticalAlign: 'middle', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.4, width: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: lead.remarks ? 'pointer' : 'default' }}
+                      >
+                        {lead.remarks || '-'}
+                      </td>
+                      <td style={{ padding: '12px 14px', verticalAlign: 'middle', textAlign: 'right', width: '180px', whiteSpace: 'nowrap' }}>
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            disabled={Boolean(lead.convertedRestaurantId) || lead.leadStatus === 'Lost'}
+                            onClick={() => handleConvertLeadToRestaurant(lead)}
+                            style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '8px', cursor: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 'not-allowed' : 'pointer', opacity: lead.convertedRestaurantId || lead.leadStatus === 'Lost' ? 0.55 : 1 }}
+                          >
+                            {lead.convertedRestaurantId ? `Converted ${lead.convertedRestaurantId}` : 'Convert to Restaurant'}
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedLeads.length === 0 && (
+                    <tr>
+                      <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No leads found matching your filters.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
             <TableBottomPagination

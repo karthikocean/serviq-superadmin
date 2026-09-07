@@ -64,11 +64,13 @@ export default function CustomSelect({
       checkPosition();
       window.addEventListener('resize', checkPosition);
       window.addEventListener('scroll', checkPosition, true);
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handleClickOutside);
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside);
       window.removeEventListener('resize', checkPosition);
       window.removeEventListener('scroll', checkPosition, true);
     };

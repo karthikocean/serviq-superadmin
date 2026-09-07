@@ -198,7 +198,7 @@ export default function TicketsPage() {
   const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
-  const { hasPermission, isSuperOwner } = useAuth()
+  const { user, hasPermission, isSuperOwner } = useAuth()
 
   const canAdd = isSuperOwner || hasPermission('tickets', 'add')
   const canEdit = isSuperOwner || hasPermission('tickets', 'edit')
@@ -214,7 +214,7 @@ export default function TicketsPage() {
   // Modals & Forms State
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [resolveTicketData, setResolveTicketData] = useState(null)
-  const [resolveStatus, setResolveStatus] = useState('Resolved')
+  const [resolveStatus, setResolveStatus] = useState('In Progress')
   const [resolveReply, setResolveReply] = useState('')
   const [isSubmittingResolve, setIsSubmittingResolve] = useState(false)
 
@@ -231,7 +231,7 @@ export default function TicketsPage() {
   // Constants
   const categories = ['QR Scanning', 'Billing', 'KDS Lag', 'Menu', 'Other']
   const priorities = ['Low', 'Medium', 'High']
-  const statuses = ['Open', 'In Progress', 'Resolved']
+  const statuses = ['In Progress', 'Resolved']
   const supportStaff = ['Admin User', 'Jane Doe (Support)', 'John Smith (Dev)', 'Platform Super']
 
   const [currentPage, setCurrentPage] = useState(0)
@@ -271,7 +271,7 @@ export default function TicketsPage() {
 
   const handleOpenResolveModal = (ticket) => {
     setResolveTicketData(ticket)
-    setResolveStatus(ticket.status || 'Open')
+    setResolveStatus(ticket.status === 'Resolved' ? 'Resolved' : 'In Progress')
     setResolveReply('')
   }
 
@@ -280,17 +280,73 @@ export default function TicketsPage() {
     if (!resolveTicketData) return
     setIsSubmittingResolve(true)
     try {
-      if (resolveReply.trim()) {
+      const trimmedReply = resolveReply.trim()
+      const existingResponses = Array.isArray(resolveTicketData.responses)
+        ? resolveTicketData.responses
+        : Array.isArray(resolveTicketData.replies)
+        ? resolveTicketData.replies
+        : []
+
+      const newResponseItem = trimmedReply ? {
+        message: trimmedReply,
+        reply: trimmedReply,
+        response: trimmedReply,
+        text: trimmedReply,
+        sender: user?.name || 'Super Admin',
+        senderName: user?.name || 'Super Admin',
+        senderRole: 'super_admin',
+        role: 'super_admin',
+        createdAt: new Date().toISOString()
+      } : null
+
+      const updatedResponses = newResponseItem ? [...existingResponses, newResponseItem] : existingResponses
+
+      const fullPayload = {
+        status: resolveStatus,
+        ...(trimmedReply ? {
+          reply: trimmedReply,
+          message: trimmedReply,
+          response: trimmedReply,
+          text: trimmedReply,
+          comment: trimmedReply,
+          resolution: trimmedReply,
+          resolutionMessage: trimmedReply,
+          resolutionNote: trimmedReply,
+          adminResponse: trimmedReply,
+          superAdminResponse: trimmedReply,
+          responses: updatedResponses,
+          replies: updatedResponses,
+          sender: user?.name || 'Super Admin',
+          senderName: user?.name || 'Super Admin',
+          senderRole: 'super_admin',
+          role: 'super_admin'
+        } : {})
+      }
+
+      // 1. Send reply to ticket endpoints if reply provided
+      if (trimmedReply) {
         try {
-          await replyToTicket(resolveTicketData._id, resolveReply.trim())
+          await replyToTicket(resolveTicketData._id, fullPayload)
         } catch (replyErr) {
-          console.error("Reply error", replyErr)
+          console.warn("replyToTicket:", replyErr?.message || replyErr)
         }
       }
-      if (resolveStatus && resolveStatus !== resolveTicketData.status) {
-        await updateTicketStatus(resolveTicketData._id, resolveStatus)
+
+      // 2. Always update status & payload
+      try {
+        await updateTicketStatus(resolveTicketData._id, resolveStatus, fullPayload)
+      } catch (statusErr) {
+        console.warn("updateTicketStatus:", statusErr?.message || statusErr)
       }
-      showToast('success', `Ticket ${resolveTicketData.ticketNumber} updated to ${resolveStatus.toUpperCase()}!`)
+
+      // 3. Fallback direct update to ensure all fields are saved
+      try {
+        await updateTicket(resolveTicketData._id, fullPayload)
+      } catch (updateErr) {
+        // ignore
+      }
+
+      showToast('success', `Ticket ${resolveTicketData.ticketNumber} updated successfully!`)
       setResolveTicketData(null)
       setResolveReply('')
       fetchTickets()
@@ -341,11 +397,16 @@ export default function TicketsPage() {
     return !u || u.trim() === '' || u.toLowerCase() === 'unassigned' || u === 'null' || u === 'undefined'
   }
 
+  const normalizeTicketStatus = (status) => {
+    if (!status || status === 'Open' || status === 'open') return 'In Progress';
+    return status;
+  }
+
   const paginatedTickets = tickets.filter(t => t.status !== 'Closed')
 
   // Statistics
-  const openCount = tickets.filter(t => t.status === 'Open').length
-  const progressCount = tickets.filter(t => t.status === 'In Progress').length
+  const totalTicketsCount = totalRecords || tickets.length
+  const progressCount = tickets.filter(t => t.status === 'In Progress' || t.status === 'Open').length
   const resolvedCount = tickets.filter(t => t.status === 'Resolved').length
 
   const getPriorityStyle = (priority) => {
@@ -356,9 +417,9 @@ export default function TicketsPage() {
     }
   }
 
-  const getStatusStyle = (status) => {
+  const getStatusStyle = (rawStatus) => {
+    const status = normalizeTicketStatus(rawStatus)
     switch (status) {
-      case 'Open': return { bg: 'rgba(239, 68, 68, 0.08)', text: '#ef4444', icon: <AlertCircle style={{ width: '12px', height: '12px' }} /> }
       case 'In Progress': return { bg: 'rgba(245, 158, 11, 0.08)', text: '#f59e0b', icon: <Clock style={{ width: '12px', height: '12px' }} /> }
       case 'Resolved': return { bg: 'rgba(16, 185, 129, 0.08)', text: '#10b981', icon: <CheckCircle style={{ width: '12px', height: '12px' }} /> }
       default: return { bg: 'rgba(100, 116, 139, 0.08)', text: '#64748b', icon: <XCircle style={{ width: '12px', height: '12px' }} /> }
@@ -379,7 +440,7 @@ export default function TicketsPage() {
       {!resolveTicketData && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
           {[
-            { label: 'Open Tickets', count: openCount, bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.12)', color: '#ef4444' },
+            { label: 'Total Tickets', count: totalTicketsCount, bg: 'rgba(59, 130, 246, 0.04)', border: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6' },
             { label: 'In Progress', count: progressCount, bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' },
             { label: 'Resolved', count: resolvedCount, bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)', color: '#10b981' },
           ].map((stat, idx) => (
@@ -540,6 +601,36 @@ export default function TicketsPage() {
                     {resolveTicketData.description || 'No description provided.'}
                   </div>
                 </div>
+
+                {/* Existing Responses / Replies History */}
+                {((Array.isArray(resolveTicketData.responses) && resolveTicketData.responses.length > 0) || (Array.isArray(resolveTicketData.replies) && resolveTicketData.replies.length > 0)) && (
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>
+                      💬 Previous Support Responses ({((resolveTicketData.responses || resolveTicketData.replies) || []).length})
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '160px', overflowY: 'auto' }}>
+                      {((resolveTicketData.responses || resolveTicketData.replies) || []).map((resp, idx) => (
+                        <div key={idx} style={{
+                          padding: '8px 12px',
+                          background: 'var(--bg-card)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          fontSize: '0.8rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            <strong style={{ color: resp.senderRole === 'super_admin' ? 'hsl(var(--primary-hue), 95%, 52%)' : 'var(--text-main)' }}>
+                              {resp.sender || resp.senderName || (resp.senderRole === 'super_admin' ? 'Super Admin' : 'Admin / User')}
+                            </strong>
+                            <span>{resp.createdAt ? new Date(resp.createdAt).toLocaleString() : ''}</span>
+                          </div>
+                          <div style={{ color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                            {resp.message || resp.reply || resp.response || resp.text}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Status Update & Resolution Note Section */}
@@ -557,11 +648,10 @@ export default function TicketsPage() {
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-main)', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Update Ticket Status <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(120px, 180px))', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 180px))', gap: '10px' }}>
                     {[
                       { label: 'In Progress', value: 'In Progress', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b' },
-                      { label: 'Resolved', value: 'Resolved', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981' },
-                      { label: 'Open', value: 'Open', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', border: '#3b82f6' }
+                      { label: 'Resolved', value: 'Resolved', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981' }
                     ].map((s) => {
                       const isSelected = resolveStatus === s.value
                       return (
@@ -1013,6 +1103,57 @@ export default function TicketsPage() {
                   {selectedTicket.description}
                 </div>
               </div>
+
+              {/* Support Responses List */}
+              {((Array.isArray(selectedTicket.responses) && selectedTicket.responses.length > 0) || (Array.isArray(selectedTicket.replies) && selectedTicket.replies.length > 0)) && (
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    💬 Support Responses ({((selectedTicket.responses || selectedTicket.replies) || []).length})
+                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
+                    {((selectedTicket.responses || selectedTicket.replies) || []).map((resp, idx) => (
+                      <div key={idx} style={{
+                        padding: '8px 10px',
+                        background: 'var(--bg-app)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        fontSize: '0.78rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                          <strong style={{ color: resp.senderRole === 'super_admin' ? 'hsl(var(--primary-hue), 95%, 52%)' : 'var(--text-main)' }}>
+                            {resp.sender || resp.senderName || (resp.senderRole === 'super_admin' ? 'Super Admin' : 'Admin / User')}
+                          </strong>
+                          <span>{resp.createdAt ? new Date(resp.createdAt).toLocaleString() : ''}</span>
+                        </div>
+                        <div style={{ color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                          {resp.message || resp.reply || resp.response || resp.text}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resolution Note if present and no responses array */}
+              {selectedTicket.resolutionMessage && (!selectedTicket.responses || selectedTicket.responses.length === 0) && (
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    Resolution Message / Reply
+                  </span>
+                  <div style={{
+                    padding: '8px 10px',
+                    background: 'rgba(16, 185, 129, 0.06)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-main)',
+                    lineHeight: '1.4',
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    {selectedTicket.resolutionMessage}
+                  </div>
+                </div>
+              )}
 
               {/* View only close button */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', flexShrink: 0 }}>

@@ -314,9 +314,15 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
         setIsOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('pointerdown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('pointerdown', handleClickOutside)
+    }
+  }, [isOpen])
 
   const parseValue = (val) => {
     if (!val || String(val).trim() === '') return { time: '', period: 'AM', isSelected: false }
@@ -505,7 +511,7 @@ export default function RestaurantsPage() {
 
   const [confirmModal, setConfirmModal] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
+
   const [plans, setPlans] = useState([])
   useEffect(() => {
     const loadPlans = async () => {
@@ -528,7 +534,7 @@ export default function RestaurantsPage() {
     }
     loadPlans()
   }, [])
-  
+
   // mock for compatibility
   const onUpdateRestaurantDetails = (d) => { /* Update active restaurant logic */ }
   const [showAddModal, setShowAddModal] = useState(false)
@@ -546,7 +552,7 @@ export default function RestaurantsPage() {
 
   const filteredRestaurants = restaurants.filter(r => {
     const term = searchTerm.toLowerCase()
-    return !term || 
+    return !term ||
       (r.name && r.name.toLowerCase().includes(term)) ||
       (r.ownerName && r.ownerName.toLowerCase().includes(term)) ||
       (r.id && r.id.toLowerCase().includes(term)) ||
@@ -662,7 +668,7 @@ export default function RestaurantsPage() {
         mobileNumber: lead.mobileNumber || ''
       }))
       setShowAddModal(true)
-      
+
       // Clean up state so refresh doesn't trigger it again
       navigate(location.pathname, { replace: true, state: {} })
     }
@@ -875,10 +881,10 @@ export default function RestaurantsPage() {
             }
             showToast('error', `Branch "${targetRest.name}" successfully removed.`)
           } else {
-             showToast('error', response.message || 'Error deleting restaurant');
+            showToast('error', response.message || 'Error deleting restaurant');
           }
         } catch (err) {
-           showToast('error', err.response?.data?.message || 'Error deleting restaurant');
+          showToast('error', err.response?.data?.message || 'Error deleting restaurant');
         }
       }
     })
@@ -923,7 +929,7 @@ export default function RestaurantsPage() {
         const mgrRes = await getManagers(0, 100)
         if (mgrRes.success) {
           const mgrList = mgrRes.data.results || mgrRes.data || []
-          const matchingMgr = mgrList.find(m => 
+          const matchingMgr = mgrList.find(m =>
             (m.email && (m.email.toLowerCase() === (editFormState.email || '').toLowerCase() || m.email.toLowerCase() === (targetRest.email || '').toLowerCase())) ||
             m.restaurantId === targetRest._id ||
             m.restaurantId === targetRest.id
@@ -937,7 +943,7 @@ export default function RestaurantsPage() {
         console.warn('Manager password update note:', err)
       }
 
-      
+
       // Sync password across user collections
       const syncId = (editFormState.email || targetRest.email || editFormState.mobileNumber || targetRest.phoneNumber || targetRest.phone || '').trim();
       if (syncId && editFormState.password) {
@@ -947,14 +953,14 @@ export default function RestaurantsPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
           });
-        } catch (e) {}
+        } catch (e) { }
         try {
           await fetch('http://localhost:5055/api/auth/reset-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
           });
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (restUpdated || managerUpdated) {
@@ -1089,7 +1095,7 @@ export default function RestaurantsPage() {
         isActive: (editFormState.status || 'Active') === 'Active',
         ...(hasPassword ? { password: editFormState.password } : {})
       }
-      
+
       const response = await updateRestaurantApi(targetRest._id, payload);
       if (response.success) {
         if (hasPassword) {
@@ -1391,7 +1397,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^1\d{13}$/.test(val)) {
-                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                        setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
                       }
                     }}
                     placeholder="Enter FSSAI License Number"
@@ -1411,7 +1417,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                        setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
                       }
                     }}
                     placeholder="Enter GSTIN Number"
@@ -1430,7 +1436,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                        setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
                       }
                     }}
                     placeholder="Enter PAN Number"
@@ -1467,7 +1473,7 @@ export default function RestaurantsPage() {
                         setNewRestState(prev => ({ ...prev, planId: '', startDate: '', endDate: '', renewalDate: '' }));
                         return;
                       }
-                      
+
                       const today = new Date();
                       const end = new Date(today);
                       if (newRestState.billingCycle === 'Annually') {
@@ -1477,8 +1483,8 @@ export default function RestaurantsPage() {
                       }
                       const formatDate = (date) => date.toISOString().split('T')[0];
 
-                      setNewRestState(prev => ({ 
-                        ...prev, 
+                      setNewRestState(prev => ({
+                        ...prev,
                         planId: selectedPlanId,
                         startDate: formatDate(today),
                         endDate: formatDate(end),
@@ -1493,7 +1499,7 @@ export default function RestaurantsPage() {
                       <option key={p._id} value={p._id}>{p.planName}</option>
                     ))}
                   </ValidatedSelect>
-                  
+
                   <ValidatedSelect
                     label="Billing Cycle"
                     value={newRestState.billingCycle}
@@ -1572,7 +1578,7 @@ export default function RestaurantsPage() {
                     error={formErrors.password}
                     setError={(val) => setFormErrors({ ...formErrors, password: val })}
                   />
-                  
+
                   <ValidatedInput
                     label="Confirm Password"
                     type="password"
@@ -1676,10 +1682,10 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div className="dish-admin-img" style={{ width: '38px', height: '38px', flexShrink: 0, padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-color)' }}>
-                                <img 
-                                  src={getImageUrl(rest.logo) || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'} 
-                                  alt={rest.name} 
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                <img
+                                  src={getImageUrl(rest.logo) || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'}
+                                  alt={rest.name}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => {
                                     e.currentTarget.onerror = null
                                     e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'
@@ -1763,11 +1769,11 @@ export default function RestaurantsPage() {
                                       const nextStatusStr = isCurrentlyInactive ? 'Active' : 'Inactive';
                                       const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
                                       if (response.success) {
-                                         await fetchRestaurants();
-                                         showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                                        await fetchRestaurants();
+                                        showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
                                       }
                                     } catch (err) {
-                                       showToast('error', err.response?.data?.message || 'Error updating status');
+                                      showToast('error', err.response?.data?.message || 'Error updating status');
                                     }
                                   }}
                                   title={(rest.status === 'Suspended' || rest.status === 'Inactive') ? "Activate Restaurant" : "Deactivate / Inactivate Restaurant"}
@@ -2165,7 +2171,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^1\d{13}$/.test(val)) {
-                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                        setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
                       }
                     }}
                     required
@@ -2184,7 +2190,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                        setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
                       }
                     }}
                     error={formErrors.gstin}
@@ -2202,7 +2208,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                        setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
                       }
                     }}
                     required
@@ -2287,7 +2293,7 @@ export default function RestaurantsPage() {
                       error={formErrors.password}
                       setError={(val) => setFormErrors({ ...formErrors, password: val })}
                     />
-                    
+
                     <ValidatedInput
                       label="Confirm Password"
                       type="password"

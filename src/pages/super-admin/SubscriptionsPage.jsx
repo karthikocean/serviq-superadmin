@@ -29,6 +29,44 @@ import { TableTopControls, TableBottomPagination } from '../../components/common
 import { useAuth } from '../../contexts/AuthContext'
 import { formatDate } from '../../utils/dateFormat'
 
+export const normalizeSubscriptionStatus = (status, startDate, endDate) => {
+  if (!status) return 'Active';
+  const s = String(status).trim().toLowerCase();
+  if (s === 'cancelled' || s === 'canceled' || s === 'suspended') {
+    return 'Cancelled';
+  }
+  if (s === 'expired') {
+    return 'Expired';
+  }
+  if (s === 'expiring soon' || s === 'expiring_soon' || s === 'expiring') {
+    return 'Expiring Soon';
+  }
+  if (s === 'scheduled') {
+    if (endDate) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      if (!isNaN(end.getTime()) && end < now) {
+        return 'Expired';
+      }
+    }
+    return 'Active';
+  }
+
+  if (endDate) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    if (!isNaN(end.getTime())) {
+      if (end < now) {
+        return 'Expired';
+      }
+    }
+  }
+
+  return 'Active';
+};
+
 export default function SubscriptionsPage() {
   const { subscriptions, fetchSubscriptions, subscriptionHistory, fetchSubscriptionHistory } = useSubscriptions()
   const { plans } = usePlans()
@@ -354,7 +392,8 @@ export default function SubscriptionsPage() {
     return 0
   }
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (rawStatus, startDate, endDate) => {
+    const status = normalizeSubscriptionStatus(rawStatus, startDate, endDate)
     switch (status) {
       case 'Active':
         return { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }
@@ -1043,16 +1082,27 @@ export default function SubscriptionsPage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Subscription Status</span>
-                    <span style={{
-                      fontSize: '0.8rem',
-                      fontWeight: '800',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      background: getStatusColor(viewingSubscriptionRest.subscriptionStatus).bg,
-                      color: getStatusColor(viewingSubscriptionRest.subscriptionStatus).text
-                    }}>
-                      {viewingSubscriptionRest.subscriptionStatus || 'Active'}
-                    </span>
+                    {(() => {
+                      const displayStatus = normalizeSubscriptionStatus(
+                        viewingSubscriptionRest.status || viewingSubscriptionRest.subscriptionStatus,
+                        viewingSubscriptionRest.createdDate || viewingSubscriptionRest.startDate,
+                        viewingSubscriptionRest.expiryDate || viewingSubscriptionRest.endDate
+                      )
+                      const styles = getStatusColor(displayStatus)
+                      return (
+                        <span style={{
+                          fontSize: '0.8rem',
+                          fontWeight: '800',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          background: styles.bg,
+                          color: styles.text,
+                          border: styles.border
+                        }}>
+                          {displayStatus}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
 
