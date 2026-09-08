@@ -7,7 +7,6 @@ import {
   Activity,
   FileText,
   CheckCircle,
-  RefreshCw,
   TrendingUp,
   Settings,
   AlertTriangle,

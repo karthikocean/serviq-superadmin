@@ -3,7 +3,6 @@ import {
   Plus,
   FileText,
   FileSpreadsheet,
-  RefreshCw,
   AlertTriangle,
   X
 } from 'lucide-react'

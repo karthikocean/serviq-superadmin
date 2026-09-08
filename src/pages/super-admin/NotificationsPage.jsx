@@ -14,14 +14,16 @@ import {
   AlertTriangle,
   Info,
   ChevronDown,
-  FileText
+  FileText,
+  Eye,
+  Edit2
 } from 'lucide-react'
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
-import { getNotifications, createNotification, cancelNotification, sendDraftNotification, deleteNotification } from '../../services/notificationService'
+import { getNotifications, createNotification, updateNotification, cancelNotification, sendDraftNotification, deleteNotification } from '../../services/notificationService'
 import { getAllPlansApi } from '../../services/planService'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatDate } from '../../utils/dateFormat'
@@ -42,12 +44,13 @@ export default function NotificationsPage() {
 
   // Form states
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingNtfId, setEditingNtfId] = useState(null)
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [newNtf, setNewNtf] = useState({
     subject: '',
     type: 'Subscription Expiry',
     targetType: 'ALL',
-    targetPlan: '',
+    targetPlan: [],
     targetRestaurants: [],
     body: '',
     isScheduled: false,
@@ -81,11 +84,45 @@ export default function NotificationsPage() {
   useEffect(() => {
     const handleReset = () => {
       setShowCreateModal(false)
+      setEditingNtfId(null)
       setSelectedNotification(null)
     }
     window.addEventListener('reset_module_view', handleReset)
     return () => window.removeEventListener('reset_module_view', handleReset)
   }, [])
+
+  const handleEditClick = (n) => {
+    setEditingNtfId(n._id || n.id)
+    setErrors({})
+    const isSched = n.status === 'Scheduled' || Boolean(n.isScheduled)
+    const isDraft = n.status === 'Draft' || Boolean(n.isDraft)
+    setDeliveryOption(isSched ? 'schedule' : isDraft ? 'draft' : 'broadcast')
+
+    // Parse targetPlan
+    let parsedPlans = []
+    if (Array.isArray(n.targetPlan)) parsedPlans = n.targetPlan
+    else if (Array.isArray(n.targetPlans)) parsedPlans = n.targetPlans
+    else if (n.targetPlan) parsedPlans = [n.targetPlan]
+
+    // Parse targetRestaurants
+    let parsedRestaurants = []
+    if (Array.isArray(n.targetRestaurants)) {
+      parsedRestaurants = n.targetRestaurants.map(r => (typeof r === 'object' && r !== null ? (r._id || r.id) : r))
+    }
+
+    setNewNtf({
+      subject: n.subject || n.title || '',
+      type: n.type || 'Subscription Expiry',
+      targetType: n.targetType || 'ALL',
+      targetPlan: parsedPlans,
+      targetRestaurants: parsedRestaurants,
+      body: n.body || n.message || n.content || '',
+      isScheduled: isSched,
+      scheduledDate: n.scheduledDate ? String(n.scheduledDate).split('T')[0] : '',
+      scheduledTime: n.scheduledTime || (n.scheduledDate && String(n.scheduledDate).includes('T') ? String(n.scheduledDate).split('T')[1]?.substring(0, 5) : '')
+    })
+    setShowCreateModal(true)
+  }
 
   // Constants
   const types = ['Subscription Expiry', 'Maintenance Notice', 'Feature Updates', 'Promotional Messages']
@@ -93,7 +130,14 @@ export default function NotificationsPage() {
   const fetchPlans = async () => {
     try {
       const data = await getAllPlansApi(0, 100);
-      setPlans(data.data || []);
+      const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+      const activeOnly = rawList.filter(p => {
+        if (p.status && String(p.status).trim().toLowerCase() === 'inactive') return false;
+        if (p.isActive === false) return false;
+        if (p.status && String(p.status).trim().toLowerCase() !== 'active') return false;
+        return true;
+      });
+      setPlans(activeOnly);
     } catch (err) {
       console.error("Failed to fetch plans", err);
     }
@@ -145,8 +189,13 @@ export default function NotificationsPage() {
       if (!newNtf.scheduledTime) errs.scheduledTime = 'Time is required for scheduling'
     }
 
-    if (newNtf.targetType === 'PLAN' && !newNtf.targetPlan) errs.targetPlan = 'Please select a subscription plan'
-    if (newNtf.targetType === 'RESTAURANT' && newNtf.targetRestaurants.length === 0) errs.targetRestaurants = 'Please select at least one restaurant'
+    if (newNtf.targetType === 'PLAN') {
+      const hasPlan = Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan.length > 0 : Boolean(newNtf.targetPlan)
+      if (!hasPlan) errs.targetPlan = 'Please select at least one subscription plan'
+    }
+    if (newNtf.targetType === 'RESTAURANT' && (!Array.isArray(newNtf.targetRestaurants) || newNtf.targetRestaurants.length === 0)) {
+      errs.targetRestaurants = 'Please select at least one restaurant'
+    }
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
@@ -167,26 +216,34 @@ export default function NotificationsPage() {
         body: newNtf.body,
         title: newNtf.subject,
         subject: newNtf.subject,
-        targetPlan: newNtf.targetType === 'PLAN' ? newNtf.targetPlan : null,
+        targetPlan: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) && newNtf.targetPlan.length === 1 ? newNtf.targetPlan[0] : newNtf.targetPlan) : null,
+        targetPlans: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : [])) : [],
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? newNtf.targetRestaurants : []
       }
 
-      const res = await createNotification(payload)
-      const createdId = res?.data?._id || res?.data?.id || res?._id || res?.id
-      if (!isSched && createdId) {
-        try {
-          await sendDraftNotification(createdId)
-        } catch (sendErr) {
-          console.log('Send draft broadcast fallback result:', sendErr)
+      if (editingNtfId) {
+        await updateNotification(editingNtfId, payload)
+        showToast('success', isSched ? 'Notification updated & scheduled!' : 'Notification updated successfully!')
+      } else {
+        const res = await createNotification(payload)
+        const createdId = res?.data?._id || res?.data?.id || res?._id || res?.id
+        if (!isSched && createdId) {
+          try {
+            await sendDraftNotification(createdId)
+          } catch (sendErr) {
+            console.log('Send draft broadcast fallback result:', sendErr)
+          }
         }
+        showToast('success', isSched ? 'Notification scheduled successfully!' : 'Notification sent immediately!')
       }
 
       setShowCreateModal(false)
+      setEditingNtfId(null)
       setNewNtf({
         subject: '',
         type: 'Subscription Expiry',
         targetType: 'ALL',
-        targetPlan: '',
+        targetPlan: [],
         targetRestaurants: [],
         body: '',
         isScheduled: false,
@@ -195,10 +252,9 @@ export default function NotificationsPage() {
       })
       setDeliveryOption('broadcast')
       setErrors({})
-      showToast('success', isSched ? 'Notification scheduled successfully!' : 'Notification sent immediately!')
       fetchNotifications()
     } catch (error) {
-      showToast('error', error.response?.data?.message || 'Failed to create notification')
+      showToast('error', error.response?.data?.message || 'Failed to save notification')
     }
   }
 
@@ -221,17 +277,26 @@ export default function NotificationsPage() {
         body: newNtf.body,
         title: newNtf.subject,
         subject: newNtf.subject,
-        targetPlan: newNtf.targetType === 'PLAN' ? newNtf.targetPlan : null,
+        targetPlan: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) && newNtf.targetPlan.length === 1 ? newNtf.targetPlan[0] : newNtf.targetPlan) : null,
+        targetPlans: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : [])) : [],
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? newNtf.targetRestaurants : []
       }
 
-      await createNotification(payload)
+      if (editingNtfId) {
+        await updateNotification(editingNtfId, payload)
+        showToast('success', 'Draft notification updated successfully!')
+      } else {
+        await createNotification(payload)
+        showToast('success', 'Notification saved as Draft successfully!')
+      }
+
       setShowCreateModal(false)
+      setEditingNtfId(null)
       setNewNtf({
         subject: '',
         type: 'Subscription Expiry',
         targetType: 'ALL',
-        targetPlan: '',
+        targetPlan: [],
         targetRestaurants: [],
         body: '',
         isScheduled: false,
@@ -239,7 +304,6 @@ export default function NotificationsPage() {
         scheduledTime: ''
       })
       setErrors({})
-      showToast('success', 'Notification saved as Draft successfully!')
       fetchNotifications()
     } catch (error) {
       showToast('error', error.response?.data?.message || 'Failed to save draft notification')
@@ -289,6 +353,8 @@ export default function NotificationsPage() {
     switch (status) {
       case 'Sent': return <CheckCircle style={{ width: '12px', height: '12px', color: '#10b981' }} />
       case 'Scheduled': return <Clock style={{ width: '12px', height: '12px', color: '#f59e0b' }} />
+      case 'Cancelled':
+      case 'Canceled': return <AlertTriangle style={{ width: '12px', height: '12px', color: '#ef4444' }} />
       default: return <Info style={{ width: '12px', height: '12px', color: '#64748b' }} />
     }
   }
@@ -297,6 +363,8 @@ export default function NotificationsPage() {
     switch (status) {
       case 'Sent': return '#10b981'
       case 'Scheduled': return '#f59e0b'
+      case 'Cancelled':
+      case 'Canceled': return '#ef4444'
       default: return '#64748b'
     }
   }
@@ -305,6 +373,7 @@ export default function NotificationsPage() {
   const totalSent = notifications.filter(n => n.status === 'Sent').length
   const totalScheduled = notifications.filter(n => n.status === 'Scheduled').length
   const totalDraft = notifications.filter(n => n.status === 'Draft').length
+  const totalCanceled = notifications.filter(n => n.status === 'Cancelled' || n.status === 'Canceled').length
 
   const paginatedNotifications = notifications
 
@@ -319,11 +388,12 @@ export default function NotificationsPage() {
     }}>
 
       {/* Counters Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
         {[
           { label: 'Sent Notifications', count: totalSent, color: '#10b981', bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)' },
           { label: 'Scheduled Queue', count: totalScheduled, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)' },
-          { label: 'Drafts', count: totalDraft, color: '#64748b', bg: 'rgba(100, 116, 139, 0.04)', border: 'rgba(100, 116, 139, 0.12)' }
+          { label: 'Drafts', count: totalDraft, color: '#64748b', bg: 'rgba(100, 116, 139, 0.04)', border: 'rgba(100, 116, 139, 0.12)' },
+          { label: 'Canceled', count: totalCanceled, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.12)' }
         ].map((item, idx) => (
           <div key={idx} className="glass-card" style={{
             padding: '20px',
@@ -374,11 +444,12 @@ export default function NotificationsPage() {
             <button
               onClick={() => {
                 setErrors({})
+                setEditingNtfId(null)
                 setNewNtf({
                   subject: '',
                   type: 'Subscription Expiry',
                   targetType: 'ALL',
-                  targetPlan: '',
+                  targetPlan: [],
                   targetRestaurants: [],
                   body: '',
                   isScheduled: false,
@@ -412,7 +483,7 @@ export default function NotificationsPage() {
                 <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '150px' }}>Target Group</th>
                 <th style={{ textAlign: 'left', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '160px' }}>Schedule/Sent Time</th>
                 <th style={{ textAlign: 'center', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '110px' }}>Status</th>
-                <th style={{ textAlign: 'right', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '150px' }}>Actions</th>
+                <th style={{ textAlign: 'right', padding: '12px 18px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', width: '180px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -439,39 +510,89 @@ export default function NotificationsPage() {
                         </div>
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
                           {canView && (
                             <button
                               onClick={() => setSelectedNotification(n)}
                               className="btn-outline"
-                              style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '6px',
+                                cursor: 'pointer'
+                              }}
+                              title="View Notification Details"
                             >
-                              View
+                              <Eye style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
-                          {canEdit && n.status === 'Scheduled' && (
+                          {canEdit && (
                             <button
-                              onClick={() => handleCancelScheduled(n._id)}
-                              style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.15)' }}
+                              onClick={() => n.status !== 'Sent' && handleEditClick(n)}
+                              disabled={n.status === 'Sent'}
+                              className="btn-outline"
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '6px',
+                                cursor: n.status === 'Sent' ? 'not-allowed' : 'pointer',
+                                opacity: n.status === 'Sent' ? 0.35 : 1,
+                                color: n.status === 'Sent' ? 'var(--text-muted)' : 'var(--text-main)',
+                                background: 'transparent'
+                              }}
+                              title={n.status === 'Sent' ? 'Cannot edit sent notification' : 'Edit Notification'}
                             >
-                              Cancel
+                              <Edit2 style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
                           {canEdit && n.status === 'Draft' && (
                             <button
                               onClick={() => handleSendDraft(n._id)}
-                              style={{ padding: '5px 8px', fontSize: '0.72rem', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                color: '#10b981',
+                                border: '1px solid rgba(16, 185, 129, 0.25)'
+                              }}
+                              title="Send / Broadcast Now"
                             >
-                              Send
+                              <Send style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
                           {canDelete && (
                             <button
                               onClick={() => handleDelete(n._id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '6px',
+                                background: 'rgba(239, 68, 68, 0.05)',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                cursor: 'pointer',
+                                color: '#ef4444'
+                              }}
                               title="Delete Notification"
                             >
-                              <Trash2 style={{ width: '14px', height: '14px' }} />
+                              <Trash2 style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
                           {!canView && !canEdit && !canDelete && (
@@ -516,7 +637,7 @@ export default function NotificationsPage() {
           padding: '20px',
           overflowY: 'auto'
         }} onClick={() => setShowCreateModal(false)}>
-          <div className="menu-edit-panel animate-fade-in" style={{
+          <div className="menu-edit-panel invisible-scrollbar animate-fade-in" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
             borderRadius: '16px',
@@ -529,13 +650,15 @@ export default function NotificationsPage() {
             maxHeight: 'calc(100vh - 40px)',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
           }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 16px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexShrink: 0 }}>
               Compose Broadcast Notification
             </h3>
 
-            <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px', flex: 1 }}>
+            <form onSubmit={handleCreateSubmit} className="invisible-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px', flex: 1, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
 
               {/* Type */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -559,7 +682,7 @@ export default function NotificationsPage() {
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setNewNtf({ ...newNtf, targetType: type, targetPlan: '', targetRestaurants: [] })}
+                      onClick={() => setNewNtf({ ...newNtf, targetType: type, targetPlan: [], targetRestaurants: [] })}
                       style={{
                         flex: 1,
                         padding: '8px 0',
@@ -581,17 +704,25 @@ export default function NotificationsPage() {
               {/* Conditional Target Inputs */}
               {newNtf.targetType === 'PLAN' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Plan *</label>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Select Subscription Plan(s) *</label>
                   <CustomSelect
-                    options={plans.map(p => ({ value: p._id || p.id, label: p.planName }))}
-                    value={newNtf.targetPlan}
+                    isMulti={true}
+                    options={plans
+                      .filter(p => {
+                        if (p.status && String(p.status).trim().toLowerCase() === 'inactive') return false;
+                        if (p.isActive === false) return false;
+                        if (p.status && String(p.status).trim().toLowerCase() !== 'active') return false;
+                        return true;
+                      })
+                      .map(p => ({ value: p._id || p.id, label: p.planName || p.name }))}
+                    value={Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : [])}
                     onChange={(val) => {
-                      const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
-                      setNewNtf({ ...newNtf, targetPlan: selected })
+                      const selected = Array.isArray(val) ? val : (typeof val === 'object' && val !== null && val.target ? val.target.value : [val])
+                      setNewNtf({ ...newNtf, targetPlan: Array.isArray(selected) ? selected : (selected ? [selected] : []) })
                       if (errors.targetPlan) setErrors({ ...errors, targetPlan: '' })
                     }}
                     error={errors.targetPlan}
-                    placeholder="-- Select Subscription Plan --"
+                    placeholder="-- Select Subscription Plans --"
                   />
                   {errors.targetPlan && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.targetPlan}</span>}
                 </div>
@@ -669,15 +800,16 @@ export default function NotificationsPage() {
                 {errors.body && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{errors.body}</span>}
               </div>
 
-              {/* Delivery Option Segmented Selector */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {/* Delivery Option Segmented Control */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Delivery Option</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
                   {[
-                    { id: 'broadcast', label: 'Broadcast Now', icon: <Send style={{ width: '13px', height: '13px' }} /> },
-                    { id: 'schedule', label: 'Schedule Later', icon: <Calendar style={{ width: '13px', height: '13px' }} /> },
-                    { id: 'draft', label: 'Save as Draft', icon: <FileText style={{ width: '13px', height: '13px' }} /> },
+                    { id: 'broadcast', label: 'Broadcast Now', icon: Send },
+                    { id: 'schedule', label: 'Schedule', icon: Calendar },
+                    { id: 'draft', label: 'Save Draft', icon: FileText }
                   ].map(opt => {
+                    const Icon = opt.icon
                     const isSelected = deliveryOption === opt.id
                     return (
                       <button
@@ -685,35 +817,35 @@ export default function NotificationsPage() {
                         type="button"
                         onClick={() => {
                           setDeliveryOption(opt.id)
-                          setNewNtf(prev => ({ ...prev, isScheduled: opt.id === 'schedule' }))
+                          setNewNtf({ ...newNtf, isScheduled: opt.id === 'schedule' })
                         }}
                         style={{
-                          padding: '9px 8px',
-                          borderRadius: '8px',
-                          border: isSelected ? '1.5px solid var(--primary, #f95e10)' : '1px solid var(--border-color)',
-                          background: isSelected ? 'rgba(249, 94, 16, 0.08)' : 'var(--bg-app)',
-                          color: isSelected ? 'var(--primary, #f95e10)' : 'var(--text-main)',
-                          fontWeight: isSelected ? '800' : '600',
-                          fontSize: '0.74rem',
+                          flex: 1,
+                          padding: '8px 0',
+                          fontSize: '0.75rem',
+                          fontWeight: '700',
+                          border: 'none',
+                          background: isSelected ? 'var(--text-main)' : 'transparent',
+                          color: isSelected ? '#ffffff' : 'var(--text-muted)',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '5px',
-                          transition: 'all 0.15s ease'
+                          gap: '6px',
+                          transition: 'all 0.2s'
                         }}
                       >
-                        {opt.icon}
-                        <span>{opt.label}</span>
+                        <Icon style={{ width: '13px', height: '13px' }} />
+                        {opt.label}
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              {/* Schedule Fields */}
-              {deliveryOption === 'schedule' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              {/* Schedule Inputs */}
+              {(deliveryOption === 'schedule' || newNtf.isScheduled) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-main)' }}>Date *</label>
                     <input
@@ -746,7 +878,9 @@ export default function NotificationsPage() {
               {/* Actions */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '16px', flexShrink: 0, flexWrap: 'wrap' }}>
                 <button type="submit" className="btn-black" style={{ flex: 1, minWidth: '130px', padding: '10px', borderRadius: '8px', border: 'none', background: '#000000', color: '#ffffff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                  {deliveryOption === 'draft' ? (
+                  {editingNtfId ? (
+                    <><Send style={{ width: '15px', height: '15px' }} /> Update & Save</>
+                  ) : deliveryOption === 'draft' ? (
                     <><FileText style={{ width: '15px', height: '15px' }} /> Save as Draft</>
                   ) : deliveryOption === 'schedule' ? (
                     <><Calendar style={{ width: '15px', height: '15px' }} /> Schedule dispatch</>
@@ -756,10 +890,10 @@ export default function NotificationsPage() {
                 </button>
                 {deliveryOption !== 'draft' && (
                   <button type="button" onClick={handleSaveDraft} className="btn-outline" style={{ flex: 1, minWidth: '120px', padding: '10px', borderRadius: '8px', border: '1.5px solid var(--primary, #f95e10)', color: 'var(--primary, #f95e10)', background: 'transparent', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                    <FileText style={{ width: '14px', height: '14px' }} /> Save as Draft
+                    <FileText style={{ width: '14px', height: '14px' }} /> {editingNtfId ? 'Save as Draft' : 'Save as Draft'}
                   </button>
                 )}
-                <button type="button" className="btn-outline" onClick={() => { setShowCreateModal(false); setErrors({}); }} style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
+                <button type="button" className="btn-outline" onClick={() => { setShowCreateModal(false); setEditingNtfId(null); setErrors({}); }} style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Cancel</button>
               </div>
 
             </form>
@@ -815,7 +949,6 @@ export default function NotificationsPage() {
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedNotification.type}</span>
                 </div>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Recipient Group</span>
@@ -825,7 +958,7 @@ export default function NotificationsPage() {
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Sent / Scheduled Time</span>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedNotification.scheduledDate}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedNotification.scheduledDate ? formatDate(selectedNotification.scheduledDate) : (selectedNotification.createdAt ? formatDate(selectedNotification.createdAt) : '—')}</span>
                 </div>
               </div>
 
@@ -851,7 +984,7 @@ export default function NotificationsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
                 {selectedNotification.status === 'Draft' && (
                   <button
                     onClick={() => {
@@ -859,12 +992,12 @@ export default function NotificationsPage() {
                       setSelectedNotification(null)
                     }}
                     className="btn-black"
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}
+                    style={{ flex: 1, minWidth: '120px', padding: '10px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}
                   >
                     Broadcast Now
                   </button>
                 )}
-                <button type="button" className="btn-outline" onClick={() => setSelectedNotification(null)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Dismiss</button>
+                <button type="button" className="btn-outline" onClick={() => setSelectedNotification(null)} style={{ flex: 1, minWidth: '80px', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Dismiss</button>
               </div>
 
             </div>

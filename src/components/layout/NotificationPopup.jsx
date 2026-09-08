@@ -3,23 +3,21 @@ import {
   Bell, 
   CheckCheck, 
   Clock, 
-  AlertTriangle, 
-  CreditCard, 
-  Store, 
   LifeBuoy, 
-  Info, 
   CheckCircle2, 
-  X 
+  X,
+  ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import { getNotifications } from '../../services/notificationService';
+import { getTickets } from '../../services/ticketService';
 
 export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
   const navigate = useNavigate();
   const popupRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'unread'
-  const [notifications, setNotifications] = useState([]);
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'notifications' | 'tickets' | 'unread'
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [readIds, setReadIds] = useState(() => {
     try {
@@ -29,76 +27,148 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
     }
   });
 
-  // Default system fallback notifications if none returned from API
-  const fallbackNotifications = [
+  // Default fallback items for notifications and support tickets
+  const fallbackItems = [
+    {
+      _id: 'ticket-1',
+      isTicket: true,
+      ticketNumber: 'TKT-1042',
+      subject: 'POS Kitchen Printer Connection Offline',
+      body: 'Kitchen printer stopped printing order tickets during peak dinner rush.',
+      priority: 'Urgent',
+      restaurantName: 'The Spice House',
+      type: 'Support Ticket',
+      createdAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      targetRoute: ROUTES.SUPER_ADMIN.TICKETS
+    },
     {
       _id: 'sys-1',
-      subject: 'New Restaurant Registration',
-      body: 'Spice Route Restaurant has completed onboarding and is waiting for activation.',
-      type: 'Restaurant',
-      createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.RESTAURANTS
+      isTicket: false,
+      subject: 'Scheduled Maintenance Notice',
+      body: 'Server database optimization scheduled for Sunday at 02:00 AM UTC (approx 15 mins downtime).',
+      type: 'Maintenance',
+      createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+      targetRoute: ROUTES.SUPER_ADMIN.NOTIFICATIONS
+    },
+    {
+      _id: 'ticket-2',
+      isTicket: true,
+      ticketNumber: 'TKT-1039',
+      subject: 'GST & Invoice Tax Calculation Query',
+      body: 'Need verification regarding SGST and CGST split on delivery addon items.',
+      priority: 'High',
+      restaurantName: 'Urban Biryani Bistro',
+      type: 'Support Ticket',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+      targetRoute: ROUTES.SUPER_ADMIN.TICKETS
     },
     {
       _id: 'sys-2',
+      isTicket: false,
       subject: 'Subscription Expiry Alert',
-      body: 'The Standard Plan subscription for "Mirchi Cafe" will expire in 3 days.',
-      type: 'Subscription Expiry',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+      body: 'The Enterprise Annual plan for "Mirchi Cafe & Grill" is expiring in 3 days.',
+      type: 'Subscription',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
       targetRoute: ROUTES.SUPER_ADMIN.SUBSCRIPTIONS
     },
     {
-      _id: 'sys-3',
-      subject: 'Payment Received',
-      body: 'Payment of ₹19,999 received successfully from Green Bowl Cafe for Basic Plan.',
-      type: 'Payment',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.BILLING
-    },
-    {
-      _id: 'sys-4',
-      subject: 'Support Ticket Urgent',
-      body: 'Ticket #TK-9932 regarding POS integration requires super admin review.',
+      _id: 'ticket-3',
+      isTicket: true,
+      ticketNumber: 'TKT-1035',
+      subject: 'Request for New Outlet Activation',
+      body: 'Owner requested licensing for 2 additional POS terminals for newly opened branch.',
+      priority: 'Medium',
+      restaurantName: 'Green Bowl Cafe',
       type: 'Support Ticket',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
       targetRoute: ROUTES.SUPER_ADMIN.TICKETS
     }
   ];
 
-  // Fetch notifications
+  // Fetch notifications & tickets
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
-    const loadNotifications = async () => {
+    const loadData = async () => {
       setLoading(true);
       try {
-        const res = await getNotifications({ page: 0, limit: 15 });
+        const [notifRes, ticketRes] = await Promise.allSettled([
+          getNotifications({ page: 0, limit: 15 }),
+          getTickets({ page: 0, limit: 15 })
+        ]);
+
+        let combined = [];
+
+        // Parse Notifications
+        if (notifRes.status === 'fulfilled' && notifRes.value) {
+          const rawNotifs = Array.isArray(notifRes.value?.data) 
+            ? notifRes.value.data 
+            : Array.isArray(notifRes.value) 
+              ? notifRes.value 
+              : [];
+          
+          const parsedNotifs = rawNotifs.map(n => ({
+            _id: n._id || n.id || `notif-${Math.random()}`,
+            isTicket: false,
+            subject: n.subject || 'System Notification',
+            body: n.body || n.message || '',
+            type: n.type || 'System',
+            createdAt: n.createdAt || n.created_at || new Date().toISOString(),
+            targetRoute: ROUTES.SUPER_ADMIN.NOTIFICATIONS
+          }));
+          combined.push(...parsedNotifs);
+        }
+
+        // Parse Tickets
+        if (ticketRes.status === 'fulfilled' && ticketRes.value) {
+          const rawTickets = Array.isArray(ticketRes.value?.data) 
+            ? ticketRes.value.data 
+            : Array.isArray(ticketRes.value) 
+              ? ticketRes.value 
+              : [];
+          
+          const parsedTickets = rawTickets.map(t => ({
+            _id: t._id || t.id || `ticket-${Math.random()}`,
+            isTicket: true,
+            ticketNumber: t.ticketNumber || (t._id ? `TKT-${String(t._id).slice(-4).toUpperCase()}` : 'TKT'),
+            subject: t.subject || t.title || 'Support Ticket Update',
+            body: t.description || t.message || (t.replies && t.replies.length > 0 ? t.replies[t.replies.length - 1].message : ''),
+            priority: t.priority || 'Medium',
+            restaurantName: t.restaurantName || t.restaurant?.name || '',
+            type: 'Ticket',
+            createdAt: t.updatedAt || t.createdAt || new Date().toISOString(),
+            targetRoute: ROUTES.SUPER_ADMIN.TICKETS
+          }));
+          combined.push(...parsedTickets);
+        }
+
         if (isMounted) {
-          const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-          if (list.length > 0) {
-            setNotifications(list);
+          if (combined.length > 0) {
+            combined.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            setItems(combined);
           } else {
-            setNotifications(fallbackNotifications);
+            setItems(fallbackItems);
           }
         }
       } catch (err) {
+        console.error('Failed to load notifications and tickets:', err);
         if (isMounted) {
-          setNotifications(fallbackNotifications);
+          setItems(fallbackItems);
         }
       } finally {
         if (isMounted) setLoading(false);
       }
     };
 
-    loadNotifications();
+    loadData();
 
     return () => {
       isMounted = false;
     };
   }, [isOpen]);
 
-  // Click outside to close
+  // Click outside and Esc to close
   useEffect(() => {
     if (!isOpen) return;
 
@@ -144,22 +214,22 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
   };
 
   const markAllAsRead = () => {
-    const allIds = notifications.map(n => n._id || n.id);
+    const allIds = items.map(n => n._id || n.id);
     const updated = Array.from(new Set([...readIds, ...allIds]));
     saveReadIds(updated);
   };
 
-  const handleNotificationClick = (item) => {
+  const handleItemClick = (item) => {
     markAsRead(item._id || item.id);
     onClose();
-    if (item.targetRoute) {
+    if (item.isTicket) {
+      navigate(ROUTES.SUPER_ADMIN.TICKETS);
+    } else if (item.targetRoute) {
       navigate(item.targetRoute);
     } else if (item.type?.toLowerCase().includes('subscription') || item.type?.toLowerCase().includes('plan')) {
       navigate(ROUTES.SUPER_ADMIN.SUBSCRIPTIONS);
     } else if (item.type?.toLowerCase().includes('payment') || item.type?.toLowerCase().includes('bill')) {
       navigate(ROUTES.SUPER_ADMIN.BILLING);
-    } else if (item.type?.toLowerCase().includes('ticket')) {
-      navigate(ROUTES.SUPER_ADMIN.TICKETS);
     } else if (item.type?.toLowerCase().includes('restaurant')) {
       navigate(ROUTES.SUPER_ADMIN.RESTAURANTS);
     } else {
@@ -188,52 +258,20 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
     }
   };
 
-  const getTypeStyle = (type = '') => {
-    const t = String(type).toLowerCase();
-    if (t.includes('subscription') || t.includes('expiry')) {
-      return {
-        icon: <AlertTriangle style={{ width: '16px', height: '16px' }} />,
-        bg: 'rgba(245, 158, 11, 0.12)',
-        color: '#f59e0b',
-        border: 'rgba(245, 158, 11, 0.25)'
-      };
-    }
-    if (t.includes('payment') || t.includes('billing') || t.includes('invoice')) {
-      return {
-        icon: <CreditCard style={{ width: '16px', height: '16px' }} />,
-        bg: 'rgba(16, 185, 129, 0.12)',
-        color: '#10b981',
-        border: 'rgba(16, 185, 129, 0.25)'
-      };
-    }
-    if (t.includes('restaurant') || t.includes('lead') || t.includes('onboarding')) {
-      return {
-        icon: <Store style={{ width: '16px', height: '16px' }} />,
-        bg: 'rgba(139, 92, 246, 0.12)',
-        color: '#8b5cf6',
-        border: 'rgba(139, 92, 246, 0.25)'
-      };
-    }
-    if (t.includes('ticket') || t.includes('support') || t.includes('issue')) {
-      return {
-        icon: <LifeBuoy style={{ width: '16px', height: '16px' }} />,
-        bg: 'rgba(239, 68, 68, 0.12)',
-        color: '#ef4444',
-        border: 'rgba(239, 68, 68, 0.25)'
-      };
-    }
-    return {
-      icon: <Info style={{ width: '16px', height: '16px' }} />,
-      bg: 'rgba(59, 130, 246, 0.12)',
-      color: '#3b82f6',
-      border: 'rgba(59, 130, 246, 0.25)'
-    };
-  };
-
   if (!isOpen) return null;
 
-  const unreadItems = notifications.filter(n => !readIds.includes(n._id || n.id));
-  const displayedItems = activeTab === 'unread' ? unreadItems : notifications;
+  const unreadItems = items.filter(n => !readIds.includes(n._id || n.id));
+  const notificationItems = items.filter(n => !n.isTicket);
+  const ticketItems = items.filter(n => n.isTicket);
+
+  let displayedItems = items;
+  if (activeTab === 'unread') {
+    displayedItems = unreadItems;
+  } else if (activeTab === 'notifications') {
+    displayedItems = notificationItems;
+  } else if (activeTab === 'tickets') {
+    displayedItems = ticketItems;
+  }
 
   return (
     <div
@@ -241,24 +279,24 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
       className="animate-fade-in"
       style={{
         position: 'absolute',
-        top: 'calc(100% + 10px)',
+        top: 'calc(100% + 8px)',
         right: 0,
-        width: '380px',
-        maxWidth: 'calc(100vw - 32px)',
+        width: '390px',
+        maxWidth: 'calc(100vw - 24px)',
         background: 'var(--bg-card, #ffffff)',
         border: '1px solid var(--border-color, #e2e8f0)',
-        borderRadius: '16px',
-        boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.18), 0 8px 16px -4px rgba(0, 0, 0, 0.08)',
+        borderRadius: '12px',
+        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.12)',
         zIndex: 10000,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: 'Inter, system-ui, sans-serif'
+        fontFamily: 'inherit'
       }}
     >
       {/* Header */}
       <div style={{
-        padding: '16px 18px',
+        padding: '12px 16px',
         borderBottom: '1px solid var(--border-color, #e2e8f0)',
         display: 'flex',
         justifyContent: 'space-between',
@@ -266,34 +304,22 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
         background: 'var(--bg-app, #f8fafc)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '8px',
-            background: 'rgba(0, 0, 0, 0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-main, #0f172a)'
-          }}>
-            <Bell style={{ width: '15px', height: '15px' }} />
-          </div>
+          <Bell style={{ width: '16px', height: '16px', color: 'var(--text-main, #0f172a)' }} />
           <div>
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-main, #0f172a)', lineHeight: 1.2 }}>
+            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main, #0f172a)', lineHeight: 1.2 }}>
               Notifications
             </h4>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
-              {unreadItems.length > 0 ? `${unreadItems.length} unread alerts` : 'All caught up'}
+              {unreadItems.length > 0 ? `${unreadItems.length} unread updates` : 'All caught up'}
             </span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {unreadItems.length > 0 && (
             <button
               type="button"
               onClick={markAllAsRead}
-              title="Mark all as read"
               style={{
                 background: 'none',
                 border: 'none',
@@ -301,17 +327,14 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                fontSize: '0.74rem',
+                fontSize: '0.72rem',
                 fontWeight: '600',
-                color: '#3b82f6',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                transition: 'background 0.15s ease'
+                color: '#2563eb',
+                padding: '2px 6px',
+                borderRadius: '4px'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
-              <CheckCheck style={{ width: '13px', height: '13px' }} /> Mark all read
+              <CheckCheck style={{ width: '13px', height: '13px' }} /> Mark read
             </button>
           )}
           <button
@@ -321,216 +344,197 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: 'var(--text-muted, #94a3b8)',
-              padding: '4px',
-              borderRadius: '6px',
+              color: 'var(--text-muted, #64748b)',
+              padding: '2px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
             <X style={{ width: '16px', height: '16px' }} />
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Clean Tabs Row */}
       <div style={{
-        display: 'flex',
-        padding: '8px 16px',
-        gap: '8px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
         borderBottom: '1px solid var(--border-color, #e2e8f0)',
         background: 'var(--bg-card, #ffffff)'
       }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('all')}
-          style={{
-            padding: '5px 12px',
-            fontSize: '0.76rem',
-            fontWeight: activeTab === 'all' ? '700' : '500',
-            borderRadius: '20px',
-            border: activeTab === 'all' ? '1px solid #000000' : '1px solid transparent',
-            background: activeTab === 'all' ? '#000000' : 'transparent',
-            color: activeTab === 'all' ? '#ffffff' : 'var(--text-muted, #64748b)',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          All ({notifications.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('unread')}
-          style={{
-            padding: '5px 12px',
-            fontSize: '0.76rem',
-            fontWeight: activeTab === 'unread' ? '700' : '500',
-            borderRadius: '20px',
-            border: activeTab === 'unread' ? '1px solid #3b82f6' : '1px solid transparent',
-            background: activeTab === 'unread' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-            color: activeTab === 'unread' ? '#3b82f6' : 'var(--text-muted, #64748b)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          Unread
-          {unreadItems.length > 0 && (
-            <span style={{
-              background: '#3b82f6',
-              color: '#ffffff',
-              fontSize: '0.65rem',
-              fontWeight: '700',
-              padding: '1px 6px',
-              borderRadius: '10px'
-            }}>
-              {unreadItems.length}
-            </span>
-          )}
-        </button>
+        {[
+          { key: 'all', label: 'All', count: items.length },
+          { key: 'notifications', label: 'Alerts', count: notificationItems.length },
+          { key: 'tickets', label: 'Tickets', count: ticketItems.length },
+          { key: 'unread', label: 'Unread', count: unreadItems.length }
+        ].map(tab => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '8px 4px',
+                fontSize: '0.72rem',
+                fontWeight: isActive ? '700' : '500',
+                border: 'none',
+                borderBottom: isActive ? '2px solid #0f172a' : '2px solid transparent',
+                background: 'transparent',
+                color: isActive ? '#0f172a' : 'var(--text-muted, #64748b)',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          );
+        })}
       </div>
 
-      {/* List Content */}
-      <div style={{
-        maxHeight: '340px',
-        overflowY: 'auto',
-        padding: '6px 0',
-        background: 'var(--bg-card, #ffffff)'
-      }}>
+      {/* List Items */}
+      <div 
+        className="invisible-scrollbar"
+        style={{
+          maxHeight: '340px',
+          overflowY: 'auto',
+          background: 'var(--bg-card, #ffffff)',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none'
+        }}
+      >
         {loading ? (
-          <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)', fontSize: '0.82rem' }}>
-            <div style={{ width: '24px', height: '24px', border: '2px solid #e2e8f0', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
-            Loading notifications...
+          <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)', fontSize: '0.8rem' }}>
+            Loading updates...
           </div>
         ) : displayedItems.length === 0 ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '50%',
-              background: 'rgba(16, 185, 129, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#10b981'
-            }}>
-              <CheckCircle2 style={{ width: '22px', height: '22px' }} />
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.86rem', fontWeight: '700', color: 'var(--text-main, #0f172a)' }}>
-                {activeTab === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-              </p>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>
-                {activeTab === 'unread' ? "You've read all your notifications." : 'New system activity alerts will appear here.'}
-              </p>
-            </div>
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+            <CheckCircle2 style={{ width: '24px', height: '24px', margin: '0 auto 6px', color: '#10b981' }} />
+            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main, #0f172a)' }}>
+              {activeTab === 'unread' ? 'No unread updates' : 'No items found'}
+            </p>
           </div>
         ) : (
           displayedItems.map((item) => {
             const isRead = readIds.includes(item._id || item.id);
-            const style = getTypeStyle(item.type);
 
             return (
               <div
                 key={item._id || item.id}
-                onClick={() => handleNotificationClick(item)}
+                onClick={() => handleItemClick(item)}
                 style={{
-                  padding: '12px 18px',
+                  padding: '10px 14px',
                   display: 'flex',
-                  gap: '12px',
+                  alignItems: 'flex-start',
+                  gap: '10px',
                   cursor: 'pointer',
                   borderBottom: '1px solid var(--border-color, #f1f5f9)',
-                  background: isRead ? 'transparent' : 'rgba(59, 130, 246, 0.03)',
-                  transition: 'background 0.15s ease',
-                  position: 'relative'
+                  background: isRead ? 'transparent' : 'rgba(37, 99, 235, 0.03)',
+                  transition: 'background 0.1s ease'
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover, #f8fafc)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = isRead ? 'transparent' : 'rgba(59, 130, 246, 0.03)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = isRead ? 'transparent' : 'rgba(37, 99, 235, 0.03)'}
               >
-                {/* Type Icon */}
+                {/* Icon */}
                 <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  background: style.bg,
-                  color: style.color,
-                  border: `1px solid ${style.border}`,
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  background: 'rgba(0, 0, 0, 0.04)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  color: item.isTicket ? '#4f46e5' : '#0284c7',
                   flexShrink: 0,
-                  marginTop: '2px'
+                  marginTop: '1px'
                 }}>
-                  {style.icon}
+                  {item.isTicket ? (
+                    <LifeBuoy style={{ width: '14px', height: '14px' }} />
+                  ) : (
+                    <Bell style={{ width: '14px', height: '14px' }} />
+                  )}
                 </div>
 
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                    <h5 style={{
-                      margin: 0,
-                      fontSize: '0.82rem',
-                      fontWeight: isRead ? '600' : '750',
-                      color: 'var(--text-main, #0f172a)',
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      {item.isTicket && item.ticketNumber && (
+                        <span style={{
+                          fontFamily: 'monospace',
+                          fontSize: '0.68rem',
+                          fontWeight: '700',
+                          color: '#4f46e5',
+                          flexShrink: 0
+                        }}>
+                          {item.ticketNumber}
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: '0.8rem',
+                        fontWeight: isRead ? '500' : '700',
+                        color: 'var(--text-main, #0f172a)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {item.subject}
+                      </span>
+                    </div>
+
+                    {!isRead && (
+                      <span style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: '#2563eb',
+                        flexShrink: 0
+                      }} />
+                    )}
+                  </div>
+
+                  {item.body && (
+                    <p style={{
+                      margin: '2px 0 0 0',
+                      fontSize: '0.72rem',
+                      color: 'var(--text-muted, #64748b)',
                       lineHeight: 1.3,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
                     }}>
-                      {item.subject}
-                    </h5>
-                    {!isRead && (
-                      <span style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        background: '#3b82f6',
-                        flexShrink: 0,
-                        marginTop: '4px'
-                      }} />
-                    )}
-                  </div>
+                      {item.body}
+                    </p>
+                  )}
 
-                  <p style={{
-                    margin: '4px 0 0 0',
-                    fontSize: '0.74rem',
-                    color: 'var(--text-muted, #64748b)',
-                    lineHeight: 1.4,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}>
-                    {item.body}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                    <span style={{
-                      fontSize: '0.68rem',
-                      color: 'var(--text-muted, #94a3b8)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
-                      <Clock style={{ width: '11px', height: '11px' }} />
+                  {/* Clean meta line */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <Clock style={{ width: '10px', height: '10px' }} />
                       {formatTimeAgo(item.createdAt)}
                     </span>
-                    {item.type && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        fontWeight: '600',
-                        color: style.color,
-                        background: style.bg,
-                        padding: '1px 6px',
-                        borderRadius: '4px'
-                      }}>
-                        {item.type}
-                      </span>
+
+                    {item.restaurantName && (
+                      <>
+                        <span>•</span>
+                        <span style={{ maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.restaurantName}
+                        </span>
+                      </>
+                    )}
+
+                    {item.priority && item.priority.toLowerCase() !== 'medium' && (
+                      <>
+                        <span>•</span>
+                        <span style={{
+                          fontWeight: '600',
+                          color: item.priority.toLowerCase() === 'urgent' ? '#dc2626' : '#d97706'
+                        }}>
+                          {item.priority}
+                        </span>
+                      </>
                     )}
                   </div>
                 </div>
@@ -539,6 +543,53 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
           })
         )}
       </div>
+
+      {/* Footer Navigation */}
+      <div style={{
+        padding: '8px 14px',
+        borderTop: '1px solid var(--border-color, #e2e8f0)',
+        background: 'var(--bg-app, #f8fafc)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <button
+          type="button"
+          onClick={() => { onClose(); navigate(ROUTES.SUPER_ADMIN.NOTIFICATIONS); }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.72rem',
+            fontWeight: '600',
+            color: 'var(--text-muted, #64748b)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          All Notifications <ArrowRight style={{ width: '11px', height: '11px' }} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { onClose(); navigate(ROUTES.SUPER_ADMIN.TICKETS); }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.72rem',
+            fontWeight: '600',
+            color: '#4f46e5',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          Support & Tickets <ArrowRight style={{ width: '11px', height: '11px' }} />
+        </button>
+      </div>
     </div>
   );
 }
+

@@ -11,7 +11,7 @@ import {
   XCircle,
   User,
   UserPlus,
-  RefreshCw,
+  RotateCcw,
   Tag,
   ChevronDown,
   MessageSquare,
@@ -231,13 +231,22 @@ export default function TicketsPage() {
   // Constants
   const categories = ['QR Scanning', 'Billing', 'KDS Lag', 'Menu', 'Other']
   const priorities = ['Low', 'Medium', 'High']
-  const statuses = ['In Progress', 'Resolved']
+  const statuses = ['Open', 'In Progress', 'Resolved']
   const supportStaff = ['Admin User', 'Jane Doe (Support)', 'John Smith (Dev)', 'Platform Super']
 
   const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)
 
   // Handlers
+  const normalizeTicketStatus = (status) => {
+    if (!status) return 'Open';
+    const s = String(status).trim().toLowerCase();
+    if (s === 'resolved' || s === 'closed') return 'Resolved';
+    if (s === 'in progress' || s === 'in_progress' || s === 'processing') return 'In Progress';
+    if (s === 'open' || s === 'new' || s === 'pending') return 'Open';
+    return String(status).trim();
+  }
+
   const fetchTickets = async () => {
     try {
       const data = await getTickets({
@@ -248,7 +257,11 @@ export default function TicketsPage() {
         priorityFilter,
         categoryFilter
       })
-      const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      const rawList = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+      const list = rawList.map(t => ({
+        ...t,
+        status: normalizeTicketStatus(t.status)
+      }))
       setTickets(list)
       const count = data?.pagination?.totalItems 
         ?? data?.total 
@@ -270,8 +283,9 @@ export default function TicketsPage() {
 
 
   const handleOpenResolveModal = (ticket) => {
-    setResolveTicketData(ticket)
-    setResolveStatus(ticket.status === 'Resolved' ? 'Resolved' : 'In Progress')
+    const norm = normalizeTicketStatus(ticket.status)
+    setResolveTicketData({ ...ticket, status: norm })
+    setResolveStatus(norm === 'Resolved' ? 'Resolved' : 'In Progress')
     setResolveReply('')
   }
 
@@ -397,16 +411,12 @@ export default function TicketsPage() {
     return !u || u.trim() === '' || u.toLowerCase() === 'unassigned' || u === 'null' || u === 'undefined'
   }
 
-  const normalizeTicketStatus = (status) => {
-    if (!status || status === 'Open' || status === 'open') return 'In Progress';
-    return status;
-  }
-
   const paginatedTickets = tickets.filter(t => t.status !== 'Closed')
 
   // Statistics
   const totalTicketsCount = totalRecords || tickets.length
-  const progressCount = tickets.filter(t => t.status === 'In Progress' || t.status === 'Open').length
+  const openCount = tickets.filter(t => t.status === 'Open').length
+  const progressCount = tickets.filter(t => t.status === 'In Progress').length
   const resolvedCount = tickets.filter(t => t.status === 'Resolved').length
 
   const getPriorityStyle = (priority) => {
@@ -420,9 +430,10 @@ export default function TicketsPage() {
   const getStatusStyle = (rawStatus) => {
     const status = normalizeTicketStatus(rawStatus)
     switch (status) {
+      case 'Open': return { bg: 'rgba(59, 130, 246, 0.08)', text: '#3b82f6', icon: <AlertCircle style={{ width: '12px', height: '12px' }} /> }
       case 'In Progress': return { bg: 'rgba(245, 158, 11, 0.08)', text: '#f59e0b', icon: <Clock style={{ width: '12px', height: '12px' }} /> }
       case 'Resolved': return { bg: 'rgba(16, 185, 129, 0.08)', text: '#10b981', icon: <CheckCircle style={{ width: '12px', height: '12px' }} /> }
-      default: return { bg: 'rgba(100, 116, 139, 0.08)', text: '#64748b', icon: <XCircle style={{ width: '12px', height: '12px' }} /> }
+      default: return { bg: 'rgba(59, 130, 246, 0.08)', text: '#3b82f6', icon: <AlertCircle style={{ width: '12px', height: '12px' }} /> }
     }
   }
 
@@ -438,11 +449,12 @@ export default function TicketsPage() {
       
       {/* Overview Cards */}
       {!resolveTicketData && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
           {[
-            { label: 'Total Tickets', count: totalTicketsCount, bg: 'rgba(59, 130, 246, 0.04)', border: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6' },
-            { label: 'In Progress', count: progressCount, bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' },
-            { label: 'Resolved', count: resolvedCount, bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)', color: '#10b981' },
+            { label: 'Total Tickets', count: totalTicketsCount, bg: 'rgba(59, 130, 246, 0.04)', border: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', icon: <LifeBuoy style={{ width: '18px', height: '18px' }} /> },
+            { label: 'Open', count: openCount, bg: 'rgba(59, 130, 246, 0.06)', border: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', icon: <AlertCircle style={{ width: '18px', height: '18px' }} /> },
+            { label: 'In Progress', count: progressCount, bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', icon: <Clock style={{ width: '18px', height: '18px' }} /> },
+            { label: 'Resolved', count: resolvedCount, bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)', color: '#10b981', icon: <CheckCircle style={{ width: '18px', height: '18px' }} /> },
           ].map((stat, idx) => (
             <div key={idx} className="glass-card" style={{
               padding: '20px',
@@ -467,7 +479,7 @@ export default function TicketsPage() {
                 justifyContent: 'center',
                 color: stat.color
               }}>
-                <LifeBuoy style={{ width: '18px', height: '18px' }} />
+                {stat.icon}
               </div>
             </div>
           ))}
@@ -648,7 +660,7 @@ export default function TicketsPage() {
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-main)', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Update Ticket Status <span style={{ color: '#ef4444' }}>*</span>
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 180px))', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(110px, 1fr))', gap: '10px' }}>
                     {[
                       { label: 'In Progress', value: 'In Progress', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b' },
                       { label: 'Resolved', value: 'Resolved', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981' }
@@ -844,7 +856,7 @@ export default function TicketsPage() {
                     style={{ padding: '8px 12px', borderRadius: '10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
                     title="Reset Filters"
                   >
-                    <RefreshCw style={{ width: '13px', height: '13px' }} />
+                    <RotateCcw style={{ width: '13px', height: '13px' }} />
                     Reset
                   </button>
                 </div>

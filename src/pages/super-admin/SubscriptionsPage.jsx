@@ -4,7 +4,6 @@ import {
   Gem,
   Plus,
   Minus,
-  RefreshCw,
   XCircle,
   CheckCircle2,
   Calendar,
@@ -794,7 +793,7 @@ export default function SubscriptionsPage() {
                 searchPlaceholder="Search restaurant or plan..."
               />
 
-              <div style={{ overflowX: 'auto', paddingBottom: activeDropdown ? '160px' : '0', transition: 'padding 0.2s', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
@@ -819,6 +818,7 @@ export default function SubscriptionsPage() {
                         const planBadgeBorder = isPremium ? '1px solid rgba(59, 130, 246, 0.2)' : isStandard ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(100, 116, 139, 0.2)'
 
                         const statusStyles = getStatusColor(sub.status || 'Active')
+                        const isDropup = idx >= Math.max(0, paginatedSubscriptions.length - 4)
 
                         return (
                           <tr key={sub.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
@@ -897,7 +897,8 @@ export default function SubscriptionsPage() {
                                   {activeDropdown === sub.id && (
                                     <div style={{
                                       position: 'absolute',
-                                      top: 'calc(100% + 4px)',
+                                      top: isDropup ? 'auto' : 'calc(100% + 4px)',
+                                      bottom: isDropup ? 'calc(100% + 4px)' : 'auto',
                                       right: 0,
                                       background: '#ffffff',
                                       border: '1px solid var(--border-color)',

@@ -274,7 +274,7 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
                 }}
               />
             </div>
-            <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
+            <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
             <button
               type="button"
               onClick={() => {
@@ -283,10 +283,32 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
                 if (fileInputRef.current) fileInputRef.current.value = ''
                 onClear()
               }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'rgba(239, 68, 68, 0.06)',
+                color: '#ef4444',
+                fontSize: '0.74rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'
+                e.currentTarget.style.borderColor = '#ef4444'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.06)'
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
+              }}
               title="Remove image"
             >
-              <X style={{ width: '14px', height: '14px' }} />
+              <Trash2 style={{ width: '12px', height: '12px' }} />
+              Remove Image
             </button>
           </div>
         ) : (
@@ -605,6 +627,7 @@ export default function RestaurantsPage() {
           closingTime: rest.closingTime || '',
           status: rest.status || 'Active',
           logo: rest.logo || rest.logoUrl || '',
+          logoUrl: rest.logo || rest.logoUrl || '',
           password: '',
           confirmPassword: ''
         })
@@ -679,6 +702,7 @@ export default function RestaurantsPage() {
     setEditingRestId(rest.id)
     setFormErrors({})
     const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : 'AAAAA1111A')
+    const currentLogo = rest.logo || rest.logoUrl || ''
     setEditFormState({
       ...rest,
       ownerName: rest.ownerName || 'Rajesh Kumar',
@@ -697,7 +721,8 @@ export default function RestaurantsPage() {
       openingTime: rest.openingTime || '',
       closingTime: rest.closingTime || '',
       status: rest.status || 'Active',
-      logo: rest.logo || '',
+      logo: currentLogo,
+      logoUrl: currentLogo,
       password: '',
       confirmPassword: ''
     })
@@ -1073,6 +1098,8 @@ export default function RestaurantsPage() {
     setIsSubmitting(true)
     try {
       const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
+      const rawLogo = editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')
+      const cleanLogo = typeof rawLogo === 'string' ? rawLogo.trim() : ''
       const payload = {
         restaurantName: editFormState.name,
         ownerName: editFormState.ownerName,
@@ -1087,17 +1114,28 @@ export default function RestaurantsPage() {
         panNumber: editFormState.pan,
         openingTime: editFormState.openingTime,
         closingTime: editFormState.closingTime,
-        logoUrl: editFormState.logo || '',
-        logo: editFormState.logo || '',
-        bannerUrl: editFormState.banner || '',
+        logoUrl: cleanLogo,
+        logo: cleanLogo,
+        bannerUrl: (editFormState.banner || '').trim(),
         websiteDomain: editFormState.website,
         status: editFormState.status || 'Active',
         isActive: (editFormState.status || 'Active') === 'Active',
+        removeLogo: !cleanLogo,
         ...(hasPassword ? { password: editFormState.password } : {})
       }
 
       const response = await updateRestaurantApi(targetRest._id, payload);
       if (response.success) {
+        setRestaurants(prev => prev.map(r => {
+          if (r._id === targetRest._id || r.id === targetRest.id) {
+            return {
+              ...r,
+              logo: cleanLogo,
+              logoUrl: cleanLogo
+            };
+          }
+          return r;
+        }));
         if (hasPassword) {
           try {
             const mgrRes = await getManagers(0, 100);
@@ -1276,21 +1314,24 @@ export default function RestaurantsPage() {
                   <ValidatedInput
                     label="Restaurant Logo URL"
                     type="text"
-                    value={newRestState.logo}
-                    onChange={(e) => setNewRestState({ ...newRestState, logo: e.target.value })}
+                    value={newRestState.logo !== undefined ? newRestState.logo : (newRestState.logoUrl || '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewRestState(prev => ({ ...prev, logo: val, logoUrl: val }));
+                    }}
                     placeholder="Enter Restaurant Logo URL"
                     error={formErrors.logo}
                     setError={(val) => setFormErrors({ ...formErrors, logo: val })}
                   />
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
-                      value={newRestState.logo}
+                      value={newRestState.logo !== undefined ? newRestState.logo : (newRestState.logoUrl || '')}
                       onChange={(dataUrl) => {
-                        setNewRestState(prev => ({ ...prev, logo: dataUrl }))
+                        setNewRestState(prev => ({ ...prev, logo: dataUrl || '', logoUrl: dataUrl || '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       onClear={() => {
-                        setNewRestState(prev => ({ ...prev, logo: '' }))
+                        setNewRestState(prev => ({ ...prev, logo: '', logoUrl: '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       error={formErrors.logo}
@@ -2241,21 +2282,24 @@ export default function RestaurantsPage() {
                   <ValidatedInput
                     label="Restaurant Logo URL"
                     type="text"
-                    value={editFormState.logo || ''}
-                    onChange={(e) => setEditFormState({ ...editFormState, logo: e.target.value })}
+                    value={editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditFormState(prev => ({ ...prev, logo: val, logoUrl: val }));
+                    }}
                     placeholder="Enter Restaurant Logo URL"
                     error={formErrors.logo}
                     setError={(val) => setFormErrors({ ...formErrors, logo: val })}
                   />
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
-                      value={editFormState.logo || ''}
+                      value={editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')}
                       onChange={(dataUrl) => {
-                        setEditFormState(prev => ({ ...prev, logo: dataUrl || '' }))
+                        setEditFormState(prev => ({ ...prev, logo: dataUrl || '', logoUrl: dataUrl || '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       onClear={() => {
-                        setEditFormState(prev => ({ ...prev, logo: '' }))
+                        setEditFormState(prev => ({ ...prev, logo: '', logoUrl: '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       error={formErrors.logo}

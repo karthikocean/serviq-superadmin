@@ -434,3 +434,23 @@ table thead th,
   visibility: visible;
   opacity: 1;
 }
+
+/* Invisible Scrollbar Utilities & Overrides */
+.invisible-scrollbar,
+.no-scrollbar,
+.menu-edit-panel,
+.menu-edit-panel form,
+.menu-edit-panel div {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+.invisible-scrollbar::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar,
+.menu-edit-panel::-webkit-scrollbar,
+.menu-edit-panel form::-webkit-scrollbar,
+.menu-edit-panel div::-webkit-scrollbar {
+  display: none !important;  /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
