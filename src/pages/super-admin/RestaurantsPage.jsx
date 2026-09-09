@@ -366,19 +366,28 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
     return { time: '', period: 'AM', isSelected: false }
   }
 
-  const { time, period, isSelected } = parseValue(value)
+  const { time, period: parsedPeriod, isSelected } = parseValue(value)
+  const [selectedPeriod, setSelectedPeriod] = useState(parsedPeriod || 'AM')
+
+  useEffect(() => {
+    if (parsedPeriod) {
+      setSelectedPeriod(parsedPeriod)
+    }
+  }, [parsedPeriod, value])
 
   const handleSelectTime = (selectedTime) => {
-    const combined = `${selectedTime} ${period}`
+    const combined = `${selectedTime} ${selectedPeriod}`
     onChange(combined)
     setIsOpen(false)
     if (error && setError) setError('')
   }
 
   const handlePeriodToggle = (newPeriod) => {
-    const currentTime = isSelected ? time : '11:00'
-    const combined = `${currentTime} ${newPeriod}`
-    onChange(combined)
+    setSelectedPeriod(newPeriod)
+    if (isSelected && time) {
+      const combined = `${time} ${newPeriod}`
+      onChange(combined)
+    }
     if (error && setError) setError('')
   }
 
@@ -432,8 +441,8 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
             style={{
               padding: '0 10px',
               border: 'none',
-              background: period === 'AM' ? 'var(--primary, #f95e10)' : 'transparent',
-              color: period === 'AM' ? '#ffffff' : 'var(--text-muted)',
+              background: selectedPeriod === 'AM' ? 'var(--primary, #f95e10)' : 'transparent',
+              color: selectedPeriod === 'AM' ? '#ffffff' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.75rem',
               cursor: 'pointer',
@@ -448,8 +457,8 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
             style={{
               padding: '0 10px',
               border: 'none',
-              background: period === 'PM' ? 'var(--primary, #f95e10)' : 'transparent',
-              color: period === 'PM' ? '#ffffff' : 'var(--text-muted)',
+              background: selectedPeriod === 'PM' ? 'var(--primary, #f95e10)' : 'transparent',
+              color: selectedPeriod === 'PM' ? '#ffffff' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.75rem',
               cursor: 'pointer',

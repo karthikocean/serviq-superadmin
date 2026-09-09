@@ -5,8 +5,7 @@ import {
   Clock, 
   LifeBuoy, 
   CheckCircle2, 
-  X,
-  ArrowRight
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
@@ -542,52 +541,6 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
             );
           })
         )}
-      </div>
-
-      {/* Footer Navigation */}
-      <div style={{
-        padding: '8px 14px',
-        borderTop: '1px solid var(--border-color, #e2e8f0)',
-        background: 'var(--bg-app, #f8fafc)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <button
-          type="button"
-          onClick={() => { onClose(); navigate(ROUTES.SUPER_ADMIN.NOTIFICATIONS); }}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.72rem',
-            fontWeight: '600',
-            color: 'var(--text-muted, #64748b)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}
-        >
-          All Notifications <ArrowRight style={{ width: '11px', height: '11px' }} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { onClose(); navigate(ROUTES.SUPER_ADMIN.TICKETS); }}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.72rem',
-            fontWeight: '600',
-            color: '#4f46e5',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}
-        >
-          Support & Tickets <ArrowRight style={{ width: '11px', height: '11px' }} />
-        </button>
       </div>
     </div>
   );
