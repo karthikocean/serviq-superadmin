@@ -20,7 +20,7 @@ import {
   Upload,
   CreditCard,
 } from 'lucide-react'
-import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage, getManagers, updateManager } from '../../services/api'
+import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { formatDate } from '../../utils/dateFormat'
@@ -28,6 +28,7 @@ import { getImageUrl } from '../../utils/imageUrl'
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useAuth } from '../../contexts/AuthContext'
+import { resetPassword } from '../../services/authService'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -172,7 +173,7 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
 
       setIsUploading(true)
       try {
-        const response = await uploadImage(file)
+        const response = await uploadImage(file, "restaurant", "image")
         const remoteUrl =
           response?.url ||
           response?.data?.url ||
@@ -274,7 +275,7 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
                 }}
               />
             </div>
-            <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
+            <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
             <button
               type="button"
               onClick={() => {
@@ -283,10 +284,32 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
                 if (fileInputRef.current) fileInputRef.current.value = ''
                 onClear()
               }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'rgba(239, 68, 68, 0.06)',
+                color: '#ef4444',
+                fontSize: '0.74rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'
+                e.currentTarget.style.borderColor = '#ef4444'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.06)'
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
+              }}
               title="Remove image"
             >
-              <X style={{ width: '14px', height: '14px' }} />
+              <Trash2 style={{ width: '12px', height: '12px' }} />
+              Remove Image
             </button>
           </div>
         ) : (
@@ -314,9 +337,15 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
         setIsOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('pointerdown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('pointerdown', handleClickOutside)
+    }
+  }, [isOpen])
 
   const parseValue = (val) => {
     if (!val || String(val).trim() === '') return { time: '', period: 'AM', isSelected: false }
@@ -338,19 +367,28 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
     return { time: '', period: 'AM', isSelected: false }
   }
 
-  const { time, period, isSelected } = parseValue(value)
+  const { time, period: parsedPeriod, isSelected } = parseValue(value)
+  const [selectedPeriod, setSelectedPeriod] = useState(parsedPeriod || 'AM')
+
+  useEffect(() => {
+    if (parsedPeriod) {
+      setSelectedPeriod(parsedPeriod)
+    }
+  }, [parsedPeriod, value])
 
   const handleSelectTime = (selectedTime) => {
-    const combined = `${selectedTime} ${period}`
+    const combined = `${selectedTime} ${selectedPeriod}`
     onChange(combined)
     setIsOpen(false)
     if (error && setError) setError('')
   }
 
   const handlePeriodToggle = (newPeriod) => {
-    const currentTime = isSelected ? time : '11:00'
-    const combined = `${currentTime} ${newPeriod}`
-    onChange(combined)
+    setSelectedPeriod(newPeriod)
+    if (isSelected && time) {
+      const combined = `${time} ${newPeriod}`
+      onChange(combined)
+    }
     if (error && setError) setError('')
   }
 
@@ -404,8 +442,8 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
             style={{
               padding: '0 10px',
               border: 'none',
-              background: period === 'AM' ? 'var(--primary, #f95e10)' : 'transparent',
-              color: period === 'AM' ? '#ffffff' : 'var(--text-muted)',
+              background: selectedPeriod === 'AM' ? 'var(--primary, #f95e10)' : 'transparent',
+              color: selectedPeriod === 'AM' ? '#ffffff' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.75rem',
               cursor: 'pointer',
@@ -420,8 +458,8 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
             style={{
               padding: '0 10px',
               border: 'none',
-              background: period === 'PM' ? 'var(--primary, #f95e10)' : 'transparent',
-              color: period === 'PM' ? '#ffffff' : 'var(--text-muted)',
+              background: selectedPeriod === 'PM' ? 'var(--primary, #f95e10)' : 'transparent',
+              color: selectedPeriod === 'PM' ? '#ffffff' : 'var(--text-muted)',
               fontWeight: '800',
               fontSize: '0.75rem',
               cursor: 'pointer',
@@ -494,7 +532,7 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 export default function RestaurantsPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
+  const { restaurants, setRestaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
   const { hasPermission, isSuperOwner } = useAuth()
 
@@ -505,7 +543,7 @@ export default function RestaurantsPage() {
 
   const [confirmModal, setConfirmModal] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
+
   const [plans, setPlans] = useState([])
   useEffect(() => {
     const loadPlans = async () => {
@@ -528,7 +566,7 @@ export default function RestaurantsPage() {
     }
     loadPlans()
   }, [])
-  
+
   // mock for compatibility
   const onUpdateRestaurantDetails = (d) => { /* Update active restaurant logic */ }
   const [showAddModal, setShowAddModal] = useState(false)
@@ -546,7 +584,7 @@ export default function RestaurantsPage() {
 
   const filteredRestaurants = restaurants.filter(r => {
     const term = searchTerm.toLowerCase()
-    return !term || 
+    return !term ||
       (r.name && r.name.toLowerCase().includes(term)) ||
       (r.ownerName && r.ownerName.toLowerCase().includes(term)) ||
       (r.id && r.id.toLowerCase().includes(term)) ||
@@ -599,6 +637,7 @@ export default function RestaurantsPage() {
           closingTime: rest.closingTime || '',
           status: rest.status || 'Active',
           logo: rest.logo || rest.logoUrl || '',
+          logoUrl: rest.logo || rest.logoUrl || '',
           password: '',
           confirmPassword: ''
         })
@@ -662,7 +701,7 @@ export default function RestaurantsPage() {
         mobileNumber: lead.mobileNumber || ''
       }))
       setShowAddModal(true)
-      
+
       // Clean up state so refresh doesn't trigger it again
       navigate(location.pathname, { replace: true, state: {} })
     }
@@ -673,6 +712,7 @@ export default function RestaurantsPage() {
     setEditingRestId(rest.id)
     setFormErrors({})
     const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : 'AAAAA1111A')
+    const currentLogo = rest.logo || rest.logoUrl || ''
     setEditFormState({
       ...rest,
       ownerName: rest.ownerName || 'Rajesh Kumar',
@@ -691,7 +731,8 @@ export default function RestaurantsPage() {
       openingTime: rest.openingTime || '',
       closingTime: rest.closingTime || '',
       status: rest.status || 'Active',
-      logo: rest.logo || '',
+      logo: currentLogo,
+      logoUrl: currentLogo,
       password: '',
       confirmPassword: ''
     })
@@ -875,106 +916,13 @@ export default function RestaurantsPage() {
             }
             showToast('error', `Branch "${targetRest.name}" successfully removed.`)
           } else {
-             showToast('error', response.message || 'Error deleting restaurant');
+            showToast('error', response.message || 'Error deleting restaurant');
           }
         } catch (err) {
-           showToast('error', err.response?.data?.message || 'Error deleting restaurant');
+          showToast('error', err.response?.data?.message || 'Error deleting restaurant');
         }
       }
     })
-  }
-
-  const handleQuickPasswordUpdate = async () => {
-    const pwErrors = {}
-    if (!editFormState?.password || String(editFormState.password).trim() === '') {
-      pwErrors.password = 'New Password is required'
-    }
-    if (!editFormState?.confirmPassword || String(editFormState.confirmPassword).trim() === '') {
-      pwErrors.confirmPassword = 'Confirm Password is required'
-    } else if (editFormState.password !== editFormState.confirmPassword) {
-      pwErrors.confirmPassword = 'Passwords do not match'
-    }
-
-    if (Object.keys(pwErrors).length > 0) {
-      setFormErrors(prev => ({ ...prev, ...pwErrors }))
-      return
-    }
-
-    setFormErrors(prev => ({ ...prev, password: '', confirmPassword: '' }))
-    setIsUpdatingPassword(true)
-
-    try {
-      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
-      if (!targetRest) {
-        showToast('error', 'Restaurant not found')
-        return
-      }
-
-      let restUpdated = false
-      try {
-        const restRes = await updateRestaurantApi(targetRest._id, { password: editFormState.password })
-        if (restRes.success) restUpdated = true
-      } catch (err) {
-        console.warn('Direct restaurant password update note:', err)
-      }
-
-      let managerUpdated = false
-      try {
-        const mgrRes = await getManagers(0, 100)
-        if (mgrRes.success) {
-          const mgrList = mgrRes.data.results || mgrRes.data || []
-          const matchingMgr = mgrList.find(m => 
-            (m.email && (m.email.toLowerCase() === (editFormState.email || '').toLowerCase() || m.email.toLowerCase() === (targetRest.email || '').toLowerCase())) ||
-            m.restaurantId === targetRest._id ||
-            m.restaurantId === targetRest.id
-          )
-          if (matchingMgr) {
-            const updateMgrRes = await updateManager(matchingMgr._id, { password: editFormState.password })
-            if (updateMgrRes.success) managerUpdated = true
-          }
-        }
-      } catch (err) {
-        console.warn('Manager password update note:', err)
-      }
-
-      
-      // Sync password across user collections
-      const syncId = (editFormState.email || targetRest.email || editFormState.mobileNumber || targetRest.phoneNumber || targetRest.phone || '').trim();
-      if (syncId && editFormState.password) {
-        try {
-          await fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
-          });
-        } catch (e) {}
-        try {
-          await fetch('http://localhost:5055/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
-          });
-        } catch (e) {}
-      }
-
-      if (restUpdated || managerUpdated) {
-        showToast('success', 'Password updated successfully!')
-        setEditFormState(prev => ({ ...prev, password: '', confirmPassword: '' }))
-      } else {
-        const fallbackRes = await updateRestaurantApi(targetRest._id, { password: editFormState.password })
-        if (fallbackRes.success) {
-          showToast('success', 'Password updated successfully!')
-          setEditFormState(prev => ({ ...prev, password: '', confirmPassword: '' }))
-        } else {
-          showToast('error', fallbackRes.message || 'Failed to update password')
-        }
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('error', err.response?.data?.message || 'Error updating password')
-    } finally {
-      setIsUpdatingPassword(false)
-    }
   }
 
   const handleUpdateRestaurantSubmit = async (e) => {
@@ -1011,7 +959,7 @@ export default function RestaurantsPage() {
     const mob = (editFormState.mobileNumber || editFormState.phone || '').trim()
     if (mob && !/^[6-9]\d{9}$/.test(mob)) {
       errors.mobileNumber = 'Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)'
-    } else if (mob && restaurants.some(r => r.id !== editingRestId && (r.mobileNumber === mob || r.phone === mob))) {
+    } else if (mob && restaurants.some(r => (r.id !== editingRestId && r._id !== editingRestId) && (r.mobileNumber === mob || r.phone === mob))) {
       errors.mobileNumber = 'Mobile number already registered by another restaurant'
     }
 
@@ -1066,7 +1014,16 @@ export default function RestaurantsPage() {
     setFormErrors({})
     setIsSubmitting(true)
     try {
-      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
+      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId || r.restaurantId === editingRestId)
+      if (!targetRest && !editingRestId) {
+        showToast('error', 'Restaurant not found')
+        return
+      }
+
+      const restId = targetRest?._id || editFormState?._id || targetRest?.id || editingRestId;
+      const rawLogo = editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')
+      const cleanLogo = typeof rawLogo === 'string' ? rawLogo.trim() : ''
+
       const payload = {
         restaurantName: editFormState.name,
         ownerName: editFormState.ownerName,
@@ -1081,49 +1038,66 @@ export default function RestaurantsPage() {
         panNumber: editFormState.pan,
         openingTime: editFormState.openingTime,
         closingTime: editFormState.closingTime,
-        logoUrl: editFormState.logo || '',
-        logo: editFormState.logo || '',
-        bannerUrl: editFormState.banner || '',
+        logoUrl: cleanLogo,
+        bannerUrl: (editFormState.banner || editFormState.bannerUrl || '').trim(),
         websiteDomain: editFormState.website,
         status: editFormState.status || 'Active',
         isActive: (editFormState.status || 'Active') === 'Active',
-        ...(hasPassword ? { password: editFormState.password } : {})
+        ...(hasPassword ? {
+          password: editFormState.password,
+          newPassword: editFormState.password,
+          confirmPassword: editFormState.confirmPassword
+        } : {})
       }
-      
-      const response = await updateRestaurantApi(targetRest._id, payload);
-      if (response.success) {
-        if (hasPassword) {
-          try {
-            const mgrRes = await getManagers(0, 100);
-            if (mgrRes.success) {
-              const mgrList = mgrRes.data.results || mgrRes.data || [];
-              const matchingMgr = mgrList.find(m =>
-                (m.email && (m.email.toLowerCase() === (editFormState.email || '').toLowerCase() || m.email.toLowerCase() === (targetRest.email || '').toLowerCase())) ||
-                m.restaurantId === targetRest._id ||
-                m.restaurantId === targetRest.id
-              );
-              if (matchingMgr) {
-                await updateManager(matchingMgr._id, { password: editFormState.password });
-              }
+
+      // 1. Call the updateRestaurant API
+      const response = await updateRestaurantApi(restId, payload);
+
+      // 2. If password was provided, also call resetPassword API for auth/user sync
+      if (hasPassword) {
+        try {
+          const syncEmail = (editFormState.email || targetRest?.email || '').trim();
+          const syncPhone = (editFormState.mobileNumber || targetRest?.phoneNumber || targetRest?.phone || '').trim();
+          await resetPassword({
+            email: syncEmail,
+            phoneNumber: syncPhone,
+            newPassword: editFormState.password,
+            password: editFormState.password,
+            confirmPassword: editFormState.confirmPassword,
+            pin: editFormState.password
+          });
+        } catch (resetErr) {
+          console.warn('Password reset API sync note:', resetErr);
+        }
+      }
+
+      if (response && (response.success !== false && response.status !== 'error' && response.status !== 400 && response.status !== 500)) {
+        if (typeof setRestaurants === 'function') {
+          setRestaurants(prev => prev.map(r => {
+            if (r._id === restId || r.id === restId) {
+              return {
+                ...r,
+                logo: cleanLogo,
+                logoUrl: cleanLogo
+              };
             }
-          } catch (mgrErr) {
-            console.warn('Manager password sync warning:', mgrErr);
-          }
+            return r;
+          }));
         }
         await fetchRestaurants();
         setEditingRestId(null)
         setEditFormState(null)
-        showToast('success', 'Branch updated successfully');
+        showToast('success', response.message || 'Restaurant updated successfully');
       } else {
-        showToast('error', response.message || 'Error updating restaurant');
+        showToast('error', response?.message || 'Error updating restaurant');
       }
     } catch (err) {
-      showToast('error', err.response?.data?.message || 'Error updating restaurant');
+      console.error("Restaurant update error:", err);
+      showToast('error', err.response?.data?.message || err.message || 'Error updating restaurant');
     } finally {
       setIsSubmitting(false)
     }
   }
-
   return (
     <div style={{ width: '100%' }}>
       {showAddModal ? (
@@ -1270,21 +1244,24 @@ export default function RestaurantsPage() {
                   <ValidatedInput
                     label="Restaurant Logo URL"
                     type="text"
-                    value={newRestState.logo}
-                    onChange={(e) => setNewRestState({ ...newRestState, logo: e.target.value })}
+                    value={newRestState.logo !== undefined ? newRestState.logo : (newRestState.logoUrl || '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewRestState(prev => ({ ...prev, logo: val, logoUrl: val }));
+                    }}
                     placeholder="Enter Restaurant Logo URL"
                     error={formErrors.logo}
                     setError={(val) => setFormErrors({ ...formErrors, logo: val })}
                   />
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
-                      value={newRestState.logo}
+                      value={newRestState.logo !== undefined ? newRestState.logo : (newRestState.logoUrl || '')}
                       onChange={(dataUrl) => {
-                        setNewRestState(prev => ({ ...prev, logo: dataUrl }))
+                        setNewRestState(prev => ({ ...prev, logo: dataUrl || '', logoUrl: dataUrl || '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       onClear={() => {
-                        setNewRestState(prev => ({ ...prev, logo: '' }))
+                        setNewRestState(prev => ({ ...prev, logo: '', logoUrl: '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       error={formErrors.logo}
@@ -1391,7 +1368,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^1\d{13}$/.test(val)) {
-                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                        setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
                       }
                     }}
                     placeholder="Enter FSSAI License Number"
@@ -1411,7 +1388,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                        setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
                       }
                     }}
                     placeholder="Enter GSTIN Number"
@@ -1430,7 +1407,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                        setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
                       }
                     }}
                     placeholder="Enter PAN Number"
@@ -1467,7 +1444,7 @@ export default function RestaurantsPage() {
                         setNewRestState(prev => ({ ...prev, planId: '', startDate: '', endDate: '', renewalDate: '' }));
                         return;
                       }
-                      
+
                       const today = new Date();
                       const end = new Date(today);
                       if (newRestState.billingCycle === 'Annually') {
@@ -1477,8 +1454,8 @@ export default function RestaurantsPage() {
                       }
                       const formatDate = (date) => date.toISOString().split('T')[0];
 
-                      setNewRestState(prev => ({ 
-                        ...prev, 
+                      setNewRestState(prev => ({
+                        ...prev,
                         planId: selectedPlanId,
                         startDate: formatDate(today),
                         endDate: formatDate(end),
@@ -1493,7 +1470,7 @@ export default function RestaurantsPage() {
                       <option key={p._id} value={p._id}>{p.planName}</option>
                     ))}
                   </ValidatedSelect>
-                  
+
                   <ValidatedSelect
                     label="Billing Cycle"
                     value={newRestState.billingCycle}
@@ -1572,7 +1549,7 @@ export default function RestaurantsPage() {
                     error={formErrors.password}
                     setError={(val) => setFormErrors({ ...formErrors, password: val })}
                   />
-                  
+
                   <ValidatedInput
                     label="Confirm Password"
                     type="password"
@@ -1676,10 +1653,10 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div className="dish-admin-img" style={{ width: '38px', height: '38px', flexShrink: 0, padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: isActive ? '2px solid var(--primary)' : '1px solid var(--border-color)' }}>
-                                <img 
-                                  src={getImageUrl(rest.logo) || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'} 
-                                  alt={rest.name} 
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                <img
+                                  src={getImageUrl(rest.logo) || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'}
+                                  alt={rest.name}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => {
                                     e.currentTarget.onerror = null
                                     e.currentTarget.src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=120&auto=format&fit=crop&q=60'
@@ -1763,11 +1740,11 @@ export default function RestaurantsPage() {
                                       const nextStatusStr = isCurrentlyInactive ? 'Active' : 'Inactive';
                                       const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
                                       if (response.success) {
-                                         await fetchRestaurants();
-                                         showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
+                                        await fetchRestaurants();
+                                        showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
                                       }
                                     } catch (err) {
-                                       showToast('error', err.response?.data?.message || 'Error updating status');
+                                      showToast('error', err.response?.data?.message || 'Error updating status');
                                     }
                                   }}
                                   title={(rest.status === 'Suspended' || rest.status === 'Inactive') ? "Activate Restaurant" : "Deactivate / Inactivate Restaurant"}
@@ -1791,6 +1768,8 @@ export default function RestaurantsPage() {
                                   <Eye style={{ width: '16px', height: '16px' }} />
                                 </button>
                               )}
+
+
 
                               {canEdit && (
                                 <button
@@ -2165,7 +2144,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^1\d{13}$/.test(val)) {
-                         setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
+                        setFormErrors({ ...formErrors, license: 'FSSAI License Number must contain exactly 14 digits and start with 1.' });
                       }
                     }}
                     required
@@ -2184,7 +2163,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
+                        setFormErrors({ ...formErrors, gstin: 'Invalid GSTIN. Please enter a valid 15-character GSTIN.' });
                       }
                     }}
                     error={formErrors.gstin}
@@ -2202,7 +2181,7 @@ export default function RestaurantsPage() {
                     onBlur={(e) => {
                       const val = e.target.value;
                       if (val && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(val)) {
-                         setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
+                        setFormErrors({ ...formErrors, pan: 'Invalid PAN number. Please enter a valid 10-character PAN.' });
                       }
                     }}
                     required
@@ -2235,21 +2214,24 @@ export default function RestaurantsPage() {
                   <ValidatedInput
                     label="Restaurant Logo URL"
                     type="text"
-                    value={editFormState.logo || ''}
-                    onChange={(e) => setEditFormState({ ...editFormState, logo: e.target.value })}
+                    value={editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditFormState(prev => ({ ...prev, logo: val, logoUrl: val }));
+                    }}
                     placeholder="Enter Restaurant Logo URL"
                     error={formErrors.logo}
                     setError={(val) => setFormErrors({ ...formErrors, logo: val })}
                   />
                   <div style={{ paddingBottom: '2px' }}>
                     <ImageUploadButton
-                      value={editFormState.logo || ''}
+                      value={editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')}
                       onChange={(dataUrl) => {
-                        setEditFormState(prev => ({ ...prev, logo: dataUrl || '' }))
+                        setEditFormState(prev => ({ ...prev, logo: dataUrl || '', logoUrl: dataUrl || '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       onClear={() => {
-                        setEditFormState(prev => ({ ...prev, logo: '' }))
+                        setEditFormState(prev => ({ ...prev, logo: '', logoUrl: '' }))
                         if (formErrors.logo) setFormErrors(prev => ({ ...prev, logo: '' }))
                       }}
                       error={formErrors.logo}
@@ -2287,7 +2269,7 @@ export default function RestaurantsPage() {
                       error={formErrors.password}
                       setError={(val) => setFormErrors({ ...formErrors, password: val })}
                     />
-                    
+
                     <ValidatedInput
                       label="Confirm Password"
                       type="password"
@@ -2300,31 +2282,6 @@ export default function RestaurantsPage() {
                       error={formErrors.confirmPassword}
                       setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                     />
-
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                      <button
-                        type="button"
-                        disabled={isUpdatingPassword || !editFormState.password}
-                        onClick={handleQuickPasswordUpdate}
-                        style={{
-                          padding: '8px 18px',
-                          borderRadius: '8px',
-                          background: (editFormState.password && editFormState.confirmPassword) ? '#000000' : 'var(--border-color)',
-                          color: (editFormState.password && editFormState.confirmPassword) ? '#ffffff' : 'var(--text-muted)',
-                          border: 'none',
-                          fontSize: '0.8rem',
-                          fontWeight: '700',
-                          cursor: (isUpdatingPassword || !editFormState.password) ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <Lock style={{ width: '13px', height: '13px' }} />
-                        {isUpdatingPassword ? 'Updating Password...' : 'Update Password'}
-                      </button>
-                    </div>
                   </div>
                 </div>
 

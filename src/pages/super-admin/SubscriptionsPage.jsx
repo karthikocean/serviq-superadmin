@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   X,
   Gem,
   Plus,
   Minus,
-  RefreshCw,
   XCircle,
   CheckCircle2,
   Calendar,
@@ -28,6 +28,226 @@ import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSel
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatDate } from '../../utils/dateFormat'
+
+export const normalizeSubscriptionStatus = (status, startDate, endDate) => {
+  if (!status) return 'Active';
+  const s = String(status).trim().toLowerCase();
+  if (s === 'cancelled' || s === 'canceled' || s === 'suspended') {
+    return 'Cancelled';
+  }
+  if (s === 'expired') {
+    return 'Expired';
+  }
+  if (s === 'expiring soon' || s === 'expiring_soon' || s === 'expiring') {
+    return 'Expiring Soon';
+  }
+  if (s === 'scheduled') {
+    if (endDate) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      if (!isNaN(end.getTime()) && end < now) {
+        return 'Expired';
+      }
+    }
+    return 'Active';
+  }
+
+  if (endDate) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    if (!isNaN(end.getTime())) {
+      if (end < now) {
+        return 'Expired';
+      }
+    }
+  }
+
+  return 'Active';
+};
+
+const SubscriptionActionDropdown = ({
+  sub,
+  canView,
+  canEdit,
+  canDelete,
+  onViewSubscription,
+  onChangePlan,
+  onManageAddons,
+  onRenew,
+  onCancel,
+  onViewHistory
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 170 })
+
+  const updatePosition = () => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const estimatedHeight = 190
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpwards = spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow
+
+    const menuWidth = 170
+    let left = rect.right - menuWidth
+    if (left < 10) left = Math.max(10, rect.left)
+    if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10
+
+    const top = openUpwards
+      ? Math.max(10, rect.top - estimatedHeight - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - estimatedHeight - 10)
+
+    setCoords({
+      top,
+      left,
+      width: menuWidth
+    })
+  }
+
+  const handleToggle = (e) => {
+    e.stopPropagation()
+    if (!isOpen) {
+      updatePosition()
+      setIsOpen(true)
+    } else {
+      setIsOpen(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleScrollOrResize = () => {
+      updatePosition()
+    }
+
+    const handleClickOutside = (e) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleScrollOrResize)
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
+
+  return (
+    <div style={{ display: 'inline-block' }}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleToggle}
+        style={{
+          padding: '6px 12px',
+          borderRadius: '6px',
+          background: isOpen ? 'rgba(249, 94, 16, 0.08)' : 'var(--bg-app)',
+          border: `1px solid ${isOpen ? 'var(--primary, #f95e10)' : 'var(--border-color)'}`,
+          color: 'var(--text-main)',
+          fontSize: '0.75rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          transition: 'all 0.15s'
+        }}
+      >
+        Manage ▾
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            background: '#ffffff',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.06)',
+            zIndex: 999999,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            textAlign: 'left'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {canView && (
+            <button
+              onClick={() => { onViewSubscription(sub); setIsOpen(false); }}
+              style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left', fontWeight: '600' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+            >View Subscription</button>
+          )}
+
+          {canEdit && (
+            <button
+              onClick={() => { onChangePlan(sub); setIsOpen(false); }}
+              style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left', fontWeight: '600' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+            >Change Plan</button>
+          )}
+
+          {canEdit && (
+            <button
+              onClick={() => { onManageAddons(sub); setIsOpen(false); }}
+              style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left', fontWeight: '600' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+            >Manage Add-ons</button>
+          )}
+
+          {canEdit && (
+            <button
+              onClick={() => { onRenew(sub); setIsOpen(false); }}
+              style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#10b981', textAlign: 'left', fontWeight: '700' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+            >Renew Subscription</button>
+          )}
+
+          {canDelete && sub.status !== 'Cancelled' && (
+            <button
+              onClick={() => { onCancel(sub); setIsOpen(false); }}
+              style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#ef4444', textAlign: 'left', fontWeight: '600' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+            >Cancel Subscription</button>
+          )}
+
+          {canView && (
+            <button
+              onClick={() => { onViewHistory(sub); setIsOpen(false); }}
+              style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left', fontWeight: '600' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+            >View History</button>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
 
 export default function SubscriptionsPage() {
   const { subscriptions, fetchSubscriptions, subscriptionHistory, fetchSubscriptionHistory } = useSubscriptions()
@@ -354,7 +574,8 @@ export default function SubscriptionsPage() {
     return 0
   }
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (rawStatus, startDate, endDate) => {
+    const status = normalizeSubscriptionStatus(rawStatus, startDate, endDate)
     switch (status) {
       case 'Active':
         return { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }
@@ -755,7 +976,7 @@ export default function SubscriptionsPage() {
                 searchPlaceholder="Search restaurant or plan..."
               />
 
-              <div style={{ overflowX: 'auto', paddingBottom: activeDropdown ? '160px' : '0', transition: 'padding 0.2s', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                 <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border-color)' }}>
@@ -832,105 +1053,21 @@ export default function SubscriptionsPage() {
                             </td>
                             <td style={{ padding: '14px 18px', textAlign: 'right', width: '260px', whiteSpace: 'nowrap' }}>
                               {(canView || canEdit || canDelete) ? (
-                                <div className="action-dropdown-container" style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end' }}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveDropdown(activeDropdown === sub.id ? null : sub.id);
-                                    }}
-                                    style={{
-                                      padding: '6px 12px',
-                                      borderRadius: '6px',
-                                      background: 'var(--bg-app)',
-                                      border: '1px solid var(--border-color)',
-                                      color: 'var(--text-main)',
-                                      fontSize: '0.75rem',
-                                      fontWeight: '700',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '4px'
-                                    }}
-                                  >
-                                    Manage ▾
-                                  </button>
-
-                                  {activeDropdown === sub.id && (
-                                    <div style={{
-                                      position: 'absolute',
-                                      top: 'calc(100% + 4px)',
-                                      right: 0,
-                                      background: '#ffffff',
-                                      border: '1px solid var(--border-color)',
-                                      borderRadius: '8px',
-                                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                      zIndex: 100,
-                                      width: '160px',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      overflow: 'hidden',
-                                      textAlign: 'left'
-                                    }}>
-                                      {canView && (
-                                        <button
-                                          onClick={() => { setViewingSubscriptionRest(sub); setActiveDropdown(null); }}
-                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                        >View Subscription</button>
-                                      )}
-                                      
-                                      {canEdit && (
-                                        <button
-                                          onClick={() => { setActionModal({ type: 'changePlan', subscription: sub }); setActiveDropdown(null); }}
-                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                        >Change Plan</button>
-                                      )}
-                                      
-                                      {canEdit && (
-                                        <button
-                                          onClick={() => { setActionModal({ type: 'manageAddons', subscription: sub }); setActiveDropdown(null); }}
-                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                        >Manage Add-ons</button>
-                                      )}
-                                      
-                                      {canEdit && (
-                                        <button
-                                          onClick={() => { setActionModal({ type: 'renew', subscription: sub }); setActiveDropdown(null); }}
-                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#10b981', textAlign: 'left' }}
-                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                        >Renew Subscription</button>
-                                      )}
-                                      
-                                      {canDelete && sub.status !== 'Cancelled' && (
-                                        <button
-                                          onClick={() => { setActionModal({ type: 'cancel', subscription: sub }); setActiveDropdown(null); }}
-                                          style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem', color: '#ef4444', textAlign: 'left' }}
-                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                        >Cancel Subscription</button>
-                                      )}
-                                      
-                                      {canView && (
-                                        <button
-                                          onClick={() => {
-                                            setActiveTab('history');
-                                            setHistorySearchTerm(sub.restaurantName);
-                                            setActiveDropdown(null);
-                                          }}
-                                          style={{ padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-main)', textAlign: 'left' }}
-                                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-app)'}
-                                          onMouseOut={(e) => e.currentTarget.style.background = 'none'}
-                                        >View History</button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                <SubscriptionActionDropdown
+                                  sub={sub}
+                                  canView={canView}
+                                  canEdit={canEdit}
+                                  canDelete={canDelete}
+                                  onViewSubscription={(s) => setViewingSubscriptionRest(s)}
+                                  onChangePlan={(s) => setActionModal({ type: 'changePlan', subscription: s })}
+                                  onManageAddons={(s) => setActionModal({ type: 'manageAddons', subscription: s })}
+                                  onRenew={(s) => setActionModal({ type: 'renew', subscription: s })}
+                                  onCancel={(s) => setActionModal({ type: 'cancel', subscription: s })}
+                                  onViewHistory={(s) => {
+                                    setActiveTab('history');
+                                    setHistorySearchTerm(s.restaurantName);
+                                  }}
+                                />
                               ) : (
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
                               )}
@@ -1043,16 +1180,27 @@ export default function SubscriptionsPage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Subscription Status</span>
-                    <span style={{
-                      fontSize: '0.8rem',
-                      fontWeight: '800',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      background: getStatusColor(viewingSubscriptionRest.subscriptionStatus).bg,
-                      color: getStatusColor(viewingSubscriptionRest.subscriptionStatus).text
-                    }}>
-                      {viewingSubscriptionRest.subscriptionStatus || 'Active'}
-                    </span>
+                    {(() => {
+                      const displayStatus = normalizeSubscriptionStatus(
+                        viewingSubscriptionRest.status || viewingSubscriptionRest.subscriptionStatus,
+                        viewingSubscriptionRest.createdDate || viewingSubscriptionRest.startDate,
+                        viewingSubscriptionRest.expiryDate || viewingSubscriptionRest.endDate
+                      )
+                      const styles = getStatusColor(displayStatus)
+                      return (
+                        <span style={{
+                          fontSize: '0.8rem',
+                          fontWeight: '800',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          background: styles.bg,
+                          color: styles.text,
+                          border: styles.border
+                        }}>
+                          {displayStatus}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
 

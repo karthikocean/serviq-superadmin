@@ -11,7 +11,7 @@ export function useBilling() {
     try {
       const response = await getPaymentsAPI(page, limit, search, status);
       if (response && (response.success || Array.isArray(response.data) || Array.isArray(response))) {
-        const list = Array.isArray(response.data?.results)
+        const list = (Array.isArray(response.data?.results)
           ? response.data.results
           : Array.isArray(response.data?.payments)
           ? response.data.payments
@@ -21,7 +21,22 @@ export function useBilling() {
           ? response.data
           : Array.isArray(response)
           ? response
-          : [];
+          : []).map(inv => {
+            const raw = inv.paymentStatus || inv.status || 'Pending';
+            const s = String(raw).trim().toLowerCase();
+            const normalizedStatus = (s === 'waived' || s === 'complimentary' || s === 'completed' || s === 'success' || s === 'successful' || s === 'paid')
+              ? 'Paid'
+              : (s === 'failed' || s === 'declined' || s === 'rejected')
+              ? 'Failed'
+              : (s === 'refunded' || s === 'reversed')
+              ? 'Refunded'
+              : 'Pending';
+            return {
+              ...inv,
+              paymentStatus: normalizedStatus,
+              status: normalizedStatus
+            };
+          });
         setInvoices(list);
 
         const resolvedTotal = response.pagination?.totalItems

@@ -3,7 +3,6 @@ import {
   Plus,
   FileText,
   FileSpreadsheet,
-  RefreshCw,
   AlertTriangle,
   X
 } from 'lucide-react'
@@ -52,6 +51,60 @@ import { useBilling } from '../../hooks/useBilling'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
+
+export const normalizePaymentStatus = (status) => {
+  if (!status) return 'Pending';
+  const s = String(status).trim().toLowerCase();
+  if (s === 'paid' || s === 'waived' || s === 'complimentary' || s === 'completed' || s === 'success' || s === 'successful') {
+    return 'Paid';
+  }
+  if (s === 'pending' || s === 'processing' || s === 'initiated') {
+    return 'Pending';
+  }
+  if (s === 'failed' || s === 'declined' || s === 'rejected') {
+    return 'Failed';
+  }
+  if (s === 'refunded' || s === 'reversed') {
+    return 'Refunded';
+  }
+  return 'Pending';
+};
+
+export const getPaymentStatusStyle = (rawStatus) => {
+  const status = normalizePaymentStatus(rawStatus);
+  switch (status) {
+    case 'Paid':
+      return {
+        bg: 'rgba(16, 185, 129, 0.1)',
+        color: '#10b981',
+        border: '1px solid rgba(16, 185, 129, 0.2)'
+      };
+    case 'Pending':
+      return {
+        bg: 'rgba(245, 158, 11, 0.1)',
+        color: '#f59e0b',
+        border: '1px solid rgba(245, 158, 11, 0.2)'
+      };
+    case 'Failed':
+      return {
+        bg: 'rgba(239, 68, 68, 0.1)',
+        color: '#ef4444',
+        border: '1px solid rgba(239, 68, 68, 0.2)'
+      };
+    case 'Refunded':
+      return {
+        bg: 'rgba(124, 58, 237, 0.1)',
+        color: '#7c3aed',
+        border: '1px solid rgba(124, 58, 237, 0.2)'
+      };
+    default:
+      return {
+        bg: 'rgba(100, 116, 139, 0.1)',
+        color: '#64748b',
+        border: '1px solid rgba(100, 116, 139, 0.2)'
+      };
+  }
+};
 
 export default function BillingPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -162,18 +215,24 @@ export default function BillingPage() {
                             {formatDate(inv.paymentDate || inv.createdAt)}
                           </td>
                           <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                            <span style={{
-                              fontSize: '0.7rem',
-                              fontWeight: '800',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              background: inv.paymentStatus === 'Paid' ? 'rgba(16, 185, 129, 0.1)' : inv.paymentStatus === 'Pending' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              color: inv.paymentStatus === 'Paid' ? '#10b981' : inv.paymentStatus === 'Pending' ? '#f59e0b' : '#ef4444',
-                              display: 'inline-block',
-                              border: inv.paymentStatus === 'Paid' ? '1px solid rgba(16, 185, 129, 0.2)' : inv.paymentStatus === 'Pending' ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
-                            }}>
-                              {(inv.paymentStatus || 'Pending').toUpperCase()}
-                            </span>
+                            {(() => {
+                              const normalized = normalizePaymentStatus(inv.paymentStatus || inv.status);
+                              const style = getPaymentStatusStyle(normalized);
+                              return (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: '800',
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  background: style.bg,
+                                  color: style.color,
+                                  border: style.border,
+                                  display: 'inline-block'
+                                }}>
+                                  {normalized.toUpperCase()}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontWeight: '700', whiteSpace: 'nowrap' }}>
                             {inv.transactionId || '—'}
@@ -280,7 +339,7 @@ export default function BillingPage() {
                 <div style={{ textAlign: 'right' }}>
                   <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '800' }}>INVOICE</h4>
                   <span style={{ fontSize: '0.75rem', fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-muted)', display: 'block' }}>{viewingInvoice.invoiceId || viewingInvoice.id}</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Status: <strong>{(viewingInvoice.paymentStatus || 'Pending').toUpperCase()}</strong></span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Status: <strong>{normalizePaymentStatus(viewingInvoice.paymentStatus || viewingInvoice.status).toUpperCase()}</strong></span>
                 </div>
               </div>
 

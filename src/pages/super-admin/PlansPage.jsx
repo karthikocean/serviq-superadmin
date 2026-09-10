@@ -281,7 +281,9 @@ export default function PlansPage() {
     if (!planFormState.name.trim()) errors.name = 'Plan Name is Required'
     if (!planFormState.description.trim()) errors.description = 'Plan Description is Required'
     if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
+    else if (parseFloat(planFormState.monthlyPrice) > 99999999) errors.monthlyPrice = 'Monthly price cannot exceed ₹99,999,999'
     if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
+    else if (parseFloat(planFormState.annualPrice) > 999999999) errors.annualPrice = 'Annual price cannot exceed ₹999,999,999'
     if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
     if (!Object.values(planFormState.featuresIncluded).some(Boolean)) errors.featuresIncluded = 'At least one feature must be selected'
 
@@ -323,7 +325,9 @@ export default function PlansPage() {
     if (!planFormState.name.trim()) errors.name = 'Plan Name is Required'
     if (!planFormState.description.trim()) errors.description = 'Plan Description is Required'
     if (planFormState.monthlyPrice === '' || parseFloat(planFormState.monthlyPrice) < 0) errors.monthlyPrice = 'Valid Monthly Price is Required'
+    else if (parseFloat(planFormState.monthlyPrice) > 99999999) errors.monthlyPrice = 'Monthly price cannot exceed ₹99,999,999'
     if (planFormState.annualPrice === '' || parseFloat(planFormState.annualPrice) < 0) errors.annualPrice = 'Valid Annual Price is Required'
+    else if (parseFloat(planFormState.annualPrice) > 999999999) errors.annualPrice = 'Annual price cannot exceed ₹999,999,999'
     if (planFormState.branchLimit === '' || parseInt(planFormState.branchLimit) < 1) errors.branchLimit = 'Valid Branch Limit is Required'
     if (!Object.values(planFormState.featuresIncluded).some(Boolean)) errors.featuresIncluded = 'At least one feature must be selected'
 
@@ -463,10 +467,14 @@ export default function PlansPage() {
                 label="Monthly Price (₹)"
                 type="number"
                 value={planFormState.monthlyPrice}
-                onChange={(e) => setPlanFormState({ ...planFormState, monthlyPrice: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value.slice(0, 8)
+                  setPlanFormState({ ...planFormState, monthlyPrice: val })
+                }}
                 placeholder="e.g. 999"
                 required
                 min="0"
+                max="99999999"
                 error={formErrors.monthlyPrice}
                 setError={(val) => setFormErrors({ ...formErrors, monthlyPrice: val })}
               />
@@ -474,10 +482,14 @@ export default function PlansPage() {
                 label="Annual Price (₹)"
                 type="number"
                 value={planFormState.annualPrice}
-                onChange={(e) => setPlanFormState({ ...planFormState, annualPrice: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value.slice(0, 9)
+                  setPlanFormState({ ...planFormState, annualPrice: val })
+                }}
                 placeholder="e.g. 9999"
                 required
                 min="0"
+                max="999999999"
                 error={formErrors.annualPrice}
                 setError={(val) => setFormErrors({ ...formErrors, annualPrice: val })}
               />
@@ -678,17 +690,41 @@ export default function PlansPage() {
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', padding: '14px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Monthly Rate</span>
-                    <span style={{ fontSize: '1.1rem', color: 'var(--text-main)', fontWeight: '900' }}>₹{plan.monthlyPrice.toLocaleString()}<span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)' }}>/mo</span></span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', minWidth: 0 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>Monthly Rate</span>
+                    <span style={{
+                      fontSize: String(plan.monthlyPrice || 0).length > 7 ? '0.88rem' : '1.1rem',
+                      color: 'var(--text-main)',
+                      fontWeight: '900',
+                      textAlign: 'right',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      minWidth: 0,
+                      maxWidth: '62%',
+                      lineHeight: 1.2
+                    }}>
+                      ₹{Number(plan.monthlyPrice || 0).toLocaleString('en-IN')}<span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)' }}>/mo</span>
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Annual Rate</span>
-                    <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)', fontWeight: '800' }}>₹{plan.annualPrice.toLocaleString()}<span style={{ fontSize: '0.72rem', fontWeight: '600' }}>/yr</span></span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', minWidth: 0 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>Annual Rate</span>
+                    <span style={{
+                      fontSize: String(plan.annualPrice || 0).length > 7 ? '0.82rem' : '0.95rem',
+                      color: 'var(--text-muted)',
+                      fontWeight: '800',
+                      textAlign: 'right',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                      minWidth: 0,
+                      maxWidth: '62%',
+                      lineHeight: 1.2
+                    }}>
+                      ₹{Number(plan.annualPrice || 0).toLocaleString('en-IN')}<span style={{ fontSize: '0.72rem', fontWeight: '600' }}>/yr</span>
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Branches</span>
-                    <span style={{ fontSize: '0.95rem', color: 'var(--primary)', fontWeight: '900' }}>{plan.branchLimit >= 99999 ? 'Unlimited' : plan.branchLimit}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', minWidth: 0 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>Max Branches</span>
+                    <span style={{ fontSize: '0.95rem', color: 'var(--primary)', fontWeight: '900', textAlign: 'right', minWidth: 0 }}>{plan.branchLimit >= 99999 ? 'Unlimited' : plan.branchLimit}</span>
                   </div>
                 </div>
 

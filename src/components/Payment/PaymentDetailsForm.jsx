@@ -45,11 +45,11 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
   return (
     <div style={{ marginTop: '24px', padding: '20px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
       <h4 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-main)' }}>Payment Details</h4>
-      
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         {/* Payment Method */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Payment Method <span style={{color: '#ef4444'}}>*</span></label>
+          <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Payment Method <span style={{ color: '#ef4444' }}>*</span></label>
           <CustomSelect
             options={[
               { value: 'Bank Transfer', label: 'Bank Transfer' },
@@ -94,9 +94,9 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
         {/* Payment Proof Upload */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: '1 / -1' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Payment Proof (Optional)</label>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: '12px',
             padding: '12px',
             border: '1.5px dashed var(--border-color)',
@@ -113,22 +113,22 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
               </span>
               <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>JPG, PNG or PDF (Max 2MB)</span>
             </div>
-            <input 
+            <input
               ref={fileInputRef}
-              type="file" 
+              type="file"
               accept=".jpg,.jpeg,.png,.pdf"
               onChange={handleFileChange}
               disabled={formState.paymentMethod === 'Complimentary' || isUploading}
               style={{ display: 'none' }}
             />
-            <button 
+            <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="btn-outline" 
-              style={{ 
-                padding: '6px 12px', 
-                fontSize: '0.75rem', 
-                borderRadius: '6px', 
+              className="btn-outline"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                borderRadius: '6px',
                 cursor: (formState.paymentMethod === 'Complimentary' || isUploading) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',

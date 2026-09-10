@@ -8,7 +8,7 @@ const mockTickets = [
     category: 'QR Scanning',
     priority: 'High',
     assignedUser: 'Admin User',
-    status: 'Open',
+    status: 'In Progress',
     createdDate: '2026-06-10',
     description: 'Customers are reporting that they cannot scan the QR codes on the corner tables when the ambient dining room lighting is dimmed.'
   },
@@ -41,7 +41,7 @@ const mockTickets = [
     category: 'Menu',
     priority: 'Low',
     assignedUser: 'Unassigned',
-    status: 'Closed',
+    status: 'Resolved',
     createdDate: '2026-06-05',
     description: 'Images larger than 2MB fail to upload silently. We should add a warning toast indicating image size limits.'
   }

@@ -11,7 +11,6 @@ import {
   FileSpreadsheet,
   FileText,
   Search,
-  RefreshCw,
   TrendingDown
 } from 'lucide-react'
 
@@ -300,25 +299,6 @@ export default function ReportsPage() {
 
         {/* Global Export Options */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            onClick={fetchAnalytics}
-            disabled={isLoading}
-            className="btn-outline"
-            style={{
-              padding: '9px 12px',
-              fontSize: '0.78rem',
-              borderRadius: '10px',
-              fontWeight: '700',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer'
-            }}
-            title="Refresh analytics data"
-          >
-            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-          </button>
-
           {canView && (
             <>
               <button

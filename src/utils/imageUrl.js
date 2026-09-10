@@ -15,9 +15,9 @@ export const getImageUrl = (url) => {
     return trimmed;
   }
 
-  // Handle relative paths
+  // Handle relative paths (e.g. /uploads/... or /public/...)
   const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  if (cleanPath.startsWith('/public')) {
+  if (cleanPath.startsWith('/public') || cleanPath.startsWith('/uploads')) {
     return `${server}${cleanPath}`;
   }
   return `${IMAGE_BASE_URL ? IMAGE_BASE_URL.replace(/\/public$/, '') : server}${cleanPath}`;
