@@ -20,7 +20,7 @@ import {
   Upload,
   CreditCard,
 } from 'lucide-react'
-import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage, getManagers, updateManager } from '../../services/api'
+import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { formatDate } from '../../utils/dateFormat'
@@ -28,6 +28,7 @@ import { getImageUrl } from '../../utils/imageUrl'
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useAuth } from '../../contexts/AuthContext'
+import { resetPassword } from '../../services/authService'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -172,7 +173,7 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
 
       setIsUploading(true)
       try {
-        const response = await uploadImage(file)
+        const response = await uploadImage(file, "restaurant", "image")
         const remoteUrl =
           response?.url ||
           response?.data?.url ||
@@ -531,7 +532,7 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 export default function RestaurantsPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { restaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
+  const { restaurants, setRestaurants, activeRestaurantId, setActiveRestaurantId: onSetActiveRestaurantId, activeRestaurant, fetchRestaurants } = useRestaurant()
   const { showToast } = useNotification()
   const { hasPermission, isSuperOwner } = useAuth()
 
@@ -924,99 +925,6 @@ export default function RestaurantsPage() {
     })
   }
 
-  const handleQuickPasswordUpdate = async () => {
-    const pwErrors = {}
-    if (!editFormState?.password || String(editFormState.password).trim() === '') {
-      pwErrors.password = 'New Password is required'
-    }
-    if (!editFormState?.confirmPassword || String(editFormState.confirmPassword).trim() === '') {
-      pwErrors.confirmPassword = 'Confirm Password is required'
-    } else if (editFormState.password !== editFormState.confirmPassword) {
-      pwErrors.confirmPassword = 'Passwords do not match'
-    }
-
-    if (Object.keys(pwErrors).length > 0) {
-      setFormErrors(prev => ({ ...prev, ...pwErrors }))
-      return
-    }
-
-    setFormErrors(prev => ({ ...prev, password: '', confirmPassword: '' }))
-    setIsUpdatingPassword(true)
-
-    try {
-      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
-      if (!targetRest) {
-        showToast('error', 'Restaurant not found')
-        return
-      }
-
-      let restUpdated = false
-      try {
-        const restRes = await updateRestaurantApi(targetRest._id, { password: editFormState.password })
-        if (restRes.success) restUpdated = true
-      } catch (err) {
-        console.warn('Direct restaurant password update note:', err)
-      }
-
-      let managerUpdated = false
-      try {
-        const mgrRes = await getManagers(0, 100)
-        if (mgrRes.success) {
-          const mgrList = mgrRes.data.results || mgrRes.data || []
-          const matchingMgr = mgrList.find(m =>
-            (m.email && (m.email.toLowerCase() === (editFormState.email || '').toLowerCase() || m.email.toLowerCase() === (targetRest.email || '').toLowerCase())) ||
-            m.restaurantId === targetRest._id ||
-            m.restaurantId === targetRest.id
-          )
-          if (matchingMgr) {
-            const updateMgrRes = await updateManager(matchingMgr._id, { password: editFormState.password })
-            if (updateMgrRes.success) managerUpdated = true
-          }
-        }
-      } catch (err) {
-        console.warn('Manager password update note:', err)
-      }
-
-
-      // Sync password across user collections
-      const syncId = (editFormState.email || targetRest.email || editFormState.mobileNumber || targetRest.phoneNumber || targetRest.phone || '').trim();
-      if (syncId && editFormState.password) {
-        try {
-          await fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
-          });
-        } catch (e) { }
-        try {
-          await fetch('http://localhost:5055/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: syncId, newPassword: editFormState.password, pin: editFormState.password })
-          });
-        } catch (e) { }
-      }
-
-      if (restUpdated || managerUpdated) {
-        showToast('success', 'Password updated successfully!')
-        setEditFormState(prev => ({ ...prev, password: '', confirmPassword: '' }))
-      } else {
-        const fallbackRes = await updateRestaurantApi(targetRest._id, { password: editFormState.password })
-        if (fallbackRes.success) {
-          showToast('success', 'Password updated successfully!')
-          setEditFormState(prev => ({ ...prev, password: '', confirmPassword: '' }))
-        } else {
-          showToast('error', fallbackRes.message || 'Failed to update password')
-        }
-      }
-    } catch (err) {
-      console.error(err)
-      showToast('error', err.response?.data?.message || 'Error updating password')
-    } finally {
-      setIsUpdatingPassword(false)
-    }
-  }
-
   const handleUpdateRestaurantSubmit = async (e) => {
     e.preventDefault()
 
@@ -1051,7 +959,7 @@ export default function RestaurantsPage() {
     const mob = (editFormState.mobileNumber || editFormState.phone || '').trim()
     if (mob && !/^[6-9]\d{9}$/.test(mob)) {
       errors.mobileNumber = 'Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)'
-    } else if (mob && restaurants.some(r => r.id !== editingRestId && (r.mobileNumber === mob || r.phone === mob))) {
+    } else if (mob && restaurants.some(r => (r.id !== editingRestId && r._id !== editingRestId) && (r.mobileNumber === mob || r.phone === mob))) {
       errors.mobileNumber = 'Mobile number already registered by another restaurant'
     }
 
@@ -1106,9 +1014,16 @@ export default function RestaurantsPage() {
     setFormErrors({})
     setIsSubmitting(true)
     try {
-      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId)
+      const targetRest = restaurants.find(r => r.id === editingRestId || r._id === editingRestId || r.restaurantId === editingRestId)
+      if (!targetRest && !editingRestId) {
+        showToast('error', 'Restaurant not found')
+        return
+      }
+
+      const restId = targetRest?._id || editFormState?._id || targetRest?.id || editingRestId;
       const rawLogo = editFormState.logo !== undefined ? editFormState.logo : (editFormState.logoUrl || '')
       const cleanLogo = typeof rawLogo === 'string' ? rawLogo.trim() : ''
+
       const payload = {
         restaurantName: editFormState.name,
         ownerName: editFormState.ownerName,
@@ -1124,59 +1039,65 @@ export default function RestaurantsPage() {
         openingTime: editFormState.openingTime,
         closingTime: editFormState.closingTime,
         logoUrl: cleanLogo,
-        logo: cleanLogo,
-        bannerUrl: (editFormState.banner || '').trim(),
+        bannerUrl: (editFormState.banner || editFormState.bannerUrl || '').trim(),
         websiteDomain: editFormState.website,
         status: editFormState.status || 'Active',
         isActive: (editFormState.status || 'Active') === 'Active',
-        removeLogo: !cleanLogo,
-        ...(hasPassword ? { password: editFormState.password } : {})
+        ...(hasPassword ? {
+          password: editFormState.password,
+          newPassword: editFormState.password,
+          confirmPassword: editFormState.confirmPassword
+        } : {})
       }
 
-      const response = await updateRestaurantApi(targetRest._id, payload);
-      if (response.success) {
-        setRestaurants(prev => prev.map(r => {
-          if (r._id === targetRest._id || r.id === targetRest.id) {
-            return {
-              ...r,
-              logo: cleanLogo,
-              logoUrl: cleanLogo
-            };
-          }
-          return r;
-        }));
-        if (hasPassword) {
-          try {
-            const mgrRes = await getManagers(0, 100);
-            if (mgrRes.success) {
-              const mgrList = mgrRes.data.results || mgrRes.data || [];
-              const matchingMgr = mgrList.find(m =>
-                (m.email && (m.email.toLowerCase() === (editFormState.email || '').toLowerCase() || m.email.toLowerCase() === (targetRest.email || '').toLowerCase())) ||
-                m.restaurantId === targetRest._id ||
-                m.restaurantId === targetRest.id
-              );
-              if (matchingMgr) {
-                await updateManager(matchingMgr._id, { password: editFormState.password });
-              }
+      // 1. Call the updateRestaurant API
+      const response = await updateRestaurantApi(restId, payload);
+
+      // 2. If password was provided, also call resetPassword API for auth/user sync
+      if (hasPassword) {
+        try {
+          const syncEmail = (editFormState.email || targetRest?.email || '').trim();
+          const syncPhone = (editFormState.mobileNumber || targetRest?.phoneNumber || targetRest?.phone || '').trim();
+          await resetPassword({
+            email: syncEmail,
+            phoneNumber: syncPhone,
+            newPassword: editFormState.password,
+            password: editFormState.password,
+            confirmPassword: editFormState.confirmPassword,
+            pin: editFormState.password
+          });
+        } catch (resetErr) {
+          console.warn('Password reset API sync note:', resetErr);
+        }
+      }
+
+      if (response && (response.success !== false && response.status !== 'error' && response.status !== 400 && response.status !== 500)) {
+        if (typeof setRestaurants === 'function') {
+          setRestaurants(prev => prev.map(r => {
+            if (r._id === restId || r.id === restId) {
+              return {
+                ...r,
+                logo: cleanLogo,
+                logoUrl: cleanLogo
+              };
             }
-          } catch (mgrErr) {
-            console.warn('Manager password sync warning:', mgrErr);
-          }
+            return r;
+          }));
         }
         await fetchRestaurants();
         setEditingRestId(null)
         setEditFormState(null)
-        showToast('success', 'Branch updated successfully');
+        showToast('success', response.message || 'Restaurant updated successfully');
       } else {
-        showToast('error', response.message || 'Error updating restaurant');
+        showToast('error', response?.message || 'Error updating restaurant');
       }
     } catch (err) {
-      showToast('error', err.response?.data?.message || 'Error updating restaurant');
+      console.error("Restaurant update error:", err);
+      showToast('error', err.response?.data?.message || err.message || 'Error updating restaurant');
     } finally {
       setIsSubmitting(false)
     }
   }
-
   return (
     <div style={{ width: '100%' }}>
       {showAddModal ? (
@@ -1848,6 +1769,8 @@ export default function RestaurantsPage() {
                                 </button>
                               )}
 
+
+
                               {canEdit && (
                                 <button
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
@@ -2359,31 +2282,6 @@ export default function RestaurantsPage() {
                       error={formErrors.confirmPassword}
                       setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                     />
-
-                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                      <button
-                        type="button"
-                        disabled={isUpdatingPassword || !editFormState.password}
-                        onClick={handleQuickPasswordUpdate}
-                        style={{
-                          padding: '8px 18px',
-                          borderRadius: '8px',
-                          background: (editFormState.password && editFormState.confirmPassword) ? '#000000' : 'var(--border-color)',
-                          color: (editFormState.password && editFormState.confirmPassword) ? '#ffffff' : 'var(--text-muted)',
-                          border: 'none',
-                          fontSize: '0.8rem',
-                          fontWeight: '700',
-                          cursor: (isUpdatingPassword || !editFormState.password) ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <Lock style={{ width: '13px', height: '13px' }} />
-                        {isUpdatingPassword ? 'Updating Password...' : 'Update Password'}
-                      </button>
-                    </div>
                   </div>
                 </div>
 
