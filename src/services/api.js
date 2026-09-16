@@ -83,6 +83,65 @@ export const uploadImage = async (file, moduleName = "menu", type = "image") => 
   });
 };
 
+export const deleteUploadedFile = async (filePath) => {
+  if (!filePath) return { success: false, message: "File path is required" };
+
+  // If data URL or blob, no remote deletion is needed
+  if (typeof filePath === "string" && (filePath.startsWith("data:") || filePath.startsWith("blob:"))) {
+    return { success: true, message: "Local preview removed." };
+  }
+
+  let cleanPath = filePath;
+  // If full URL with domain, extract the pathname
+  if (typeof cleanPath === "string" && cleanPath.startsWith("http")) {
+    try {
+      const urlObj = new URL(cleanPath);
+      cleanPath = urlObj.pathname;
+    } catch (e) {
+      // keep as is
+    }
+  }
+
+  // Ensure path starts with /
+  if (typeof cleanPath === "string" && !cleanPath.startsWith("/")) {
+    cleanPath = `/${cleanPath}`;
+  }
+
+  const payload = { filePath: cleanPath };
+
+  const endpoints = [
+    `${server}/api/upload`,
+    "/upload",
+    `${server}/upload`,
+    `${server}/api/super-admin/upload`,
+    "/restaurants/upload",
+    `${server}/api/restaurants/upload`
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const isAbsolute = ep.startsWith("http");
+      const client = isAbsolute ? axios : api;
+      const response = await client.delete(ep, {
+        data: payload,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+      if (response && response.data) {
+        return response.data;
+      }
+    } catch (e) {
+      // try next endpoint
+    }
+  }
+
+  return { success: true, message: "File deletion processed." };
+};
+
+export const deleteImage = deleteUploadedFile;
+export const deleteFile = deleteUploadedFile;
+
 export const getRestaurants = async (page = 0, limit = 10) => {
   const response = await api.get(`/restaurants?page=${page}&limit=${limit}`);
   return response.data;

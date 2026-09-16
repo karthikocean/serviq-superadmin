@@ -5,34 +5,40 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import NotificationPopup from './NotificationPopup';
 
+import { getSuperAdminNotifications } from '../../services/notificationService';
+
 export default function GlobalHeader({ isSidebarCollapsed, setIsSidebarCollapsed }) {
   const { role, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [adminProfileDropdownOpen, setAdminProfileDropdownOpen] = useState(false);
   const [notificationPopupOpen, setNotificationPopupOpen] = useState(false);
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const adminProfileRef = useRef(null);
   const notificationBtnRef = useRef(null);
   const [currentDateTime, setCurrentDateTime] = useState('');
 
   useEffect(() => {
-    const checkUnread = () => {
+    let isMounted = true;
+    const checkUnread = async () => {
       try {
-        const readIds = JSON.parse(localStorage.getItem('serviq_read_notifications') || '[]');
-        // If user has read all default ones, remove dot
-        if (readIds.length >= 4) {
-          setHasUnreadNotifications(false);
-        } else {
-          setHasUnreadNotifications(true);
+        const res = await getSuperAdminNotifications('unread');
+        if (isMounted && res?.data) {
+          const unread = res.data.counts?.unread ?? res.data.unreadCount ?? (Array.isArray(res.data.notifications) ? res.data.notifications.length : 0);
+          setHasUnreadNotifications(Number(unread) > 0);
         }
-      } catch {
-        setHasUnreadNotifications(true);
+      } catch (err) {
+        // quiet fallback
       }
     };
 
     checkUnread();
+    const interval = setInterval(checkUnread, 60000);
     window.addEventListener('serviq_notifications_updated', checkUnread);
-    return () => window.removeEventListener('serviq_notifications_updated', checkUnread);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('serviq_notifications_updated', checkUnread);
+    };
   }, []);
 
   useEffect(() => {

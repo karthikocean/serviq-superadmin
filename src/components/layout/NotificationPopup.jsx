@@ -5,167 +5,68 @@ import {
   Clock, 
   LifeBuoy, 
   CheckCircle2, 
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
-import { getNotifications } from '../../services/notificationService';
-import { getTickets } from '../../services/ticketService';
+import { 
+  getSuperAdminNotifications, 
+  markNotificationAsRead, 
+  markAllNotificationsAsRead 
+} from '../../services/notificationService';
 
 export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
   const navigate = useNavigate();
   const popupRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'notifications' | 'tickets' | 'unread'
+  const [activeTab, setActiveTab] = useState('alerts'); // 'alerts' | 'tickets'
   const [items, setItems] = useState([]);
+  const [counts, setCounts] = useState({ all: 0, alerts: 0, tickets: 0, unread: 0 });
   const [loading, setLoading] = useState(false);
-  const [readIds, setReadIds] = useState(() => {
+
+  // Fetch notifications based on active tab
+  const fetchFeed = async () => {
+    setLoading(true);
     try {
-      return JSON.parse(localStorage.getItem('serviq_read_notifications') || '[]');
-    } catch {
-      return [];
-    }
-  });
-
-  // Default fallback items for notifications and support tickets
-  const fallbackItems = [
-    {
-      _id: 'ticket-1',
-      isTicket: true,
-      ticketNumber: 'TKT-1042',
-      subject: 'POS Kitchen Printer Connection Offline',
-      body: 'Kitchen printer stopped printing order tickets during peak dinner rush.',
-      priority: 'Urgent',
-      restaurantName: 'The Spice House',
-      type: 'Support Ticket',
-      createdAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.TICKETS
-    },
-    {
-      _id: 'sys-1',
-      isTicket: false,
-      subject: 'Scheduled Maintenance Notice',
-      body: 'Server database optimization scheduled for Sunday at 02:00 AM UTC (approx 15 mins downtime).',
-      type: 'Maintenance',
-      createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.NOTIFICATIONS
-    },
-    {
-      _id: 'ticket-2',
-      isTicket: true,
-      ticketNumber: 'TKT-1039',
-      subject: 'GST & Invoice Tax Calculation Query',
-      body: 'Need verification regarding SGST and CGST split on delivery addon items.',
-      priority: 'High',
-      restaurantName: 'Urban Biryani Bistro',
-      type: 'Support Ticket',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.TICKETS
-    },
-    {
-      _id: 'sys-2',
-      isTicket: false,
-      subject: 'Subscription Expiry Alert',
-      body: 'The Enterprise Annual plan for "Mirchi Cafe & Grill" is expiring in 3 days.',
-      type: 'Subscription',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.SUBSCRIPTIONS
-    },
-    {
-      _id: 'ticket-3',
-      isTicket: true,
-      ticketNumber: 'TKT-1035',
-      subject: 'Request for New Outlet Activation',
-      body: 'Owner requested licensing for 2 additional POS terminals for newly opened branch.',
-      priority: 'Medium',
-      restaurantName: 'Green Bowl Cafe',
-      type: 'Support Ticket',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
-      targetRoute: ROUTES.SUPER_ADMIN.TICKETS
-    }
-  ];
-
-  // Fetch notifications & tickets
-  useEffect(() => {
-    if (!isOpen) return;
-
-    let isMounted = true;
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [notifRes, ticketRes] = await Promise.allSettled([
-          getNotifications({ page: 0, limit: 15 }),
-          getTickets({ page: 0, limit: 15 })
-        ]);
-
-        let combined = [];
-
-        // Parse Notifications
-        if (notifRes.status === 'fulfilled' && notifRes.value) {
-          const rawNotifs = Array.isArray(notifRes.value?.data) 
-            ? notifRes.value.data 
-            : Array.isArray(notifRes.value) 
-              ? notifRes.value 
-              : [];
-          
-          const parsedNotifs = rawNotifs.map(n => ({
-            _id: n._id || n.id || `notif-${Math.random()}`,
-            isTicket: false,
-            subject: n.subject || 'System Notification',
-            body: n.body || n.message || '',
-            type: n.type || 'System',
-            createdAt: n.createdAt || n.created_at || new Date().toISOString(),
-            targetRoute: ROUTES.SUPER_ADMIN.NOTIFICATIONS
-          }));
-          combined.push(...parsedNotifs);
+      const res = await getSuperAdminNotifications(activeTab);
+      if (res?.success && res?.data) {
+        const data = res.data;
+        if (data.counts) {
+          setCounts({
+            all: data.counts.all ?? 0,
+            alerts: data.counts.alerts ?? 0,
+            tickets: data.counts.tickets ?? 0,
+            unread: data.counts.unread ?? (data.unreadCount ?? 0)
+          });
         }
 
-        // Parse Tickets
-        if (ticketRes.status === 'fulfilled' && ticketRes.value) {
-          const rawTickets = Array.isArray(ticketRes.value?.data) 
-            ? ticketRes.value.data 
-            : Array.isArray(ticketRes.value) 
-              ? ticketRes.value 
-              : [];
-          
-          const parsedTickets = rawTickets.map(t => ({
-            _id: t._id || t.id || `ticket-${Math.random()}`,
-            isTicket: true,
-            ticketNumber: t.ticketNumber || (t._id ? `TKT-${String(t._id).slice(-4).toUpperCase()}` : 'TKT'),
-            subject: t.subject || t.title || 'Support Ticket Update',
-            body: t.description || t.message || (t.replies && t.replies.length > 0 ? t.replies[t.replies.length - 1].message : ''),
-            priority: t.priority || 'Medium',
-            restaurantName: t.restaurantName || t.restaurant?.name || '',
-            type: 'Ticket',
-            createdAt: t.updatedAt || t.createdAt || new Date().toISOString(),
-            targetRoute: ROUTES.SUPER_ADMIN.TICKETS
-          }));
-          combined.push(...parsedTickets);
+        let list = [];
+        if (activeTab === 'alerts' && Array.isArray(data.alerts)) {
+          list = data.alerts;
+        } else if (activeTab === 'tickets' && Array.isArray(data.tickets)) {
+          list = data.tickets;
+        } else if (Array.isArray(data.notifications)) {
+          list = data.notifications;
+        } else if (Array.isArray(data)) {
+          list = data;
         }
 
-        if (isMounted) {
-          if (combined.length > 0) {
-            combined.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-            setItems(combined);
-          } else {
-            setItems(fallbackItems);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load notifications and tickets:', err);
-        if (isMounted) {
-          setItems(fallbackItems);
-        }
-      } finally {
-        if (isMounted) setLoading(false);
+        setItems(list);
+      } else {
+        setItems([]);
       }
-    };
+    } catch (err) {
+      console.error('Failed to load notifications feed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen]);
+  useEffect(() => {
+    if (isOpen) {
+      fetchFeed();
+    }
+  }, [isOpen, activeTab]);
 
   // Click outside and Esc to close
   useEffect(() => {
@@ -195,42 +96,43 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
     };
   }, [isOpen, onClose, anchorRef]);
 
-  const saveReadIds = (newReadIds) => {
-    setReadIds(newReadIds);
-    try {
-      localStorage.setItem('serviq_read_notifications', JSON.stringify(newReadIds));
+  const handleMarkItemRead = async (item) => {
+    const id = item._id || item.id;
+    if (!item.isRead && id) {
+      try {
+        await markNotificationAsRead(id);
+      } catch (e) {
+        console.error('Failed to mark notification as read:', e);
+      }
+      // Optimistically update
+      setItems(prev => prev.map(n => (n._id === id || n.id === id) ? { ...n, isRead: true } : n));
+      setCounts(prev => ({
+        ...prev,
+        unread: Math.max(0, (prev.unread || 0) - 1)
+      }));
       window.dispatchEvent(new Event('serviq_notifications_updated'));
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    const unreadIds = items.filter(n => !n.isRead).map(n => n._id || n.id);
+    try {
+      await markAllNotificationsAsRead(unreadIds);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to mark all notifications as read:', e);
     }
+    setItems(prev => prev.map(n => ({ ...n, isRead: true })));
+    setCounts(prev => ({ ...prev, unread: 0 }));
+    window.dispatchEvent(new Event('serviq_notifications_updated'));
   };
 
-  const markAsRead = (id) => {
-    if (!readIds.includes(id)) {
-      const updated = [...readIds, id];
-      saveReadIds(updated);
-    }
-  };
-
-  const markAllAsRead = () => {
-    const allIds = items.map(n => n._id || n.id);
-    const updated = Array.from(new Set([...readIds, ...allIds]));
-    saveReadIds(updated);
-  };
-
-  const handleItemClick = (item) => {
-    markAsRead(item._id || item.id);
+  const handleItemClick = async (item) => {
+    await handleMarkItemRead(item);
     onClose();
-    if (item.isTicket) {
+
+    const isTicket = item.source === 'TICKET' || item.type === 'Tickets' || item.category === 'Tickets' || Boolean(item.ticketNumber);
+    if (isTicket) {
       navigate(ROUTES.SUPER_ADMIN.TICKETS);
-    } else if (item.targetRoute) {
-      navigate(item.targetRoute);
-    } else if (item.type?.toLowerCase().includes('subscription') || item.type?.toLowerCase().includes('plan')) {
-      navigate(ROUTES.SUPER_ADMIN.SUBSCRIPTIONS);
-    } else if (item.type?.toLowerCase().includes('payment') || item.type?.toLowerCase().includes('bill')) {
-      navigate(ROUTES.SUPER_ADMIN.BILLING);
-    } else if (item.type?.toLowerCase().includes('restaurant')) {
-      navigate(ROUTES.SUPER_ADMIN.RESTAURANTS);
     } else {
       navigate(ROUTES.SUPER_ADMIN.NOTIFICATIONS);
     }
@@ -259,18 +161,7 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
 
   if (!isOpen) return null;
 
-  const unreadItems = items.filter(n => !readIds.includes(n._id || n.id));
-  const notificationItems = items.filter(n => !n.isTicket);
-  const ticketItems = items.filter(n => n.isTicket);
-
-  let displayedItems = items;
-  if (activeTab === 'unread') {
-    displayedItems = unreadItems;
-  } else if (activeTab === 'notifications') {
-    displayedItems = notificationItems;
-  } else if (activeTab === 'tickets') {
-    displayedItems = ticketItems;
-  }
+  const unreadCount = counts.unread ?? items.filter(n => !n.isRead).length;
 
   return (
     <div
@@ -285,7 +176,7 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
         background: 'var(--bg-card, #ffffff)',
         border: '1px solid var(--border-color, #e2e8f0)',
         borderRadius: '12px',
-        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.12)',
+        boxShadow: '0 14px 35px rgba(0, 0, 0, 0.14)',
         zIndex: 10000,
         overflow: 'hidden',
         display: 'flex',
@@ -305,20 +196,20 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Bell style={{ width: '16px', height: '16px', color: 'var(--text-main, #0f172a)' }} />
           <div>
-            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main, #0f172a)', lineHeight: 1.2 }}>
+            <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-main, #0f172a)', lineHeight: 1.2 }}>
               Notifications
             </h4>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
-              {unreadItems.length > 0 ? `${unreadItems.length} unread updates` : 'All caught up'}
+              {unreadCount > 0 ? `${unreadCount} unread updates` : 'All caught up'}
             </span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {unreadItems.length > 0 && (
+          {unreadCount > 0 && (
             <button
               type="button"
-              onClick={markAllAsRead}
+              onClick={handleMarkAllRead}
               style={{
                 background: 'none',
                 border: 'none',
@@ -326,12 +217,15 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                fontSize: '0.72rem',
+                fontSize: '0.74rem',
                 fontWeight: '600',
                 color: '#2563eb',
-                padding: '2px 6px',
-                borderRadius: '4px'
+                padding: '3px 6px',
+                borderRadius: '4px',
+                transition: 'background 0.15s ease'
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.08)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
               <CheckCheck style={{ width: '13px', height: '13px' }} /> Mark read
             </button>
@@ -344,10 +238,11 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
               border: 'none',
               cursor: 'pointer',
               color: 'var(--text-muted, #64748b)',
-              padding: '2px',
+              padding: '4px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              borderRadius: '4px'
             }}
           >
             <X style={{ width: '16px', height: '16px' }} />
@@ -355,18 +250,16 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
         </div>
       </div>
 
-      {/* Clean Tabs Row */}
+      {/* Tabs Row */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(2, 1fr)',
         borderBottom: '1px solid var(--border-color, #e2e8f0)',
         background: 'var(--bg-card, #ffffff)'
       }}>
         {[
-          { key: 'all', label: 'All', count: items.length },
-          { key: 'notifications', label: 'Alerts', count: notificationItems.length },
-          { key: 'tickets', label: 'Tickets', count: ticketItems.length },
-          { key: 'unread', label: 'Unread', count: unreadItems.length }
+          { key: 'alerts', label: 'Alerts', count: counts.alerts ?? 0 },
+          { key: 'tickets', label: 'Tickets', count: counts.tickets ?? 0 }
         ].map(tab => {
           const isActive = activeTab === tab.key;
           return (
@@ -375,8 +268,8 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
               type="button"
               onClick={() => setActiveTab(tab.key)}
               style={{
-                padding: '8px 4px',
-                fontSize: '0.72rem',
+                padding: '10px 4px',
+                fontSize: '0.78rem',
                 fontWeight: isActive ? '700' : '500',
                 border: 'none',
                 borderBottom: isActive ? '2px solid #0f172a' : '2px solid transparent',
@@ -397,7 +290,7 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
       <div 
         className="invisible-scrollbar"
         style={{
-          maxHeight: '340px',
+          maxHeight: '360px',
           overflowY: 'auto',
           background: 'var(--bg-card, #ffffff)',
           scrollbarWidth: 'none',
@@ -405,54 +298,67 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
         }}
       >
         {loading ? (
-          <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)', fontSize: '0.8rem' }}>
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)', fontSize: '0.8rem' }}>
             Loading updates...
           </div>
-        ) : displayedItems.length === 0 ? (
-          <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
-            <CheckCircle2 style={{ width: '24px', height: '24px', margin: '0 auto 6px', color: '#10b981' }} />
-            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-main, #0f172a)' }}>
-              {activeTab === 'unread' ? 'No unread updates' : 'No items found'}
+        ) : items.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+            <CheckCircle2 style={{ width: '26px', height: '26px', margin: '0 auto 8px', color: '#10b981' }} />
+            <p style={{ margin: 0, fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main, #0f172a)' }}>
+              No {activeTab === 'alerts' ? 'alert' : 'ticket'} notifications found
             </p>
           </div>
         ) : (
-          displayedItems.map((item) => {
-            const isRead = readIds.includes(item._id || item.id);
+          items.map((item) => {
+            const isTicket = item.source === 'TICKET' || item.type === 'Tickets' || item.category === 'Tickets' || Boolean(item.ticketNumber);
+            const isRead = Boolean(item.isRead);
+
+            // Clean title & ticket number split if title starts with ticket number
+            let ticketNo = item.ticketNumber || '';
+            let titleText = item.title || item.subject || '';
+
+            if (isTicket && !ticketNo && titleText.startsWith('TKT-')) {
+              const parts = titleText.split(' ');
+              ticketNo = parts[0];
+              titleText = parts.slice(1).join(' ');
+            } else if (ticketNo && titleText.startsWith(ticketNo)) {
+              titleText = titleText.replace(ticketNo, '').trim();
+            }
 
             return (
               <div
-                key={item._id || item.id}
+                key={item._id || item.id || `item-${Math.random()}`}
                 onClick={() => handleItemClick(item)}
                 style={{
-                  padding: '10px 14px',
+                  padding: '11px 14px',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '10px',
                   cursor: 'pointer',
                   borderBottom: '1px solid var(--border-color, #f1f5f9)',
                   background: isRead ? 'transparent' : 'rgba(37, 99, 235, 0.03)',
-                  transition: 'background 0.1s ease'
+                  transition: 'background 0.12s ease'
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover, #f8fafc)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = isRead ? 'transparent' : 'rgba(37, 99, 235, 0.03)'}
               >
                 {/* Icon */}
                 <div style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  background: 'rgba(0, 0, 0, 0.04)',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '7px',
+                  background: isTicket ? 'rgba(79, 70, 229, 0.08)' : 'rgba(2, 132, 199, 0.08)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: item.isTicket ? '#4f46e5' : '#0284c7',
+                  color: isTicket ? '#4f46e5' : '#0284c7',
                   flexShrink: 0,
                   marginTop: '1px'
                 }}>
-                  {item.isTicket ? (
-                    <LifeBuoy style={{ width: '14px', height: '14px' }} />
+                  {isTicket ? (
+                    <LifeBuoy style={{ width: '15px', height: '15px' }} />
                   ) : (
-                    <Bell style={{ width: '14px', height: '14px' }} />
+                    <Bell style={{ width: '15px', height: '15px' }} />
                   )}
                 </div>
 
@@ -460,15 +366,15 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                      {item.isTicket && item.ticketNumber && (
+                      {isTicket && ticketNo && (
                         <span style={{
                           fontFamily: 'monospace',
-                          fontSize: '0.68rem',
+                          fontSize: '0.72rem',
                           fontWeight: '700',
                           color: '#4f46e5',
                           flexShrink: 0
                         }}>
-                          {item.ticketNumber}
+                          {ticketNo}
                         </span>
                       )}
                       <span style={{
@@ -479,14 +385,14 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}>
-                        {item.subject}
+                        {titleText || 'Notification'}
                       </span>
                     </div>
 
                     {!isRead && (
                       <span style={{
-                        width: '6px',
-                        height: '6px',
+                        width: '7px',
+                        height: '7px',
                         borderRadius: '50%',
                         background: '#2563eb',
                         flexShrink: 0
@@ -494,24 +400,24 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
                     )}
                   </div>
 
-                  {item.body && (
+                  {(item.message || item.body) && (
                     <p style={{
                       margin: '2px 0 0 0',
-                      fontSize: '0.72rem',
+                      fontSize: '0.74rem',
                       color: 'var(--text-muted, #64748b)',
-                      lineHeight: 1.3,
+                      lineHeight: 1.35,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
                     }}>
-                      {item.body}
+                      {item.message || item.body}
                     </p>
                   )}
 
                   {/* Clean meta line */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <Clock style={{ width: '10px', height: '10px' }} />
+                      <Clock style={{ width: '11px', height: '11px' }} />
                       {formatTimeAgo(item.createdAt)}
                     </span>
 
@@ -524,14 +430,14 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
                       </>
                     )}
 
-                    {item.priority && item.priority.toLowerCase() !== 'medium' && (
+                    {item.status && (
                       <>
                         <span>•</span>
                         <span style={{
                           fontWeight: '600',
-                          color: item.priority.toLowerCase() === 'urgent' ? '#dc2626' : '#d97706'
+                          color: item.status === 'Open' ? '#2563eb' : item.status === 'Resolved' ? '#10b981' : item.status === 'In Progress' ? '#d97706' : '#64748b'
                         }}>
-                          {item.priority}
+                          {item.status}
                         </span>
                       </>
                     )}
@@ -545,4 +451,3 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
     </div>
   );
 }
-

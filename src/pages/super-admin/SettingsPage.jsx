@@ -158,7 +158,6 @@ export default function SettingsPage() {
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)' }}>System Settings</h3>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600' }}>Configure default system rules, tax percentages, brand information, and operation hours.</span>
           </div>
         </div>
 

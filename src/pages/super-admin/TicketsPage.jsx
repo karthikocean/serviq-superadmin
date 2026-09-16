@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   LifeBuoy,
   Plus,
@@ -11,12 +12,15 @@ import {
   XCircle,
   User,
   UserPlus,
+  UserX,
   RotateCcw,
   Tag,
   ChevronDown,
   MessageSquare,
   Send,
-  Check
+  Check,
+  ExternalLink,
+  Users
 } from 'lucide-react'
 
 import { useRestaurant } from '../../hooks/useRestaurants'
@@ -24,24 +28,29 @@ import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
 import { getTickets, createTicket, updateTicketStatus, assignTicket, replyToTicket } from '../../services/ticketService'
+import { getManagers } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { ROUTES } from '../../constants/routes'
 
 // ─── Custom Floating Ticket Assign Dropdown ───
 const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
+  const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef(null)
   const menuRef = useRef(null)
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 190 })
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 230 })
+  const [customName, setCustomName] = useState('')
+  const [showCustomInput, setShowCustomInput] = useState(false)
 
   const updatePosition = () => {
     if (!buttonRef.current) return
     const rect = buttonRef.current.getBoundingClientRect()
-    const estimatedHeight = Math.min(supportStaff.length * 36 + 40, 220)
+    const estimatedHeight = Math.min((supportStaff.length + 3) * 36 + 60, 290)
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
     const openUpwards = spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow
 
-    const menuWidth = 190
+    const menuWidth = 230
     let left = rect.right - menuWidth
     if (left < 10) left = Math.max(10, rect.left)
     if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10
@@ -61,6 +70,8 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
     e.stopPropagation()
     if (ticket.status === 'Resolved' || !canEdit) return
     if (!isOpen) {
+      setShowCustomInput(false)
+      setCustomName('')
       updatePosition()
       setIsOpen(true)
     } else {
@@ -96,6 +107,8 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
   }, [isOpen, supportStaff])
 
   const isResolved = ticket.status === 'Resolved'
+  const currentAssigned = ticket.assignedUser || ticket.assignedTo || ''
+  const isCurrentlyUnassigned = !currentAssigned || currentAssigned.toLowerCase() === 'unassigned'
 
   return (
     <>
@@ -135,24 +148,68 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
             borderRadius: '10px',
             border: '1px solid var(--border-color, #e2e8f0)',
             boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 6px 12px -2px rgba(0, 0, 0, 0.08)',
-            padding: '5px',
+            padding: '6px',
             zIndex: 999999,
-            maxHeight: '220px',
-            overflowY: 'auto'
+            maxHeight: '300px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ padding: '6px 8px 4px', fontSize: '0.68rem', fontWeight: '800', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ padding: '4px 8px 6px', fontSize: '0.68rem', fontWeight: '800', color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f1f5f9' }}>
             Assign Support Agent
           </div>
-          {supportStaff.map((agent) => {
-            const isAssigned = ticket.assignedUser === agent || ticket.assignedTo === agent
+
+          {/* Unassign Option */}
+          <button
+            type="button"
+            onClick={() => {
+              onAssign(ticket._id, 'Unassigned')
+              setIsOpen(false)
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '7px 8px',
+              borderRadius: '6px',
+              border: 'none',
+              background: isCurrentlyUnassigned ? 'rgba(100, 116, 139, 0.08)' : 'transparent',
+              color: isCurrentlyUnassigned ? '#475569' : 'var(--text-muted, #64748b)',
+              fontSize: '0.78rem',
+              fontWeight: isCurrentlyUnassigned ? '700' : '500',
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}
+            onMouseEnter={(e) => {
+              if (!isCurrentlyUnassigned) e.currentTarget.style.background = '#f8fafc'
+            }}
+            onMouseLeave={(e) => {
+              if (!isCurrentlyUnassigned) e.currentTarget.style.background = 'transparent'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <UserX style={{ width: '13px', height: '13px', color: '#94a3b8' }} />
+              <span>Unassigned</span>
+            </div>
+            {isCurrentlyUnassigned && <Check style={{ width: '13px', height: '13px', color: '#64748b' }} />}
+          </button>
+
+          {/* Staff List */}
+          {supportStaff.map((staffItem) => {
+            const agentName = typeof staffItem === 'string' ? staffItem : staffItem.name
+            const agentRole = typeof staffItem === 'object' ? staffItem.role : ''
+            const isAssigned = currentAssigned.toLowerCase() === agentName.toLowerCase()
+
             return (
               <button
-                key={agent}
+                key={agentName}
                 type="button"
                 onClick={() => {
-                  onAssign(ticket._id, agent)
+                  onAssign(ticket._id, agentName)
                   setIsOpen(false)
                 }}
                 style={{
@@ -160,7 +217,7 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '7px 10px',
+                  padding: '7px 8px',
                   borderRadius: '6px',
                   border: 'none',
                   background: isAssigned ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
@@ -168,24 +225,139 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
                   fontSize: '0.78rem',
                   fontWeight: isAssigned ? '700' : '500',
                   cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background 0.12s'
+                  textAlign: 'left'
                 }}
                 onMouseEnter={(e) => {
-                  if (!isAssigned) e.currentTarget.style.background = 'rgba(0, 0, 0, 0.04)'
+                  if (!isAssigned) e.currentTarget.style.background = '#f8fafc'
                 }}
                 onMouseLeave={(e) => {
                   if (!isAssigned) e.currentTarget.style.background = 'transparent'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                  <User style={{ width: '12px', height: '12px', color: isAssigned ? '#2563eb' : 'var(--text-muted)' }} />
-                  <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{agent}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', minWidth: 0 }}>
+                  <User style={{ width: '12px', height: '12px', color: isAssigned ? '#2563eb' : 'var(--text-muted)', flexShrink: 0 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{agentName}</span>
+                    {agentRole && (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #94a3b8)', lineHeight: 1.1 }}>{agentRole}</span>
+                    )}
+                  </div>
                 </div>
                 {isAssigned && <Check style={{ width: '13px', height: '13px', color: '#2563eb', flexShrink: 0 }} />}
               </button>
             )
           })}
+
+          {/* Quick Custom Name Assign */}
+          <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '4px', paddingTop: '4px' }}>
+            {!showCustomInput ? (
+              <button
+                type="button"
+                onClick={() => setShowCustomInput(true)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#2563eb',
+                  fontSize: '0.74rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(37, 99, 235, 0.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <Plus style={{ width: '12px', height: '12px' }} />
+                <span>Enter custom agent name</span>
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: '4px', padding: '4px 2px' }}>
+                <input
+                  type="text"
+                  autoFocus
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customName.trim()) {
+                      e.preventDefault()
+                      onAssign(ticket._id, customName.trim())
+                      setIsOpen(false)
+                    }
+                  }}
+                  placeholder="Agent name..."
+                  style={{
+                    flex: 1,
+                    padding: '5px 8px',
+                    fontSize: '0.74rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '5px',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!customName.trim()}
+                  onClick={() => {
+                    if (customName.trim()) {
+                      onAssign(ticket._id, customName.trim())
+                      setIsOpen(false)
+                    }
+                  }}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: '700',
+                    background: '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: customName.trim() ? 'pointer' : 'not-allowed',
+                    opacity: customName.trim() ? 1 : 0.5
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            )}
+
+            {/* Manage Support Team Link */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false)
+                navigate(ROUTES.SUPER_ADMIN.USERS)
+              }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-muted, #64748b)',
+                fontSize: '0.72rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                textAlign: 'left',
+                marginTop: '2px'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Users style={{ width: '12px', height: '12px' }} />
+                <span>Manage Support Team</span>
+              </div>
+              <ExternalLink style={{ width: '11px', height: '11px' }} />
+            </button>
+          </div>
         </div>,
         document.body
       )}
@@ -194,18 +366,19 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
 }
 
 export default function TicketsPage() {
+  const { user } = useAuth()
   const [tickets, setTickets] = useState([])
   const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
   const { showToast } = useNotification()
-  const { user, hasPermission, isSuperOwner } = useAuth()
+  const { hasPermission, isSuperOwner } = useAuth()
 
   const canAdd = isSuperOwner || hasPermission('tickets', 'add')
   const canEdit = isSuperOwner || hasPermission('tickets', 'edit')
   const canDelete = isSuperOwner || hasPermission('tickets', 'delete')
   const canView = isSuperOwner || hasPermission('tickets', 'view')
 
-  // Filters & Search
+  // Search & Filter
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
@@ -217,6 +390,46 @@ export default function TicketsPage() {
   const [resolveStatus, setResolveStatus] = useState('In Progress')
   const [resolveReply, setResolveReply] = useState('')
   const [isSubmittingResolve, setIsSubmittingResolve] = useState(false)
+  const [supportStaff, setSupportStaff] = useState([])
+
+  // Fetch real support staff/managers from user management API
+  const fetchSupportStaff = async () => {
+    try {
+      const res = await getManagers(0, 100)
+      const rawList = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
+      const activeList = rawList.filter(m => m.status !== 'Inactive' && m.status !== 'Deactivated')
+      
+      const mapped = activeList.map(m => ({
+        id: m._id || m.id,
+        name: m.name || m.userName || 'Team Member',
+        role: m.roleName || m.role || 'Support Staff',
+        email: m.email || ''
+      }))
+
+      // Include current logged-in super admin if not in list
+      if (user?.name && !mapped.some(s => s.name.toLowerCase() === user.name.toLowerCase())) {
+        mapped.unshift({
+          id: user._id || 'super-admin',
+          name: user.name,
+          role: 'Super Admin',
+          email: user.email || ''
+        })
+      }
+
+      setSupportStaff(mapped.length > 0 ? mapped : (user?.name ? [
+        { id: user._id || 'super-admin', name: user.name, role: 'Super Admin' }
+      ] : []))
+    } catch (err) {
+      console.error('Failed to fetch managers for ticket assignment:', err)
+      setSupportStaff(user?.name ? [
+        { id: user._id || 'super-admin', name: user.name, role: 'Super Admin' }
+      ] : [])
+    }
+  }
+
+  useEffect(() => {
+    fetchSupportStaff()
+  }, [])
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
@@ -232,7 +445,6 @@ export default function TicketsPage() {
   const categories = ['QR Scanning', 'Billing', 'KDS Lag', 'Menu', 'Other']
   const priorities = ['Low', 'Medium', 'High']
   const statuses = ['Open', 'In Progress', 'Resolved']
-  const supportStaff = ['Admin User', 'Jane Doe (Support)', 'John Smith (Dev)', 'Platform Super']
 
   const [currentPage, setCurrentPage] = useState(0)
   const [entriesPerPage, setEntriesPerPage] = useState(10)

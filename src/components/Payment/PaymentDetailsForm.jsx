@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, Loader2 } from 'lucide-react';
-import { uploadImage } from '../../services/api';
+import { UploadCloud, Loader2, X } from 'lucide-react';
+import { uploadImage, deleteUploadedFile } from '../../services/api';
 import CustomSelect from '../common/CustomSelect';
 
 export default function PaymentDetailsForm({ formState, setFormState, formErrors }) {
@@ -121,29 +121,63 @@ export default function PaymentDetailsForm({ formState, setFormState, formErrors
               disabled={formState.paymentMethod === 'Complimentary' || isUploading}
               style={{ display: 'none' }}
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="btn-outline"
-              style={{
-                padding: '6px 12px',
-                fontSize: '0.75rem',
-                borderRadius: '6px',
-                cursor: (formState.paymentMethod === 'Complimentary' || isUploading) ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />
-                  Uploading...
-                </>
-              ) : (
-                'Browse'
-              )}
-            </button>
+            {formState.paymentProof ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  const oldPath = formState.paymentProof;
+                  setFormState({ ...formState, paymentProof: '', paymentProofName: '' });
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                  if (oldPath) {
+                    try {
+                      await deleteUploadedFile(oldPath);
+                    } catch (e) {
+                      console.warn('Failed to delete payment proof on server', e);
+                    }
+                  }
+                }}
+                className="btn-outline"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                  color: '#ef4444',
+                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                  background: 'rgba(239, 68, 68, 0.06)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <X style={{ width: '14px', height: '14px' }} />
+                Remove
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="btn-outline"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '0.75rem',
+                  borderRadius: '6px',
+                  cursor: (formState.paymentMethod === 'Complimentary' || isUploading) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />
+                    Uploading...
+                  </>
+                ) : (
+                  'Browse'
+                )}
+              </button>
+            )}
           </div>
           {uploadError && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600', marginTop: '4px' }}>{uploadError}</span>}
         </div>
