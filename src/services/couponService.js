@@ -1,7 +1,7 @@
 import api from "./api";
 
 export const getCouponsApi = async (pageIndex = 0, limit = 10, search = "") => {
-  const response = await api.get(`/coupons?pageIndex=${pageIndex}&limit=${limit}&search=${encodeURIComponent(search)}`);
+  const response = await api.get(`/coupons?page=${pageIndex}&pageIndex=${pageIndex}&limit=${limit}&search=${encodeURIComponent(search)}`);
   return response.data;
 };
 

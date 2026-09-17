@@ -27,7 +27,7 @@ import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
-import { getTickets, createTicket, updateTicketStatus, assignTicket, replyToTicket } from '../../services/ticketService'
+import { getTickets, createTicket, updateTicketStatus, assignTicket, replyToTicket, updateTicket } from '../../services/ticketService'
 import { getManagers } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { ROUTES } from '../../constants/routes'
@@ -107,7 +107,10 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
   }, [isOpen, supportStaff])
 
   const isResolved = ticket.status === 'Resolved'
-  const currentAssigned = ticket.assignedUser || ticket.assignedTo || ''
+  const rawAssigned = ticket.assignedUser || ticket.assignedTo || ''
+  const currentAssigned = typeof rawAssigned === 'object' && rawAssigned !== null
+    ? (rawAssigned.name || rawAssigned.userName || '')
+    : (typeof rawAssigned === 'string' ? rawAssigned : String(rawAssigned || ''))
   const isCurrentlyUnassigned = !currentAssigned || currentAssigned.toLowerCase() === 'unassigned'
 
   return (
@@ -200,13 +203,16 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
 
           {/* Staff List */}
           {supportStaff.map((staffItem) => {
-            const agentName = typeof staffItem === 'string' ? staffItem : staffItem.name
-            const agentRole = typeof staffItem === 'object' ? staffItem.role : ''
-            const isAssigned = currentAssigned.toLowerCase() === agentName.toLowerCase()
+            const agentName = typeof staffItem === 'string' ? staffItem : (staffItem?.name || '')
+            const rawRole = typeof staffItem === 'object' && staffItem !== null ? staffItem.role : ''
+            const agentRole = typeof rawRole === 'object' && rawRole !== null
+              ? (rawRole.roleName || rawRole.name || '')
+              : (typeof rawRole === 'string' ? rawRole : '')
+            const isAssigned = typeof currentAssigned === 'string' && typeof agentName === 'string' && currentAssigned.toLowerCase() === agentName.toLowerCase()
 
             return (
               <button
-                key={agentName}
+                key={staffItem?.id || agentName}
                 type="button"
                 onClick={() => {
                   onAssign(ticket._id, agentName)
@@ -238,9 +244,9 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
                   <User style={{ width: '12px', height: '12px', color: isAssigned ? '#2563eb' : 'var(--text-muted)', flexShrink: 0 }} />
                   <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{agentName}</span>
-                    {agentRole && (
+                    {agentRole ? (
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-muted, #94a3b8)', lineHeight: 1.1 }}>{agentRole}</span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 {isAssigned && <Check style={{ width: '13px', height: '13px', color: '#2563eb', flexShrink: 0 }} />}
@@ -396,18 +402,31 @@ export default function TicketsPage() {
   const fetchSupportStaff = async () => {
     try {
       const res = await getManagers(0, 100)
-      const rawList = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
+      const rawList = Array.isArray(res?.data?.results)
+        ? res.data.results
+        : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []))
       const activeList = rawList.filter(m => m.status !== 'Inactive' && m.status !== 'Deactivated')
       
-      const mapped = activeList.map(m => ({
-        id: m._id || m.id,
-        name: m.name || m.userName || 'Team Member',
-        role: m.roleName || m.role || 'Support Staff',
-        email: m.email || ''
-      }))
+      const mapped = activeList.map(m => {
+        let roleTitle = 'Support Staff'
+        if (typeof m.roleName === 'string' && m.roleName) {
+          roleTitle = m.roleName
+        } else if (typeof m.role === 'object' && m.role !== null) {
+          roleTitle = m.role.roleName || m.role.name || 'Support Staff'
+        } else if (typeof m.role === 'string' && m.role) {
+          roleTitle = m.role
+        }
+
+        return {
+          id: m._id || m.id,
+          name: m.name || m.userName || 'Team Member',
+          role: roleTitle,
+          email: m.email || ''
+        }
+      })
 
       // Include current logged-in super admin if not in list
-      if (user?.name && !mapped.some(s => s.name.toLowerCase() === user.name.toLowerCase())) {
+      if (user?.name && !mapped.some(s => s.name?.toLowerCase() === user.name?.toLowerCase())) {
         mapped.unshift({
           id: user._id || 'super-admin',
           name: user.name,
@@ -497,7 +516,7 @@ export default function TicketsPage() {
   const handleOpenResolveModal = (ticket) => {
     const norm = normalizeTicketStatus(ticket.status)
     setResolveTicketData({ ...ticket, status: norm })
-    setResolveStatus(norm === 'Resolved' ? 'Resolved' : 'In Progress')
+    setResolveStatus('Resolved')
     setResolveReply('')
   }
 
@@ -529,23 +548,26 @@ export default function TicketsPage() {
 
       const fullPayload = {
         status: resolveStatus,
+        ticketStatus: resolveStatus,
+        resolutionMessage: trimmedReply || (resolveStatus === 'Resolved' ? 'Issue marked as resolved by Super Admin' : ''),
+        resolutionNote: trimmedReply || (resolveStatus === 'Resolved' ? 'Issue marked as resolved by Super Admin' : ''),
+        adminResponse: trimmedReply,
+        superAdminResponse: trimmedReply,
+        isResolved: resolveStatus === 'Resolved',
+        resolvedAt: resolveStatus === 'Resolved' ? new Date().toISOString() : null,
+        responses: updatedResponses,
+        replies: updatedResponses,
+        sender: user?.name || 'Super Admin',
+        senderName: user?.name || 'Super Admin',
+        senderRole: 'super_admin',
+        role: 'super_admin',
         ...(trimmedReply ? {
           reply: trimmedReply,
           message: trimmedReply,
           response: trimmedReply,
           text: trimmedReply,
           comment: trimmedReply,
-          resolution: trimmedReply,
-          resolutionMessage: trimmedReply,
-          resolutionNote: trimmedReply,
-          adminResponse: trimmedReply,
-          superAdminResponse: trimmedReply,
-          responses: updatedResponses,
-          replies: updatedResponses,
-          sender: user?.name || 'Super Admin',
-          senderName: user?.name || 'Super Admin',
-          senderRole: 'super_admin',
-          role: 'super_admin'
+          resolution: trimmedReply
         } : {})
       }
 
@@ -572,10 +594,10 @@ export default function TicketsPage() {
         // ignore
       }
 
-      showToast('success', `Ticket ${resolveTicketData.ticketNumber} updated successfully!`)
+      showToast('success', `Ticket ${resolveTicketData.ticketNumber} marked as ${resolveStatus.toUpperCase()} successfully!`)
       setResolveTicketData(null)
       setResolveReply('')
-      fetchTickets()
+      await fetchTickets()
     } catch (err) {
       console.error(err)
       showToast('error', err.response?.data?.message || 'Failed to update ticket')
@@ -618,9 +640,19 @@ export default function TicketsPage() {
   }
 
 
+  const getAssignedDisplayName = (t) => {
+    const raw = t?.assignedUser || t?.assignedTo
+    if (!raw) return 'Unassigned'
+    if (typeof raw === 'object' && raw !== null) {
+      return raw.name || raw.userName || raw.roleName || 'Unassigned'
+    }
+    if (typeof raw === 'string') return raw.trim() || 'Unassigned'
+    return String(raw)
+  }
+
   const isTicketUnassigned = (t) => {
-    const u = t?.assignedUser || t?.assignedTo
-    return !u || u.trim() === '' || u.toLowerCase() === 'unassigned' || u === 'null' || u === 'undefined'
+    const displayName = getAssignedDisplayName(t)
+    return !displayName || displayName.toLowerCase() === 'unassigned' || displayName === 'null' || displayName === 'undefined'
   }
 
   const paginatedTickets = tickets.filter(t => t.status !== 'Closed')
@@ -799,7 +831,7 @@ export default function TicketsPage() {
                   </div>
                   <div>
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Assigned Support Agent</span>
-                    <strong style={{ fontSize: '0.88rem', color: 'var(--text-main)' }}>{resolveTicketData.assignedUser || 'Unassigned'}</strong>
+                    <strong style={{ fontSize: '0.88rem', color: 'var(--text-main)' }}>{getAssignedDisplayName(resolveTicketData)}</strong>
                   </div>
                   <div>
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Ticket #</span>
@@ -1127,7 +1159,7 @@ export default function TicketsPage() {
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', verticalAlign: 'middle' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <User style={{ width: '12px', height: '12px', color: 'var(--text-muted)' }} />
-                              <span>{isUnassigned ? 'Unassigned' : ticket.assignedUser}</span>
+                              <span>{getAssignedDisplayName(ticket)}</span>
                             </div>
                           </td>
                           <td style={{ padding: '14px 18px', verticalAlign: 'middle', textAlign: 'center' }}>
@@ -1298,7 +1330,7 @@ export default function TicketsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Assigned Support Agent</span>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.assignedUser || 'Unassigned'}</span>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{getAssignedDisplayName(selectedTicket)}</span>
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Priority Urgency</span>

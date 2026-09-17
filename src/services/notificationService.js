@@ -56,16 +56,15 @@ export const markAllNotificationsAsRead = async (unreadIds = []) => {
 };
 
 /**
- * Fetch system/broadcast notifications for the Notifications Management table.
- * Endpoint: GET /api/super-admin/notifications/system
+ * Fetch notifications for the Notifications Management table.
+ * Endpoint: GET /api/super-admin/notifications
  */
 export const getSystemNotifications = async (params = {}) => {
   try {
-    const response = await api.get("/notifications/system", { params });
+    const response = await api.get("/notifications", { params });
     return response.data;
   } catch (err) {
-    // Fallback to /notifications if system endpoint fails
-    const response = await api.get("/notifications", { params });
+    const response = await api.get("/notifications/system", { params });
     return response.data;
   }
 };
@@ -81,65 +80,36 @@ export const getNotifications = async (params) => {
 };
 
 export const createNotification = async (data) => {
-  try {
-    const response = await api.post("/notifications/system", data);
-    return response.data;
-  } catch (err) {
-    const response = await api.post("/notifications", data);
-    return response.data;
-  }
+  const response = await api.post("/notifications", data);
+  return response.data;
 };
 
 export const cancelNotification = async (id) => {
-  const endpoints = [`/notifications/system/${id}/cancel`, `/notifications/${id}/cancel`];
-  for (const ep of endpoints) {
-    try {
-      const response = await api.post(ep);
-      if (response && response.data) return response.data;
-    } catch (err) {
-      // try next
-    }
-  }
+  const response = await api.post(`/notifications/${id}/cancel`);
+  return response.data;
 };
 
 export const sendDraftNotification = async (id) => {
-  const endpoints = [`/notifications/system/${id}/send`, `/notifications/${id}/send`];
-  for (const ep of endpoints) {
-    try {
-      const response = await api.post(ep);
-      if (response && response.data) return response.data;
-    } catch (err) {
-      // try next
-    }
-  }
+  const response = await api.post(`/notifications/${id}/send`);
+  return response.data;
 };
 
 export const updateNotification = async (id, data) => {
-  const endpoints = [`/notifications/system/${id}`, `/notifications/${id}`];
   const methods = ["put", "patch", "post"];
   let lastErr = null;
-  for (const ep of endpoints) {
-    for (const method of methods) {
-      try {
-        const response = await api[method](ep, data);
-        if (response && response.data) return response.data;
-      } catch (err) {
-        lastErr = err;
-      }
+  for (const method of methods) {
+    try {
+      const response = await api[method](`/notifications/${id}`, data);
+      if (response && response.data) return response.data;
+    } catch (err) {
+      lastErr = err;
     }
   }
   if (lastErr) throw lastErr;
 };
 
 export const deleteNotification = async (id) => {
-  const endpoints = [`/notifications/system/${id}`, `/notifications/${id}`];
-  for (const ep of endpoints) {
-    try {
-      const response = await api.delete(ep);
-      if (response && response.data) return response.data;
-    } catch (err) {
-      // try next
-    }
-  }
+  const response = await api.delete(`/notifications/${id}`);
+  return response.data;
 };
 

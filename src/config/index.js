@@ -20,9 +20,9 @@ switch (APP_ENV) {
 
   case "local":
   default:
-    IMAGE_BASE_URL = "http://192.168.88.19:5000/public";
-    BASE_URL = "http://192.168.88.19:5000/api/super-admin";
-    server = "http://192.168.88.19:5000";
+    IMAGE_BASE_URL = "http://192.168.88.14:5000/public";
+    BASE_URL = "http://192.168.88.14:5000/api/super-admin";
+    server = "http://192.168.88.14:5000";
     break;
 }
 
@@ -38,11 +38,8 @@ apiClient.interceptors.request.use(
   function (config) {
     const token =
       sessionStorage.getItem("superadmin_token") ||
-      localStorage.getItem("superadmin_token") ||
       sessionStorage.getItem("userToken") ||
-      localStorage.getItem("userToken") ||
-      sessionStorage.getItem("token") ||
-      localStorage.getItem("token");
+      sessionStorage.getItem("token");
 
     if (token && token !== "null" && token !== "undefined") {
       config.headers["Authorization"] = `Bearer ${token}`;
@@ -97,7 +94,6 @@ apiClient.interceptors.response.use(
       sessionStorage.removeItem("superadmin_token");
       sessionStorage.removeItem("superadmin_user");
       sessionStorage.removeItem("superadmin_roleName");
-      localStorage.removeItem("superadmin_token");
       window.location.href = "/login";
     }
     return Promise.reject(error);

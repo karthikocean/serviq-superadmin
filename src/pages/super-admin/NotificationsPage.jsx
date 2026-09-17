@@ -98,17 +98,39 @@ export default function NotificationsPage() {
     const isDraft = n.status === 'Draft' || Boolean(n.isDraft)
     setDeliveryOption(isSched ? 'schedule' : isDraft ? 'draft' : 'broadcast')
 
-    // Parse targetPlan
+    // Parse targetPlan to pure IDs
     let parsedPlans = []
-    if (Array.isArray(n.targetPlan)) parsedPlans = n.targetPlan
-    else if (Array.isArray(n.targetPlans)) parsedPlans = n.targetPlans
-    else if (n.targetPlan) parsedPlans = [n.targetPlan]
-
-    // Parse targetRestaurants
-    let parsedRestaurants = []
-    if (Array.isArray(n.targetRestaurants)) {
-      parsedRestaurants = n.targetRestaurants.map(r => (typeof r === 'object' && r !== null ? (r._id || r.id) : r))
+    const rawPlans = n.targetPlans || n.targetPlan || n.plans || []
+    if (Array.isArray(rawPlans)) {
+      parsedPlans = rawPlans.map(p => (typeof p === 'object' && p !== null ? (p._id || p.id || p.value) : p)).filter(Boolean)
+    } else if (typeof rawPlans === 'object' && rawPlans !== null) {
+      parsedPlans = [rawPlans._id || rawPlans.id || rawPlans.value].filter(Boolean)
+    } else if (rawPlans) {
+      parsedPlans = [rawPlans]
     }
+
+    // Parse targetRestaurants to pure IDs
+    let parsedRestaurants = []
+    const rawRestaurants = n.targetRestaurants || n.targetRestaurant || n.restaurants || []
+    if (Array.isArray(rawRestaurants)) {
+      parsedRestaurants = rawRestaurants.map(r => (typeof r === 'object' && r !== null ? (r._id || r.id || r.value) : r)).filter(Boolean)
+    } else if (typeof rawRestaurants === 'object' && rawRestaurants !== null) {
+      parsedRestaurants = [rawRestaurants._id || rawRestaurants.id || rawRestaurants.value].filter(Boolean)
+    } else if (rawRestaurants) {
+      parsedRestaurants = [rawRestaurants]
+    }
+
+    let dateVal = ''
+    let timeVal = ''
+    const schedRaw = n.scheduledDate || n.scheduledFor || n.scheduledAt || n.sendAt
+    if (schedRaw) {
+      const s = String(schedRaw)
+      dateVal = s.includes('T') ? s.split('T')[0] : s
+      if (s.includes('T') && s.split('T')[1]) {
+        timeVal = s.split('T')[1].substring(0, 5)
+      }
+    }
+    if (n.scheduledTime) timeVal = n.scheduledTime
 
     setNewNtf({
       subject: n.subject || n.title || '',
@@ -118,8 +140,8 @@ export default function NotificationsPage() {
       targetRestaurants: parsedRestaurants,
       body: n.body || n.message || n.content || '',
       isScheduled: isSched,
-      scheduledDate: n.scheduledDate ? String(n.scheduledDate).split('T')[0] : '',
-      scheduledTime: n.scheduledTime || (n.scheduledDate && String(n.scheduledDate).includes('T') ? String(n.scheduledDate).split('T')[1]?.substring(0, 5) : '')
+      scheduledDate: dateVal,
+      scheduledTime: timeVal
     })
     setShowCreateModal(true)
   }
@@ -204,26 +226,45 @@ export default function NotificationsPage() {
 
     try {
       const isSched = deliveryOption === 'schedule'
+      
+      const cleanPlanIds = (Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : []))
+        .map(p => (typeof p === 'object' && p !== null ? (p._id || p.id || p.value) : p))
+        .filter(Boolean)
+
+      const cleanRestaurantIds = (Array.isArray(newNtf.targetRestaurants) ? newNtf.targetRestaurants : [])
+        .map(r => (typeof r === 'object' && r !== null ? (r._id || r.id || r.value) : r))
+        .filter(Boolean)
+
+      let combinedIsoDate = null
+      if (isSched && newNtf.scheduledDate) {
+        const timeStr = newNtf.scheduledTime ? (newNtf.scheduledTime.length === 5 ? `${newNtf.scheduledTime}:00` : newNtf.scheduledTime) : '00:00:00'
+        const d = new Date(`${newNtf.scheduledDate}T${timeStr}`)
+        combinedIsoDate = !isNaN(d.getTime()) ? d.toISOString() : newNtf.scheduledDate
+      }
+
       const payload = {
-        ...newNtf,
+        subject: newNtf.subject.trim(),
+        type: newNtf.type || 'Subscription Expiry',
+        targetType: newNtf.targetType || 'ALL',
+        targetPlan: newNtf.targetType === 'PLAN' ? (cleanPlanIds.length === 1 ? cleanPlanIds[0] : (cleanPlanIds.length > 0 ? cleanPlanIds : null)) : null,
+        targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
+        body: newNtf.body.trim(),
         isScheduled: isSched,
-        isDraft: false,
-        status: isSched ? 'Scheduled' : 'Sent',
-        sendImmediately: !isSched,
-        sendNow: !isSched,
-        broadcast: !isSched,
-        message: newNtf.body,
-        body: newNtf.body,
-        title: newNtf.subject,
-        subject: newNtf.subject,
-        targetPlan: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) && newNtf.targetPlan.length === 1 ? newNtf.targetPlan[0] : newNtf.targetPlan) : null,
-        targetPlans: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : [])) : [],
-        targetRestaurants: newNtf.targetType === 'RESTAURANT' ? newNtf.targetRestaurants : []
+        scheduledDate: isSched ? (combinedIsoDate || newNtf.scheduledDate || '') : '',
+        scheduledTime: isSched ? (newNtf.scheduledTime || '') : '',
+        status: isSched ? 'Scheduled' : 'Sent'
       }
 
       if (editingNtfId) {
         await updateNotification(editingNtfId, payload)
-        showToast('success', isSched ? 'Notification updated & scheduled!' : 'Notification updated successfully!')
+        if (!isSched) {
+          try {
+            await sendDraftNotification(editingNtfId)
+          } catch (sendErr) {
+            console.log('Broadcast send fallback result:', sendErr)
+          }
+        }
+        showToast('success', isSched ? 'Notification updated & scheduled!' : 'Notification updated and broadcast successfully!')
       } else {
         const res = await createNotification(payload)
         const createdId = res?.data?._id || res?.data?.id || res?._id || res?.id
@@ -252,9 +293,9 @@ export default function NotificationsPage() {
       })
       setDeliveryOption('broadcast')
       setErrors({})
-      fetchNotifications()
+      await fetchNotifications()
     } catch (error) {
-      showToast('error', error.response?.data?.message || 'Failed to save notification')
+      showToast('error', error.response?.data?.message || error.message || 'Failed to save notification')
     }
   }
 
@@ -269,17 +310,25 @@ export default function NotificationsPage() {
     }
 
     try {
+      const cleanPlanIds = (Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : []))
+        .map(p => (typeof p === 'object' && p !== null ? (p._id || p.id || p.value) : p))
+        .filter(Boolean)
+
+      const cleanRestaurantIds = (Array.isArray(newNtf.targetRestaurants) ? newNtf.targetRestaurants : [])
+        .map(r => (typeof r === 'object' && r !== null ? (r._id || r.id || r.value) : r))
+        .filter(Boolean)
+
       const payload = {
-        ...newNtf,
-        status: 'Draft',
+        subject: newNtf.subject.trim(),
+        type: newNtf.type || 'Subscription Expiry',
+        targetType: newNtf.targetType || 'ALL',
+        targetPlan: newNtf.targetType === 'PLAN' ? (cleanPlanIds.length === 1 ? cleanPlanIds[0] : (cleanPlanIds.length > 0 ? cleanPlanIds : null)) : null,
+        targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
+        body: newNtf.body.trim(),
         isScheduled: false,
-        message: newNtf.body,
-        body: newNtf.body,
-        title: newNtf.subject,
-        subject: newNtf.subject,
-        targetPlan: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) && newNtf.targetPlan.length === 1 ? newNtf.targetPlan[0] : newNtf.targetPlan) : null,
-        targetPlans: newNtf.targetType === 'PLAN' ? (Array.isArray(newNtf.targetPlan) ? newNtf.targetPlan : (newNtf.targetPlan ? [newNtf.targetPlan] : [])) : [],
-        targetRestaurants: newNtf.targetType === 'RESTAURANT' ? newNtf.targetRestaurants : []
+        scheduledDate: '',
+        scheduledTime: '',
+        status: 'Draft'
       }
 
       if (editingNtfId) {
@@ -303,10 +352,11 @@ export default function NotificationsPage() {
         scheduledDate: '',
         scheduledTime: ''
       })
+      setDeliveryOption('broadcast')
       setErrors({})
-      fetchNotifications()
+      await fetchNotifications()
     } catch (error) {
-      showToast('error', error.response?.data?.message || 'Failed to save draft notification')
+      showToast('error', error.response?.data?.message || error.message || 'Failed to save draft notification')
     }
   }
 
@@ -655,7 +705,7 @@ export default function NotificationsPage() {
             msOverflowStyle: 'none'
           }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 16px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexShrink: 0 }}>
-              Compose Broadcast Notification
+              {editingNtfId ? 'Edit Broadcast Notification' : 'Compose Broadcast Notification'}
             </h3>
 
             <form onSubmit={handleCreateSubmit} className="invisible-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px', flex: 1, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

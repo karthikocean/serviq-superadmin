@@ -99,13 +99,7 @@ export default function ReportsPage() {
     status: s.status || 'Active',
     startDate: s.startDate || '—',
     expiryDate: s.renewalDate || s.endDate || '—'
-  })) : [
-    { id: 'SUB-001', name: 'Spice Garden Bistro', plan: 'Premium Plan', status: 'Active', startDate: '2026-01-15', expiryDate: '2026-07-15' },
-    { id: 'SUB-002', name: 'Urban Tiffin House', plan: 'Standard Plan', status: 'Active', startDate: '2026-02-10', expiryDate: '2026-08-10' },
-    { id: 'SUB-003', name: 'Blue Plate Cafe', plan: 'Premium Plan', status: 'Active', startDate: '2025-12-05', expiryDate: '2026-12-05' },
-    { id: 'SUB-004', name: 'Noodle Express', plan: 'Basic Plan', status: 'Active', startDate: '2025-05-10', expiryDate: '2026-05-10' },
-    { id: 'SUB-005', name: 'The Burger Joint', plan: 'Basic Plan', status: 'Active', startDate: '2025-06-01', expiryDate: '2026-06-01' }
-  ]
+  })) : []
 
   // Filter subscriptions
   const filteredSubs = subscriptionsList.filter(s => {

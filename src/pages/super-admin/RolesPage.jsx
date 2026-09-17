@@ -16,140 +16,7 @@ export default function RolesPage() {
   const canDelete = isSuperOwner || hasPermission('roles', 'delete')
 
   const [confirmModal, setConfirmModal] = useState(null)
-  const [systemRoles, setSystemRoles] = useState([
-    {
-      id: 'role-1',
-      name: 'Super Admin',
-      status: 'Active',
-      desc: 'Complete control over all restaurants and billing.',
-      perms: {
-        dashboard: { view: true, add: true, edit: true, delete: true },
-        coupons: { view: true, add: true, edit: true, delete: true },
-        restaurants: { view: true, add: true, edit: true, delete: true },
-        plans: { view: true, add: true, edit: true, delete: true },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
-        billing: { view: true, add: true, edit: true, delete: true },
-        leads: { view: true, add: true, edit: true, delete: true },
-        tickets: { view: true, add: true, edit: true, delete: true },
-        notifications: { view: true, add: true, edit: true, delete: true },
-        reports: { view: true, add: true, edit: true, delete: true },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
-        roles: { view: true, add: true, edit: true, delete: true },
-        settings: { view: true, add: true, edit: true, delete: true },
-        profile: { view: true, add: true, edit: true, delete: true }
-      }
-    },
-    {
-      id: 'role-2',
-      name: 'Branch Admin',
-      status: 'Active',
-      desc: 'Manage specific restaurant branch settings and staff.',
-      perms: {
-        dashboard: { view: true, add: true, edit: true, delete: true },
-        coupons: { view: true, add: true, edit: true, delete: true },
-        restaurants: { view: true, add: true, edit: true, delete: true },
-        plans: { view: true, add: true, edit: true, delete: true },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
-        billing: { view: true, add: true, edit: true, delete: true },
-        leads: { view: true, add: true, edit: true, delete: true },
-        tickets: { view: true, add: true, edit: true, delete: true },
-        notifications: { view: true, add: true, edit: true, delete: true },
-        reports: { view: true, add: true, edit: true, delete: true },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
-        roles: { view: true, add: true, edit: true, delete: true },
-        settings: { view: true, add: true, edit: true, delete: true },
-        profile: { view: true, add: true, edit: true, delete: true }
-      }
-    },
-    {
-      id: 'role-3',
-      name: 'Branch Manager',
-      status: 'Active',
-      desc: 'Oversees day-to-day operations and staff.',
-      perms: {
-        dashboard: { view: false, add: false, edit: false, delete: false },
-        coupons: { view: true, add: true, edit: true, delete: true },
-        restaurants: { view: false, add: false, edit: false, delete: false },
-        plans: { view: false, add: false, edit: false, delete: false },
-        subscriptions: { view: true, add: true, edit: true, delete: true },
-        billing: { view: true, add: true, edit: true, delete: true },
-        leads: { view: true, add: true, edit: true, delete: true },
-        tickets: { view: true, add: true, edit: true, delete: true },
-        notifications: { view: true, add: true, edit: true, delete: true },
-        reports: { view: true, add: true, edit: true, delete: true },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
-        roles: { view: true, add: true, edit: true, delete: true },
-        settings: { view: false, add: false, edit: false, delete: false },
-        profile: { view: true, add: true, edit: true, delete: true }
-      }
-    },
-    {
-      id: 'role-4',
-      name: 'Cashier',
-      status: 'Active',
-      desc: 'Handles billing and payment collections.',
-      perms: {
-        dashboard: { view: true, add: true, edit: true, delete: true },
-        coupons: { view: false, add: false, edit: false, delete: false },
-        restaurants: { view: false, add: false, edit: false, delete: false },
-        plans: { view: false, add: false, edit: false, delete: false },
-        subscriptions: { view: false, add: false, edit: false, delete: false },
-        billing: { view: false, add: false, edit: false, delete: false },
-        leads: { view: false, add: false, edit: false, delete: false },
-        tickets: { view: false, add: false, edit: false, delete: false },
-        notifications: { view: false, add: false, edit: false, delete: false },
-        reports: { view: false, add: false, edit: false, delete: false },
-        adminUsers: { view: false, add: false, edit: false, delete: false },
-        roles: { view: false, add: false, edit: false, delete: false },
-        settings: { view: false, add: false, edit: false, delete: false },
-        profile: { view: true, add: true, edit: true, delete: true }
-      }
-    },
-    {
-      id: 'role-5',
-      name: 'Waiter',
-      status: 'Active',
-      desc: 'Takes orders and serves tables.',
-      perms: {
-        dashboard: { view: false, add: false, edit: false, delete: false },
-        coupons: { view: false, add: false, edit: false, delete: false },
-        restaurants: { view: false, add: false, edit: false, delete: false },
-        plans: { view: false, add: false, edit: false, delete: false },
-        subscriptions: { view: false, add: false, edit: false, delete: false },
-        billing: { view: false, add: false, edit: false, delete: false },
-        leads: { view: false, add: false, edit: false, delete: false },
-        tickets: { view: false, add: false, edit: false, delete: false },
-        notifications: { view: false, add: false, edit: false, delete: false },
-        reports: { view: false, add: false, edit: false, delete: false },
-        adminUsers: { view: true, add: true, edit: true, delete: true },
-        roles: { view: false, add: false, edit: false, delete: false },
-        settings: { view: false, add: false, edit: false, delete: false },
-        profile: { view: true, add: true, edit: true, delete: true }
-      }
-    },
-    {
-      id: 'role-6',
-      name: 'Kitchen Staff',
-      status: 'Active',
-      desc: 'Prepares food and updates order status.',
-      perms: {
-        dashboard: { view: false, add: false, edit: false, delete: false },
-        coupons: { view: false, add: false, edit: false, delete: false },
-        restaurants: { view: false, add: false, edit: false, delete: false },
-        plans: { view: false, add: false, edit: false, delete: false },
-        subscriptions: { view: false, add: false, edit: false, delete: false },
-        billing: { view: false, add: false, edit: false, delete: false },
-        leads: { view: false, add: false, edit: false, delete: false },
-        tickets: { view: false, add: false, edit: false, delete: false },
-        notifications: { view: false, add: false, edit: false, delete: false },
-        reports: { view: false, add: false, edit: false, delete: false },
-        adminUsers: { view: false, add: false, edit: false, delete: false },
-        roles: { view: false, add: false, edit: false, delete: false },
-        settings: { view: false, add: false, edit: false, delete: false },
-        profile: { view: true, add: true, edit: true, delete: true }
-      }
-    }
-  ])
+  const [systemRoles, setSystemRoles] = useState([])
 
   const [editingRoleId, setEditingRoleId] = useState(null)
 
@@ -196,24 +63,11 @@ export default function RolesPage() {
         name: r.roleName || r.name,
         slug: r.slug,
         status: r.isActive === false ? 'Disabled' : 'Active',
-        perms: r.permissions || r.perms || {
-          dashboard: { view: true, add: true, edit: true, delete: true },
-          coupons: { view: true, add: true, edit: true, delete: true },
-          restaurants: { view: true, add: true, edit: true, delete: true },
-          plans: { view: true, add: true, edit: true, delete: true },
-          subscriptions: { view: true, add: true, edit: true, delete: true },
-          billing: { view: true, add: true, edit: true, delete: true },
-          leads: { view: true, add: true, edit: true, delete: true },
-          tickets: { view: true, add: true, edit: true, delete: true },
-          notifications: { view: true, add: true, edit: true, delete: true },
-          reports: { view: true, add: true, edit: true, delete: true },
-          adminUsers: { view: true, add: true, edit: true, delete: true },
-          roles: { view: true, add: true, edit: true, delete: true },
-          settings: { view: true, add: true, edit: true, delete: true },
-          profile: { view: true, add: true, edit: true, delete: true }
-        }
+        perms: r.permissions || r.perms || {}
       }))
       setSystemRoles(mapped)
+    } else if (roles) {
+      setSystemRoles([])
     }
   }, [roles])
 
@@ -619,75 +473,83 @@ export default function RolesPage() {
               </tr>
             </thead>
             <tbody>
-              {systemRoles.map((role, index) => (
-                <tr key={role.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '14px 18px', fontWeight: '600', color: 'var(--text-muted)' }}>{index + 1}</td>
-                  <td style={{ padding: '14px 18px', fontWeight: '800', color: 'var(--text-main)' }}>{role.name}</td>
-                  <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
-                    <span style={{
-                      fontSize: '0.7rem',
-                      fontWeight: '800',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      background: (role.status || 'Active') === 'Active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                      color: (role.status || 'Active') === 'Active' ? '#10b981' : '#ef4444',
-                      display: 'inline-block',
-                      border: (role.status || 'Active') === 'Active' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
-                    }}>{role.status || 'Active'}</span>
-                  </td>
-                  <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
-                      {canEdit && (
-                        <button
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '6px',
-                            color: (role.status || 'Active') === 'Active' ? '#10b981' : '#ef4444',
-                            transition: 'opacity 0.2s',
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}
-                          onClick={() => handleToggleRoleStatus(role.id)}
-                          title={(role.status || 'Active') === 'Active' ? "Disable Role" : "Enable Role"}
-                        >
-                          {(role.status || 'Active') === 'Active' ? (
-                            <Unlock style={{ width: '16px', height: '16px' }} />
-                          ) : (
-                            <Lock style={{ width: '16px', height: '16px' }} />
-                          )}
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button
-                          onClick={() => {
-                            setEditingRoleId(role.id)
-                            setRoleFormErrors({})
-                            setRoleFormState(role)
-                          }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                          title="Edit Role"
-                        >
-                          <Edit2 style={{ width: '16px', height: '16px' }} />
-                        </button>
-                      )}
-                      {canDelete && role.id !== 'role-1' && (
-                        <button
-                          onClick={() => handleDeleteRole(role.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#ef4444', transition: 'opacity 0.2s', display: 'flex', alignItems: 'center' }}
-                          title="Delete Role"
-                        >
-                          <Trash2 style={{ width: '16px', height: '16px' }} />
-                        </button>
-                      )}
-                      {!canEdit && !canDelete && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
-                      )}
-                    </div>
+              {systemRoles.length > 0 ? (
+                systemRoles.map((role, index) => (
+                  <tr key={role.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <td style={{ padding: '14px 18px', fontWeight: '600', color: 'var(--text-muted)' }}>{index + 1}</td>
+                    <td style={{ padding: '14px 18px', fontWeight: '800', color: 'var(--text-main)' }}>{role.name}</td>
+                    <td style={{ padding: '14px 18px', whiteSpace: 'nowrap' }}>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: '800',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        background: (role.status || 'Active') === 'Active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: (role.status || 'Active') === 'Active' ? '#10b981' : '#ef4444',
+                        display: 'inline-block',
+                        border: (role.status || 'Active') === 'Active' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
+                      }}>{role.status || 'Active'}</span>
+                    </td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
+                        {canEdit && (
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '6px',
+                              color: (role.status || 'Active') === 'Active' ? '#10b981' : '#ef4444',
+                              transition: 'opacity 0.2s',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            onClick={() => handleToggleRoleStatus(role.id)}
+                            title={(role.status || 'Active') === 'Active' ? "Disable Role" : "Enable Role"}
+                          >
+                            {(role.status || 'Active') === 'Active' ? (
+                              <Unlock style={{ width: '16px', height: '16px' }} />
+                            ) : (
+                              <Lock style={{ width: '16px', height: '16px' }} />
+                            )}
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => {
+                              setEditingRoleId(role.id)
+                              setRoleFormErrors({})
+                              setRoleFormState(role)
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
+                            title="Edit Role"
+                          >
+                            <Edit2 style={{ width: '16px', height: '16px' }} />
+                          </button>
+                        )}
+                        {canDelete && role.id !== 'role-1' && (
+                          <button
+                            onClick={() => handleDeleteRole(role.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: '#ef4444', transition: 'opacity 0.2s', display: 'flex', alignItems: 'center' }}
+                            title="Delete Role"
+                          >
+                            <Trash2 style={{ width: '16px', height: '16px' }} />
+                          </button>
+                        )}
+                        {!canEdit && !canDelete && (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    {loading ? 'Loading roles...' : 'No roles found.'}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

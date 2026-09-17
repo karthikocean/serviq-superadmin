@@ -114,11 +114,11 @@ export default function UsersPage() {
     name: m.name,
     email: m.email,
     phone: m.phoneNumber || '',
-    restaurantName: 'Serviq Grand Bistro',
+    restaurantName: m.restaurantName || m.restaurant?.name || m.restaurant?.restaurantName || 'Super Admin Team',
     role: m.role?.roleName || 'Platform Admin',
     roleId: m.role?._id || m.role || '',
     status: m.isActive ? 'Active' : 'Disabled',
-    lastLogin: 'Never logged in'
+    lastLogin: m.lastLogin ? formatDate(m.lastLogin) : 'Never logged in'
   })
 
   const fetchPlatformAdmins = async () => {

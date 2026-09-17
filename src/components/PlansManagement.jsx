@@ -93,24 +93,13 @@ export default function PlansManagement({ plans, setPlans, showToast }) {
   const canAdd = isSuperOwner || hasPermission('plans', 'add')
   const canEdit = isSuperOwner || hasPermission('plans', 'edit')
 
-  const [editingPlanId, setEditingPlanId] = useState(() => {
-    return sessionStorage.getItem('serviq_editingPlanId') || null
-  })
-
-  useEffect(() => {
-    if (editingPlanId) {
-      sessionStorage.setItem('serviq_editingPlanId', editingPlanId)
-    } else {
-      sessionStorage.removeItem('serviq_editingPlanId')
-    }
-  }, [editingPlanId])
+  const [editingPlanId, setEditingPlanId] = useState(null)
 
   // Listen for sidebar click reset event to open main module list
   useEffect(() => {
     const handleReset = (e) => {
       if (e.detail?.tab === 'plans') {
         setEditingPlanId(null)
-        sessionStorage.removeItem('serviq_editingPlanId')
       }
     }
     window.addEventListener('reset_module_view', handleReset)
