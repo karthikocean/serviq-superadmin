@@ -125,11 +125,7 @@ const ToastItem = ({ toast, config, onRemove }) => {
 
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
-  const [notifications, setNotifications] = useState([
-    'New Order #847 placed on Table 03',
-    'Special Request: allergy notes on Table 01 order',
-    'Table 05 order marked ready by Kitchen'
-  ]);
+  const [notifications, setNotifications] = useState([]);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
     title: '',

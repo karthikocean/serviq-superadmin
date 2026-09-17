@@ -20,7 +20,7 @@ import {
   Upload,
   CreditCard,
 } from 'lucide-react'
-import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage } from '../../services/api'
+import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage, deleteImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { formatDate } from '../../utils/dateFormat'
@@ -278,11 +278,19 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
             <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: '700' }}>Selected</span>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                const oldVal = value
                 setLocalError('')
                 if (setError) setError('')
                 if (fileInputRef.current) fileInputRef.current.value = ''
                 onClear()
+                if (oldVal && !oldVal.startsWith('data:') && !oldVal.startsWith('blob:')) {
+                  try {
+                    await deleteImage(oldVal)
+                  } catch (delErr) {
+                    console.warn('Failed to delete image from server:', delErr)
+                  }
+                }
               }}
               style={{
                 display: 'inline-flex',

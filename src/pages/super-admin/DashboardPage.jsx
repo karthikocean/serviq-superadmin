@@ -94,7 +94,7 @@ export default function DashboardPage() {
   const tables = []
   const menuItems = []
   const staffMembers = []
-  const stats = { revenue: 12480, totalOrdersCount: 450 }
+  const stats = { revenue: 0, totalOrdersCount: 0 }
   const activeTab = 'revenue'
   const isMerged = true;
   const setActiveTab = () => { }
@@ -218,22 +218,15 @@ export default function DashboardPage() {
   const [selectedDashboardPlan, setSelectedDashboardPlan] = useState(null)
   const [confirmModal, setConfirmModal] = useState(null)
 
-  const [systemLogs, setSystemLogs] = useState([
-    { id: 1, time: '10:04 AM', type: 'info', msg: 'System initialized successfully.' },
-    { id: 2, time: '10:15 AM', type: 'success', msg: 'Admin Terminal authenticated from IP 192.168.1.42.' },
-    { id: 3, time: '10:30 AM', type: 'warning', msg: 'High occupancy warning: 85% table capacity reached.' },
-    { id: 4, time: '11:02 AM', type: 'info', msg: 'Kitchen KDS Terminal connected successfully.' },
-    { id: 5, time: '11:15 AM', type: 'success', msg: 'UPI dynamic QR endpoint initialized on Port 3001.' }
-  ])
+  const [systemLogs, setSystemLogs] = useState([])
 
   // Financial Data Calculations
-  // Baseline static metrics from design specs + dynamic active orders
   const billedOrders = orders.filter(o => o.status === 'Billed' || o.status === 'Done')
   const dynamicBilledRevenue = billedOrders.reduce((acc, order) => {
     return acc + order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
   }, 0)
 
-  // Dynamic accumulated total revenue (₹12,480 base + new simulated ones)
+  // Dynamic accumulated total revenue
   const totalRevenue = (stats.revenue || 0) + dynamicBilledRevenue
   const taxAmount = (totalRevenue * ((restaurantDetails?.taxRate || 0) / 100))
   const serviceChargeAmount = (totalRevenue * ((restaurantDetails?.serviceCharge || 0) / 100))
@@ -243,10 +236,10 @@ export default function DashboardPage() {
   const averageTicket = totalOrdersCount > 0 ? Math.round(totalRevenue / totalOrdersCount) : 0
 
   // Today's active simulated orders
-  const todaysOrdersCount = 12 + orders.filter(o => o.status !== 'Voided').length
+  const todaysOrdersCount = orders.filter(o => o.status !== 'Voided').length || (dashboardMetrics?.orders?.today || 0)
 
-  // Total Users count (active diners, staff members, registered operators)
-  const totalUsersCount = Math.round(totalOrdersCount * 3.5) + (staffMembers.length * restaurants.length)
+  // Total Users count
+  const totalUsersCount = (dashboardMetrics?.users?.total || 0) + staffMembers.length
 
   // Active and Inactive restaurants computation from live restaurant directory
   const activeCountFromList = restaurants.filter(r => (r.status || '').toLowerCase() === 'active' || (r.isActive && (r.status || '').toLowerCase() !== 'inactive' && (r.status || '').toLowerCase() !== 'suspended')).length
@@ -324,7 +317,7 @@ export default function DashboardPage() {
     return acc
   }, 0)
 
-  const subscriptionRevenue = liveSubscriptionRevenue || (activeRestaurantsCount * 1999) || 0
+  const subscriptionRevenue = liveSubscriptionRevenue || dashboardMetrics?.financials?.monthlyRevenue || 0
   const monthlyRevenue = dashboardMetrics?.financials?.monthlyRevenue || subscriptionRevenue || 0
   const pendingPaymentsSum = dashboardMetrics?.financials?.pendingPayments || 0
   
@@ -399,21 +392,10 @@ export default function DashboardPage() {
     })
   }
 
-  // Ensure current month (last slot) reflects active monthly revenue
+  // Ensure current month (last slot) reflects active monthly revenue if other revenue items not populated
   const currentMonthSlot = last6Months[last6Months.length - 1]
   if (currentMonthSlot && currentMonthSlot.revenue === 0) {
     currentMonthSlot.revenue = monthlyRevenue || subscriptionRevenue || 0
-  }
-
-  // If previous months have 0 but current month has active revenue, provide realistic growth trajectory
-  const nonZeroMonths = last6Months.filter(m => m.revenue > 0)
-  if (nonZeroMonths.length === 1 && currentMonthSlot && currentMonthSlot.revenue > 0) {
-    const currRev = currentMonthSlot.revenue
-    last6Months[0].revenue = Math.round(currRev * 0.45)
-    last6Months[1].revenue = Math.round(currRev * 0.58)
-    last6Months[2].revenue = Math.round(currRev * 0.70)
-    last6Months[3].revenue = Math.round(currRev * 0.82)
-    last6Months[4].revenue = Math.round(currRev * 0.92)
   }
 
   const trendData = last6Months.map(m => ({ month: m.month, revenue: m.revenue }))
