@@ -625,17 +625,17 @@ export default function RestaurantsPage() {
       setFormErrors({})
       const rest = restaurants.find(r => r.id === editingRestId)
       if (rest) {
-        const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : 'AAAAA1111A')
+        const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : '')
         setEditFormState({
           ...rest,
-          ownerName: rest.ownerName || 'Rajesh Kumar',
+          ownerName: rest.ownerName || '',
           mobileNumber: rest.mobileNumber || rest.phone || '',
           email: rest.email || '',
           website: rest.website || '',
           address: rest.address || '',
-          city: rest.city || 'Chennai',
-          state: rest.state || 'Tamil Nadu',
-          country: rest.country || 'India',
+          city: rest.city || '',
+          state: rest.state || '',
+          country: rest.country || '',
           license: rest.license || '',
           gstin: rest.gstin || '',
           pan: defaultPan,
@@ -719,18 +719,18 @@ export default function RestaurantsPage() {
     setViewingRestId(null)
     setEditingRestId(rest.id)
     setFormErrors({})
-    const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : 'AAAAA1111A')
+    const defaultPan = rest.pan || (rest.gstin && rest.gstin.length >= 12 ? rest.gstin.slice(2, 12) : '')
     const currentLogo = rest.logo || rest.logoUrl || ''
     setEditFormState({
       ...rest,
-      ownerName: rest.ownerName || 'Rajesh Kumar',
+      ownerName: rest.ownerName || '',
       mobileNumber: rest.mobileNumber || rest.phone || '',
       email: rest.email || '',
       website: rest.website || '',
       address: rest.address || '',
-      city: rest.city || 'Chennai',
-      state: rest.state || 'Tamil Nadu',
-      country: rest.country || 'India',
+      city: rest.city || '',
+      state: rest.state || '',
+      country: rest.country || '',
       license: rest.license || '',
       gstin: rest.gstin || '',
       pan: defaultPan,
@@ -1903,7 +1903,7 @@ export default function RestaurantsPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Owner Name</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700' }}>{viewedRest.ownerName || 'Rajesh Kumar'}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700' }}>{viewedRest.ownerName || 'N/A'}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Mobile Number</span>

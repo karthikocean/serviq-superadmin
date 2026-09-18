@@ -1,20 +1,6 @@
-import { useState, useEffect } from 'react';
-
-const mockNotifications = [];
+import { useState } from 'react';
 
 export function useNotifications() {
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const item = sessionStorage.getItem('serviq_notifications');
-      return item ? JSON.parse(item) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    sessionStorage.setItem('serviq_notifications', JSON.stringify(notifications));
-  }, [notifications]);
-
+  const [notifications, setNotifications] = useState([]);
   return { notifications, setNotifications };
 }
