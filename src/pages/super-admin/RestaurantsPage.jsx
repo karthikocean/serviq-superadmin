@@ -29,6 +29,7 @@ import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { resetPassword } from '../../services/authService'
+import PasswordRequirements, { validatePasswordRules } from '../../components/common/PasswordRequirements'
 
 // ─── Reusable validated input component ───
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, autoComplete = 'new-password', name, preventAutofill = false, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -819,6 +820,10 @@ export default function RestaurantsPage() {
       errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
     }
 
+    if (newRestState.password && !validatePasswordRules(newRestState.password).isValid) {
+      errors.password = 'Password does not meet all complexity requirements'
+    }
+
     if (newRestState.password && newRestState.confirmPassword && newRestState.password !== newRestState.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
     }
@@ -1006,7 +1011,9 @@ export default function RestaurantsPage() {
     const hasPassword = editFormState.password && String(editFormState.password).trim() !== ''
     const hasConfirmPassword = editFormState.confirmPassword && String(editFormState.confirmPassword).trim() !== ''
 
-    if (hasPassword && !hasConfirmPassword) {
+    if (hasPassword && !validatePasswordRules(editFormState.password).isValid) {
+      errors.password = 'Password does not meet all complexity requirements'
+    } else if (hasPassword && !hasConfirmPassword) {
       errors.confirmPassword = 'Confirm Password is required'
     } else if (!hasPassword && hasConfirmPassword) {
       errors.password = 'New Password is required'
@@ -1569,6 +1576,12 @@ export default function RestaurantsPage() {
                     setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                   />
                 </div>
+
+                <PasswordRequirements
+                  password={newRestState.password}
+                  confirmPassword={newRestState.confirmPassword}
+                  showConfirmMatch={true}
+                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
@@ -2291,6 +2304,14 @@ export default function RestaurantsPage() {
                       setError={(val) => setFormErrors({ ...formErrors, confirmPassword: val })}
                     />
                   </div>
+
+                  {(editFormState.password || editFormState.confirmPassword) && (
+                    <PasswordRequirements
+                      password={editFormState.password}
+                      confirmPassword={editFormState.confirmPassword}
+                      showConfirmMatch={true}
+                    />
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--border-color)' }}>

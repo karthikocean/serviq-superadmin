@@ -15,6 +15,7 @@ import { TableTopControls, TableBottomPagination } from '../../components/common
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { getManagers, createManager, updateManager, deleteManager } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import PasswordRequirements, { validatePasswordRules } from '../../components/common/PasswordRequirements'
 
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, ...rest }) => {
   const [showPassword, setShowPassword] = useState(false)
@@ -219,6 +220,8 @@ export default function UsersPage() {
 
     if (!adminFormState.password || String(adminFormState.password).trim() === '') {
       errors.password = "Security Password is Required"
+    } else if (!validatePasswordRules(adminFormState.password).isValid) {
+      errors.password = "Password does not meet all complexity requirements"
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -345,13 +348,13 @@ export default function UsersPage() {
 
     if (!passwordResetValue || String(passwordResetValue).trim() === '') {
       errors.passwordResetValue = "New Password is Required"
+    } else if (!validatePasswordRules(passwordResetValue).isValid) {
+      errors.passwordResetValue = "Password does not meet all complexity requirements"
     }
 
     if (!passwordConfirmValue || String(passwordConfirmValue).trim() === '') {
       errors.passwordConfirmValue = "Confirm Password is Required"
-    }
-
-    if (passwordResetValue !== passwordConfirmValue) {
+    } else if (passwordResetValue !== passwordConfirmValue) {
       errors.passwordConfirmValue = 'Passwords do not match'
     }
 
@@ -522,6 +525,10 @@ export default function UsersPage() {
                 placeholder="Enter strong password"
                 error={formErrors.password}
                 setError={(val) => setFormErrors({ ...formErrors, password: val })}
+              />
+
+              <PasswordRequirements
+                password={adminFormState.password}
               />
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
@@ -734,6 +741,11 @@ export default function UsersPage() {
             <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <ValidatedInput label="New Password" type="password" value={passwordResetValue} onChange={(e) => setPasswordResetValue(e.target.value)} required error={formErrors.passwordResetValue} setError={(val) => setFormErrors({ ...formErrors, passwordResetValue: val })} />
               <ValidatedInput label="Confirm Password" type="password" value={passwordConfirmValue} onChange={(e) => setPasswordConfirmValue(e.target.value)} required error={formErrors.passwordConfirmValue} setError={(val) => setFormErrors({ ...formErrors, passwordConfirmValue: val })} />
+              <PasswordRequirements
+                password={passwordResetValue}
+                confirmPassword={passwordConfirmValue}
+                showConfirmMatch={true}
+              />
               <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                 <button type="submit" style={{ flex: 1, padding: '10px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', background: '#000', color: '#fff', border: 'none' }}>Update</button>
                 <button type="button" onClick={() => setResettingPasswordAdminId(null)} style={{ flex: 1, padding: '10px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', background: '#fff', border: '1px solid #cbd5e1' }}>Cancel</button>

@@ -6,7 +6,7 @@ export const getPaymentsAPI = async (page = 0, limit = 10, search = '', status =
   if (status && status !== 'All') cleanParams.status = status;
   if (startDate) cleanParams.startDate = startDate;
   if (endDate) cleanParams.endDate = endDate;
-  const response = await api.get('/billing/payments', {
+  const response = await api.get('/payments', {
     params: cleanParams
   });
   return response.data;
