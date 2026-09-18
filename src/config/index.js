@@ -24,6 +24,7 @@ switch (APP_ENV) {
     BASE_URL = "http://192.168.88.20:5000/api/super-admin";
     server = "http://192.168.88.20:5000";
     break;
+    
 }
 
 export { IMAGE_BASE_URL, BASE_URL, server };

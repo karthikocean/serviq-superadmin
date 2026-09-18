@@ -3,6 +3,7 @@ import { User, Shield, Check, Lock, Save, Camera, Mail, Phone, Hash, ArrowLeft }
 import { getProfile, updateProfile, updatePassword } from '../../services/authService';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
+import PasswordRequirements, { validatePasswordRules } from '../../components/common/PasswordRequirements';
 
 export default function ProfilePage() {
   const { showToast } = useNotification();
@@ -111,8 +112,8 @@ export default function ProfilePage() {
 
     if (!passwordData.newPassword) {
       errors.newPassword = 'New Password is required';
-    } else if (passwordData.newPassword.length < 6) {
-      errors.newPassword = 'New Password must be at least 6 characters';
+    } else if (!validatePasswordRules(passwordData.newPassword).isValid) {
+      errors.newPassword = 'Password does not meet all complexity requirements';
     }
 
     if (!passwordData.confirmPassword) {
@@ -317,6 +318,12 @@ export default function ProfilePage() {
                   />
                   {passwordErrors.confirmPassword && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{passwordErrors.confirmPassword}</span>}
                 </div>
+
+                <PasswordRequirements
+                  password={passwordData.newPassword}
+                  confirmPassword={passwordData.confirmPassword}
+                  showConfirmMatch={true}
+                />
 
                 <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '10px' }}>
                   <button type="submit" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F95E10', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
