@@ -16,14 +16,24 @@ import {
   ChevronDown,
   FileText,
   Eye,
-  Edit2
+  Edit2,
+  Ban
 } from 'lucide-react'
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
-import { getNotifications, createNotification, updateNotification, cancelNotification, sendDraftNotification, deleteNotification } from '../../services/notificationService'
+import {
+  getNotifications,
+  createNotification,
+  updateNotification,
+  cancelNotification,
+  sendDraftNotification,
+  deleteNotification,
+  getNotificationDetails,
+  getSystemNotificationById
+} from '../../services/notificationService'
 import { getAllPlansApi } from '../../services/planService'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatDate } from '../../utils/dateFormat'
@@ -198,6 +208,22 @@ export default function NotificationsPage() {
     fetchNotifications()
   }, [currentPage, entriesPerPage, filterType])
 
+  const handleViewDetails = async (n) => {
+    setSelectedNotification(n)
+    try {
+      const id = n._id || n.id
+      if (id) {
+        const res = await getNotificationDetails(id)
+        const details = res?.data || res?.notification || (res?.success ? res.data : res)
+        if (details && typeof details === 'object') {
+          setSelectedNotification(prev => ({ ...(prev || {}), ...details }))
+        }
+      }
+    } catch (err) {
+      console.log('Error fetching notification details:', err)
+    }
+  }
+
   const handleCreateSubmit = async (e) => {
     e.preventDefault()
     if (deliveryOption === 'draft') {
@@ -250,6 +276,7 @@ export default function NotificationsPage() {
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
         body: newNtf.body.trim(),
         isScheduled: isSched,
+        deliveryOption: isSched ? 'schedule' : 'broadcast',
         scheduledDate: isSched ? (combinedIsoDate || newNtf.scheduledDate || '') : '',
         scheduledTime: isSched ? (newNtf.scheduledTime || '') : '',
         status: isSched ? 'Scheduled' : 'Sent'
@@ -326,6 +353,7 @@ export default function NotificationsPage() {
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
         body: newNtf.body.trim(),
         isScheduled: false,
+        deliveryOption: 'draft',
         scheduledDate: '',
         scheduledTime: '',
         status: 'Draft'
@@ -563,7 +591,7 @@ export default function NotificationsPage() {
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
                           {canView && (
                             <button
-                              onClick={() => setSelectedNotification(n)}
+                              onClick={() => handleViewDetails(n)}
                               className="btn-outline"
                               style={{
                                 width: '28px',
@@ -603,9 +631,30 @@ export default function NotificationsPage() {
                               <Edit2 style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
+                          {canEdit && (n.status === 'Scheduled' || Boolean(n.isScheduled)) && (
+                            <button
+                              onClick={() => handleCancelScheduled(n._id || n.id)}
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                background: 'rgba(245, 158, 11, 0.12)',
+                                color: '#f59e0b',
+                                border: '1px solid rgba(245, 158, 11, 0.25)'
+                              }}
+                              title="Cancel Scheduled Notification"
+                            >
+                              <Ban style={{ width: '13px', height: '13px' }} />
+                            </button>
+                          )}
                           {canEdit && n.status === 'Draft' && (
                             <button
-                              onClick={() => handleSendDraft(n._id)}
+                              onClick={() => handleSendDraft(n._id || n.id)}
                               style={{
                                 width: '28px',
                                 height: '28px',
@@ -626,7 +675,7 @@ export default function NotificationsPage() {
                           )}
                           {canDelete && (
                             <button
-                              onClick={() => handleDelete(n._id)}
+                              onClick={() => handleDelete(n._id || n.id)}
                               style={{
                                 width: '28px',
                                 height: '28px',
@@ -1035,16 +1084,39 @@ export default function NotificationsPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
-                {selectedNotification.status === 'Draft' && (
+                {selectedNotification.status === 'Draft' && canEdit && (
                   <button
                     onClick={() => {
-                      handleSendDraft(selectedNotification._id)
+                      handleSendDraft(selectedNotification._id || selectedNotification.id)
                       setSelectedNotification(null)
                     }}
                     className="btn-black"
                     style={{ flex: 1, minWidth: '120px', padding: '10px', borderRadius: '8px', border: 'none', background: '#10b981', color: '#ffffff', fontWeight: '700', cursor: 'pointer' }}
                   >
                     Broadcast Now
+                  </button>
+                )}
+                {(selectedNotification.status === 'Scheduled' || Boolean(selectedNotification.isScheduled)) && canEdit && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleCancelScheduled(selectedNotification._id || selectedNotification.id)
+                      setSelectedNotification(null)
+                    }}
+                    className="btn-outline"
+                    style={{
+                      flex: 1,
+                      minWidth: '120px',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #f59e0b',
+                      color: '#f59e0b',
+                      background: 'transparent',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel Schedule
                   </button>
                 )}
                 <button type="button" className="btn-outline" onClick={() => setSelectedNotification(null)} style={{ flex: 1, minWidth: '80px', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-muted)', fontWeight: '700', cursor: 'pointer' }}>Dismiss</button>
