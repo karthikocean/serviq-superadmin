@@ -403,6 +403,16 @@ export default function SubscriptionsPage() {
     setFormState(newState)
   }
 
+  const activeRestaurants = (restaurants || []).filter(r => {
+    const s = (r.status || '').trim().toLowerCase();
+    return s === 'active' || r.isActive === true || (!r.status && r.isActive !== false);
+  });
+
+  const activePlans = (plans || []).filter(p => {
+    const s = (p.status || '').trim().toLowerCase();
+    return s === 'active' || p.isActive === true || (!p.status && p.isActive !== false);
+  });
+
   const handleOpenAssignModal = () => {
     const todayStr = new Date().toISOString().split('T')[0]
     const nextYear = new Date()
@@ -410,8 +420,8 @@ export default function SubscriptionsPage() {
     const nextYearStr = nextYear.toISOString().split('T')[0]
 
     setFormState({
-      restaurantId: restaurants[0]?.id || '',
-      planName: plans.filter(p => p.status === 'Active')[0]?.name || 'Basic Plan',
+      restaurantId: activeRestaurants[0]?.id || '',
+      planName: activePlans[0]?.name || plans[0]?.name || 'Basic Plan',
       billingCycle: 'Annual',
       startDate: todayStr,
       endDate: nextYearStr,
@@ -711,7 +721,7 @@ export default function SubscriptionsPage() {
                       />
                     ) : (
                       <CustomSelect
-                        options={restaurants.map(r => ({ value: r.id, label: `${r.name} (${r.id})` }))}
+                        options={activeRestaurants.map(r => ({ value: r.id, label: `${r.name} (${r.id})` }))}
                         value={formState.restaurantId}
                         onChange={(val) => {
                           const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
@@ -729,7 +739,7 @@ export default function SubscriptionsPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>Plan Name</label>
                     <CustomSelect
-                      options={plans.filter(p => p.status === 'Active').map(p => ({ value: p.name, label: p.name }))}
+                      options={activePlans.map(p => ({ value: p.name, label: p.name }))}
                       value={formState.planName}
                       onChange={(val) => {
                         const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val

@@ -17,7 +17,10 @@ import {
   FileText,
   Eye,
   Edit2,
-  Ban
+  Ban,
+  Search,
+  Filter,
+  RotateCcw
 } from 'lucide-react'
 
 import { useRestaurant } from '../../hooks/useRestaurants'
@@ -26,6 +29,7 @@ import { TableTopControls, TableBottomPagination } from '../../components/common
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
 import {
   getNotifications,
+  getSystemNotifications,
   createNotification,
   updateNotification,
   cancelNotification,
@@ -37,6 +41,35 @@ import {
 import { getAllPlansApi } from '../../services/planService'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatDate } from '../../utils/dateFormat'
+
+export const getEffectiveNotificationStatus = (n) => {
+  if (!n) return 'Draft';
+  const rawStatus = n.status || (n.isScheduled ? 'Scheduled' : 'Sent');
+  if (rawStatus === 'Cancelled' || rawStatus === 'Canceled') return 'Cancelled';
+  if (rawStatus === 'Draft') return 'Draft';
+
+  if (rawStatus === 'Scheduled' || Boolean(n.isScheduled)) {
+    let schedTime = null;
+    const schedRaw = n.scheduledAt || n.sendAt || n.scheduledFor || n.scheduledDateTime || n.scheduledDate;
+
+    if (n.scheduledDate && n.scheduledTime) {
+      const timeStr = n.scheduledTime.length === 5 ? `${n.scheduledTime}:00` : n.scheduledTime;
+      const d = new Date(`${n.scheduledDate}T${timeStr}`);
+      if (!isNaN(d.getTime())) schedTime = d.getTime();
+    } else if (schedRaw) {
+      const s = String(schedRaw);
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) schedTime = d.getTime();
+    }
+
+    if (schedTime && schedTime <= Date.now()) {
+      return 'Sent';
+    }
+    return 'Scheduled';
+  }
+
+  return rawStatus;
+};
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([])
@@ -72,6 +105,8 @@ export default function NotificationsPage() {
   const [resDropdownOpen, setResDropdownOpen] = useState(false)
   const resDropdownRef = useRef(null)
   const [filterType, setFilterType] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [searchTerm, setSearchTerm] = useState('')
 
   // Close restaurant dropdown on outside click
   useEffect(() => {
@@ -132,12 +167,17 @@ export default function NotificationsPage() {
 
     let dateVal = ''
     let timeVal = ''
-    const schedRaw = n.scheduledDate || n.scheduledFor || n.scheduledAt || n.sendAt
+    const schedRaw = n.scheduledDate || n.scheduledFor || n.scheduledAt || n.sendAt || n.scheduledDateTime
     if (schedRaw) {
       const s = String(schedRaw)
-      dateVal = s.includes('T') ? s.split('T')[0] : s
-      if (s.includes('T') && s.split('T')[1]) {
-        timeVal = s.split('T')[1].substring(0, 5)
+      if (s.includes('T')) {
+        const parts = s.split('T')
+        dateVal = parts[0]
+        if (parts[1]) {
+          timeVal = parts[1].substring(0, 5)
+        }
+      } else {
+        dateVal = s
       }
     }
     if (n.scheduledTime) timeVal = n.scheduledTime
@@ -184,11 +224,7 @@ export default function NotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      const data = await getNotifications({
-        page: currentPage,
-        limit: entriesPerPage,
-        filterType
-      })
+      const data = await getSystemNotifications({ page: 0, limit: 1000 })
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
       setNotifications(list)
       const count = data?.pagination?.totalItems
@@ -196,8 +232,22 @@ export default function NotificationsPage() {
         ?? data?.totalCount
         ?? data?.count
         ?? data?.totalRecords
-        ?? (Array.isArray(data?.data) ? data.data.length : list.length)
+        ?? list.length
       setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
+
+      // Check if any scheduled item has reached its scheduled time, and sync with backend
+      list.forEach(async (n) => {
+        if ((n.status === 'Scheduled' || n.isScheduled) && getEffectiveNotificationStatus(n) === 'Sent') {
+          try {
+            const id = n._id || n.id;
+            if (id) {
+              await updateNotification(id, { status: 'Sent', isScheduled: false });
+            }
+          } catch (e) {
+            // silent sync
+          }
+        }
+      });
     } catch (error) {
       console.error(error)
       showToast('error', 'Failed to fetch notifications')
@@ -206,7 +256,11 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     fetchNotifications()
-  }, [currentPage, entriesPerPage, filterType])
+    const interval = setInterval(() => {
+      fetchNotifications()
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleViewDetails = async (n) => {
     setSelectedNotification(n)
@@ -262,23 +316,34 @@ export default function NotificationsPage() {
         .filter(Boolean)
 
       let combinedIsoDate = null
+      let rawDateTimeString = null
       if (isSched && newNtf.scheduledDate) {
         const timeStr = newNtf.scheduledTime ? (newNtf.scheduledTime.length === 5 ? `${newNtf.scheduledTime}:00` : newNtf.scheduledTime) : '00:00:00'
-        const d = new Date(`${newNtf.scheduledDate}T${timeStr}`)
-        combinedIsoDate = !isNaN(d.getTime()) ? d.toISOString() : newNtf.scheduledDate
+        rawDateTimeString = `${newNtf.scheduledDate}T${timeStr}`
+        const d = new Date(rawDateTimeString)
+        combinedIsoDate = !isNaN(d.getTime()) ? d.toISOString() : rawDateTimeString
       }
 
       const payload = {
         subject: newNtf.subject.trim(),
+        title: newNtf.subject.trim(),
         type: newNtf.type || 'Subscription Expiry',
         targetType: newNtf.targetType || 'ALL',
         targetPlan: newNtf.targetType === 'PLAN' ? (cleanPlanIds.length === 1 ? cleanPlanIds[0] : (cleanPlanIds.length > 0 ? cleanPlanIds : null)) : null,
+        targetPlans: newNtf.targetType === 'PLAN' ? cleanPlanIds : [],
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
+        targetRestaurant: newNtf.targetType === 'RESTAURANT' ? (cleanRestaurantIds.length === 1 ? cleanRestaurantIds[0] : cleanRestaurantIds) : null,
         body: newNtf.body.trim(),
+        message: newNtf.body.trim(),
+        content: newNtf.body.trim(),
         isScheduled: isSched,
         deliveryOption: isSched ? 'schedule' : 'broadcast',
-        scheduledDate: isSched ? (combinedIsoDate || newNtf.scheduledDate || '') : '',
+        scheduledDate: isSched ? (newNtf.scheduledDate || '') : '',
         scheduledTime: isSched ? (newNtf.scheduledTime || '') : '',
+        scheduledAt: isSched ? (combinedIsoDate || rawDateTimeString) : null,
+        scheduledFor: isSched ? (combinedIsoDate || rawDateTimeString) : null,
+        sendAt: isSched ? (combinedIsoDate || rawDateTimeString) : null,
+        scheduledDateTime: isSched ? (rawDateTimeString || combinedIsoDate) : null,
         status: isSched ? 'Scheduled' : 'Sent'
       }
 
@@ -347,15 +412,24 @@ export default function NotificationsPage() {
 
       const payload = {
         subject: newNtf.subject.trim(),
+        title: newNtf.subject.trim(),
         type: newNtf.type || 'Subscription Expiry',
         targetType: newNtf.targetType || 'ALL',
         targetPlan: newNtf.targetType === 'PLAN' ? (cleanPlanIds.length === 1 ? cleanPlanIds[0] : (cleanPlanIds.length > 0 ? cleanPlanIds : null)) : null,
+        targetPlans: newNtf.targetType === 'PLAN' ? cleanPlanIds : [],
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
+        targetRestaurant: newNtf.targetType === 'RESTAURANT' ? (cleanRestaurantIds.length === 1 ? cleanRestaurantIds[0] : cleanRestaurantIds) : null,
         body: newNtf.body.trim(),
+        message: newNtf.body.trim(),
+        content: newNtf.body.trim(),
         isScheduled: false,
         deliveryOption: 'draft',
         scheduledDate: '',
         scheduledTime: '',
+        scheduledAt: null,
+        scheduledFor: null,
+        sendAt: null,
+        scheduledDateTime: null,
         status: 'Draft'
       }
 
@@ -447,13 +521,51 @@ export default function NotificationsPage() {
     }
   }
 
-  // Count totals
-  const totalSent = notifications.filter(n => n.status === 'Sent').length
-  const totalScheduled = notifications.filter(n => n.status === 'Scheduled').length
-  const totalDraft = notifications.filter(n => n.status === 'Draft').length
-  const totalCanceled = notifications.filter(n => n.status === 'Cancelled' || n.status === 'Canceled').length
+  // Count totals using effective real-time status
+  const totalSent = notifications.filter(n => getEffectiveNotificationStatus(n) === 'Sent').length
+  const totalScheduled = notifications.filter(n => getEffectiveNotificationStatus(n) === 'Scheduled').length
+  const totalDraft = notifications.filter(n => getEffectiveNotificationStatus(n) === 'Draft').length
+  const totalCanceled = notifications.filter(n => {
+    const s = getEffectiveNotificationStatus(n)
+    return s === 'Cancelled' || s === 'Canceled'
+  }).length
 
-  const paginatedNotifications = notifications
+  // Filter notifications by status, category type, and search keyword
+  const filteredNotifications = notifications.filter(n => {
+    const effStatus = getEffectiveNotificationStatus(n)
+
+    // 1. Status Filter
+    if (statusFilter !== 'All') {
+      if (statusFilter === 'Cancelled') {
+        if (effStatus !== 'Cancelled' && effStatus !== 'Canceled') return false
+      } else if (effStatus.toLowerCase() !== statusFilter.toLowerCase()) {
+        return false
+      }
+    }
+
+    // 2. Type/Category Filter
+    if (filterType !== 'All' && n.type !== filterType) {
+      return false
+    }
+
+    // 3. Search Query Filter
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      const subject = (n.subject || n.title || '').toLowerCase()
+      const body = (n.body || n.message || n.content || '').toLowerCase()
+      const targetGroup = (n.targetType === 'ALL' ? 'all restaurants' : n.targetType === 'PLAN' ? 'subscription plan' : 'specific restaurants').toLowerCase()
+      if (!subject.includes(q) && !body.includes(q) && !targetGroup.includes(q)) {
+        return false
+      }
+    }
+
+    return true
+  })
+
+  const paginatedNotifications = filteredNotifications.slice(
+    currentPage * entriesPerPage,
+    (currentPage + 1) * entriesPerPage
+  )
 
   return (
     <div className="animate-fade-in" style={{
@@ -465,41 +577,56 @@ export default function NotificationsPage() {
       position: 'relative'
     }}>
 
-      {/* Counters Grid */}
+      {/* Counters Grid - Clickable for quick status filtering */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
         {[
-          { label: 'Sent Notifications', count: totalSent, color: '#10b981', bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)' },
-          { label: 'Scheduled Queue', count: totalScheduled, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)' },
-          { label: 'Drafts', count: totalDraft, color: '#64748b', bg: 'rgba(100, 116, 139, 0.04)', border: 'rgba(100, 116, 139, 0.12)' },
-          { label: 'Canceled', count: totalCanceled, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.12)' }
-        ].map((item, idx) => (
-          <div key={idx} className="glass-card" style={{
-            padding: '20px',
-            background: 'var(--bg-card)',
-            border: `1px solid ${item.border}`,
-            borderRadius: '12px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <div>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</span>
-              <h3 style={{ margin: '8px 0 0 0', fontSize: '1.8rem', fontWeight: '900', color: item.color, lineHeight: 1 }}>{item.count}</h3>
+          { label: 'Sent Notifications', statusKey: 'Sent', count: totalSent, color: '#10b981', bg: 'rgba(16, 185, 129, 0.04)', border: 'rgba(16, 185, 129, 0.12)' },
+          { label: 'Scheduled Queue', statusKey: 'Scheduled', count: totalScheduled, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.04)', border: 'rgba(245, 158, 11, 0.12)' },
+          { label: 'Drafts', statusKey: 'Draft', count: totalDraft, color: '#64748b', bg: 'rgba(100, 116, 139, 0.04)', border: 'rgba(100, 116, 139, 0.12)' },
+          { label: 'Canceled', statusKey: 'Cancelled', count: totalCanceled, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.04)', border: 'rgba(239, 68, 68, 0.12)' }
+        ].map((item, idx) => {
+          const isSelected = statusFilter.toLowerCase() === item.statusKey.toLowerCase()
+          return (
+            <div
+              key={idx}
+              className="glass-card"
+              onClick={() => {
+                setStatusFilter(isSelected ? 'All' : item.statusKey)
+                setCurrentPage(0)
+              }}
+              style={{
+                padding: '20px',
+                background: isSelected ? 'var(--bg-app)' : 'var(--bg-card)',
+                border: isSelected ? `2px solid ${item.color}` : `1px solid ${item.border}`,
+                borderRadius: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: isSelected ? `0 6px 20px -4px ${item.color}40` : 'none'
+              }}
+              title={`Filter by ${item.label}`}
+            >
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isSelected ? item.color : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</span>
+                <h3 style={{ margin: '8px 0 0 0', fontSize: '1.8rem', fontWeight: '900', color: item.color, lineHeight: 1 }}>{item.count}</h3>
+              </div>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: item.bg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: item.color
+              }}>
+                <Bell style={{ width: '18px', height: '18px' }} />
+              </div>
             </div>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: item.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: item.color
-            }}>
-              <Bell style={{ width: '18px', height: '18px' }} />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Control & History Glass Card */}
@@ -514,7 +641,7 @@ export default function NotificationsPage() {
       }}>
 
         {/* Header Row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '4px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>Notifications Management</h3>
           </div>
@@ -544,14 +671,144 @@ export default function NotificationsPage() {
           )}
         </div>
 
-        {/* History Table */}
-        <TableTopControls
-          entriesPerPage={entriesPerPage}
-          onEntriesPerPageChange={(num) => { setEntriesPerPage(num); setCurrentPage(0); }}
-          searchTerm=""
-          onSearchChange={() => { }}
-          showSearch={false}
-        />
+        {/* Filter & Search Toolbar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+          marginBottom: '8px'
+        }}>
+          {/* Left: Show Entries Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: '500' }}>
+            <span>Show</span>
+            <div style={{ width: '80px' }}>
+              <CustomSelect
+                options={[
+                  { value: 5, label: '5' },
+                  { value: 10, label: '10' },
+                  { value: 25, label: '25' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' }
+                ]}
+                value={entriesPerPage}
+                onChange={(val) => {
+                  const num = Number(typeof val === 'object' && val !== null && val.target ? val.target.value : val)
+                  setEntriesPerPage(num)
+                  setCurrentPage(0)
+                }}
+              />
+            </div>
+            <span>entries</span>
+          </div>
+
+          {/* Right: Filters & Search */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Status Filter */}
+            <div style={{ minWidth: '150px' }}>
+              <CustomSelect
+                options={[
+                  { value: 'All', label: 'All Statuses' },
+                  { value: 'Sent', label: 'Sent' },
+                  { value: 'Scheduled', label: 'Scheduled' },
+                  { value: 'Draft', label: 'Draft' },
+                  { value: 'Cancelled', label: 'Cancelled' }
+                ]}
+                value={statusFilter}
+                onChange={(val) => {
+                  const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                  setStatusFilter(selected)
+                  setCurrentPage(0)
+                }}
+                placeholder="Filter Status"
+              />
+            </div>
+
+            {/* Category / Type Filter */}
+            <div style={{ minWidth: '175px' }}>
+              <CustomSelect
+                options={[
+                  { value: 'All', label: 'All Categories' },
+                  { value: 'Subscription Expiry', label: 'Subscription Expiry' },
+                  { value: 'Maintenance Notice', label: 'Maintenance Notice' },
+                  { value: 'Feature Updates', label: 'Feature Updates' },
+                  { value: 'Promotional Messages', label: 'Promotional Messages' }
+                ]}
+                value={filterType}
+                onChange={(val) => {
+                  const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val
+                  setFilterType(selected)
+                  setCurrentPage(0)
+                }}
+                placeholder="Filter Category"
+              />
+            </div>
+
+            {/* Search Input */}
+            <div style={{ position: 'relative', width: '220px' }}>
+              <Search style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: '14px',
+                height: '14px',
+                color: '#94a3b8'
+              }} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setCurrentPage(0)
+                }}
+                placeholder="Search notifications..."
+                style={{
+                  width: '100%',
+                  padding: '7px 12px 7px 32px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: '0.82rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {/* Reset Filters */}
+            {(statusFilter !== 'All' || filterType !== 'All' || searchTerm.trim() !== '') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('All')
+                  setFilterType('All')
+                  setSearchTerm('')
+                  setCurrentPage(0)
+                }}
+                className="btn-outline"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '7px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  color: '#ef4444',
+                  borderColor: 'rgba(239, 68, 68, 0.25)',
+                  background: 'rgba(239, 68, 68, 0.04)',
+                  cursor: 'pointer'
+                }}
+                title="Reset all filters"
+              >
+                <RotateCcw style={{ width: '12px', height: '12px' }} /> Reset
+              </button>
+            )}
+          </div>
+        </div>
         <div style={{ overflowX: 'auto', background: 'var(--bg-app)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <table className="menu-data-table" style={{ width: '100%', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
             <thead>
@@ -568,6 +825,7 @@ export default function NotificationsPage() {
               {paginatedNotifications.length > 0 ? (
                 paginatedNotifications.map(n => {
                   const typeStyle = getTypeStyle(n.type)
+                  const effStatus = getEffectiveNotificationStatus(n)
                   return (
                     <tr key={n._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '14px 18px' }}>
@@ -580,11 +838,11 @@ export default function NotificationsPage() {
                       <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '600' }}>
                         {n.targetType === 'ALL' ? 'All Restaurants' : n.targetType === 'PLAN' ? 'Subscription Plan' : 'Specific Restaurants'}
                       </td>
-                      <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{n.scheduledDate ? formatDate(n.scheduledDate) : (n.createdAt ? formatDate(n.createdAt) : '—')}</td>
+                      <td style={{ padding: '14px 18px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>{(n.scheduledDate || n.scheduledAt || n.sendAt || n.scheduledFor) ? formatDate(n.scheduledDate || n.scheduledAt || n.sendAt || n.scheduledFor) : (n.createdAt ? formatDate(n.createdAt) : '—')}</td>
                       <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: '800', color: getStatusColor(n.status) }}>
-                          {getStatusIcon(n.status)}
-                          {n.status}
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: '800', color: getStatusColor(effStatus) }}>
+                          {getStatusIcon(effStatus)}
+                          {effStatus}
                         </div>
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
@@ -610,8 +868,8 @@ export default function NotificationsPage() {
                           )}
                           {canEdit && (
                             <button
-                              onClick={() => n.status !== 'Sent' && handleEditClick(n)}
-                              disabled={n.status === 'Sent'}
+                              onClick={() => effStatus !== 'Sent' && handleEditClick(n)}
+                              disabled={effStatus === 'Sent'}
                               className="btn-outline"
                               style={{
                                 width: '28px',
@@ -621,17 +879,17 @@ export default function NotificationsPage() {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 borderRadius: '6px',
-                                cursor: n.status === 'Sent' ? 'not-allowed' : 'pointer',
-                                opacity: n.status === 'Sent' ? 0.35 : 1,
-                                color: n.status === 'Sent' ? 'var(--text-muted)' : 'var(--text-main)',
+                                cursor: effStatus === 'Sent' ? 'not-allowed' : 'pointer',
+                                opacity: effStatus === 'Sent' ? 0.35 : 1,
+                                color: effStatus === 'Sent' ? 'var(--text-muted)' : 'var(--text-main)',
                                 background: 'transparent'
                               }}
-                              title={n.status === 'Sent' ? 'Cannot edit sent notification' : 'Edit Notification'}
+                              title={effStatus === 'Sent' ? 'Cannot edit sent notification' : 'Edit Notification'}
                             >
                               <Edit2 style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
-                          {canEdit && (n.status === 'Scheduled' || Boolean(n.isScheduled)) && (
+                          {canEdit && effStatus === 'Scheduled' && (
                             <button
                               onClick={() => handleCancelScheduled(n._id || n.id)}
                               style={{
@@ -652,7 +910,7 @@ export default function NotificationsPage() {
                               <Ban style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
-                          {canEdit && n.status === 'Draft' && (
+                          {canEdit && effStatus === 'Draft' && (
                             <button
                               onClick={() => handleSendDraft(n._id || n.id)}
                               style={{
@@ -668,14 +926,15 @@ export default function NotificationsPage() {
                                 color: '#10b981',
                                 border: '1px solid rgba(16, 185, 129, 0.25)'
                               }}
-                              title="Send / Broadcast Now"
+                              title="Send Draft Now"
                             >
-                              <Send style={{ width: '13px', height: '13px' }} />
+                              <Send style={{ width: '12px', height: '12px' }} />
                             </button>
                           )}
                           {canDelete && (
                             <button
                               onClick={() => handleDelete(n._id || n.id)}
+                              className="btn-outline"
                               style={{
                                 width: '28px',
                                 height: '28px',
@@ -684,8 +943,6 @@ export default function NotificationsPage() {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 borderRadius: '6px',
-                                background: 'rgba(239, 68, 68, 0.05)',
-                                border: '1px solid rgba(239, 68, 68, 0.2)',
                                 cursor: 'pointer',
                                 color: '#ef4444'
                               }}
@@ -694,9 +951,6 @@ export default function NotificationsPage() {
                               <Trash2 style={{ width: '13px', height: '13px' }} />
                             </button>
                           )}
-                          {!canView && !canEdit && !canDelete && (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -704,8 +958,8 @@ export default function NotificationsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="8" style={{ padding: '40px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    No notifications recorded under this classification.
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    No notification history found.
                   </td>
                 </tr>
               )}
@@ -714,7 +968,7 @@ export default function NotificationsPage() {
         </div>
 
         <TableBottomPagination
-          totalEntries={totalRecords || notifications.length}
+          totalEntries={filteredNotifications.length}
           currentPage={currentPage}
           entriesPerPage={entriesPerPage}
           onPageChange={setCurrentPage}
@@ -1034,9 +1288,9 @@ export default function NotificationsPage() {
                   {selectedNotification._id}
                 </h3>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: '800', color: getStatusColor(selectedNotification.status) }}>
-                {getStatusIcon(selectedNotification.status)}
-                {selectedNotification.status}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: '800', color: getStatusColor(getEffectiveNotificationStatus(selectedNotification)) }}>
+                {getStatusIcon(getEffectiveNotificationStatus(selectedNotification))}
+                {getEffectiveNotificationStatus(selectedNotification)}
               </div>
             </div>
 
@@ -1057,7 +1311,7 @@ export default function NotificationsPage() {
                 </div>
                 <div>
                   <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Sent / Scheduled Time</span>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedNotification.scheduledDate ? formatDate(selectedNotification.scheduledDate) : (selectedNotification.createdAt ? formatDate(selectedNotification.createdAt) : '—')}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{(selectedNotification.scheduledDate || selectedNotification.scheduledAt || selectedNotification.sendAt || selectedNotification.scheduledFor) ? formatDate(selectedNotification.scheduledDate || selectedNotification.scheduledAt || selectedNotification.sendAt || selectedNotification.scheduledFor) : (selectedNotification.createdAt ? formatDate(selectedNotification.createdAt) : '—')}</span>
                 </div>
               </div>
 
@@ -1084,7 +1338,7 @@ export default function NotificationsPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
-                {selectedNotification.status === 'Draft' && canEdit && (
+                {getEffectiveNotificationStatus(selectedNotification) === 'Draft' && canEdit && (
                   <button
                     onClick={() => {
                       handleSendDraft(selectedNotification._id || selectedNotification.id)
@@ -1096,7 +1350,7 @@ export default function NotificationsPage() {
                     Broadcast Now
                   </button>
                 )}
-                {(selectedNotification.status === 'Scheduled' || Boolean(selectedNotification.isScheduled)) && canEdit && (
+                {getEffectiveNotificationStatus(selectedNotification) === 'Scheduled' && canEdit && (
                   <button
                     type="button"
                     onClick={async () => {

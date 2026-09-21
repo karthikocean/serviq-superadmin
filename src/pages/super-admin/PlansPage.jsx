@@ -222,7 +222,8 @@ export default function PlansPage() {
           id: p._id,
           name: p.planName,
           description: p.planDescription,
-          branchLimit: p.maxBranches,
+          branchLimit: p.maxBranches ?? p.branchLimit ?? p.branchesLimit ?? p.maxBranch ?? 3,
+          maxBranches: p.maxBranches ?? p.branchLimit ?? p.branchesLimit ?? p.maxBranch ?? 3,
           status: p.status || (p.isActive ? 'Active' : 'Inactive')
         }));
         setPlans(formattedPlans);
@@ -260,11 +261,11 @@ export default function PlansPage() {
         })
 
         setPlanFormState({
-          name: planToEdit.name || '',
-          description: planToEdit.description || '',
+          name: planToEdit.name || planToEdit.planName || '',
+          description: planToEdit.description || planToEdit.planDescription || '',
           monthlyPrice: planToEdit.monthlyPrice || 0,
           annualPrice: planToEdit.annualPrice || 0,
-          branchLimit: planToEdit.branchLimit || 3,
+          branchLimit: planToEdit.branchLimit ?? planToEdit.maxBranches ?? 3,
           userLimit: planToEdit.userLimit || 99999,
           orderLimit: planToEdit.orderLimit || 99999,
           featuresIncluded: featuresMap,
@@ -292,13 +293,17 @@ export default function PlansPage() {
       return
     }
 
+    const branchCount = parseInt(planFormState.branchLimit) || 3;
     const planData = {
       planName: planFormState.name,
       planDescription: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
       monthlyDiscount: 0, 
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
-      maxBranches: parseInt(planFormState.branchLimit) || 3,
+      maxBranches: branchCount,
+      branchLimit: branchCount,
+      maxBranch: branchCount,
+      branchesLimit: branchCount,
       featuresIncluded: planFormState.featuresIncluded,
       status: planFormState.status
     }
@@ -336,13 +341,17 @@ export default function PlansPage() {
       return
     }
 
+    const branchCount = parseInt(planFormState.branchLimit) || 3;
     const planData = {
       planName: planFormState.name,
       planDescription: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
       monthlyDiscount: 0, 
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
-      maxBranches: parseInt(planFormState.branchLimit) || 3,
+      maxBranches: branchCount,
+      branchLimit: branchCount,
+      maxBranch: branchCount,
+      branchesLimit: branchCount,
       featuresIncluded: planFormState.featuresIncluded,
       status: planFormState.status
     }
@@ -369,13 +378,17 @@ export default function PlansPage() {
     const nextStatus = planToUpdate.status === 'Active' ? false : true;
     
     try {
+      const branchCount = parseInt(planToUpdate.branchLimit ?? planToUpdate.maxBranches) || 3;
       const planData = {
         planName: planToUpdate.name,
         planDescription: planToUpdate.description,
         monthlyPrice: planToUpdate.monthlyPrice,
         monthlyDiscount: 0,
         annualPrice: planToUpdate.annualPrice,
-        maxBranches: planToUpdate.branchLimit,
+        maxBranches: branchCount,
+        branchLimit: branchCount,
+        maxBranch: branchCount,
+        branchesLimit: branchCount,
         featuresIncluded: planToUpdate.featuresIncluded,
         status: nextStatus ? 'Active' : 'Inactive'
       }
@@ -665,7 +678,7 @@ export default function PlansPage() {
                               description: plan.description || '',
                               monthlyPrice: plan.monthlyPrice.toString(),
                               annualPrice: plan.annualPrice.toString(),
-                              branchLimit: (plan.branchLimit || 3).toString(),
+                              branchLimit: (plan.branchLimit ?? plan.maxBranches ?? 3).toString(),
                               userLimit: (plan.userLimit || 99999).toString(),
                               orderLimit: (plan.orderLimit || 99999).toString(),
                               featuresIncluded: plan.featuresIncluded || { ...initialFeatures },
