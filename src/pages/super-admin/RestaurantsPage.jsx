@@ -336,7 +336,28 @@ const ImageUploadButton = ({ label, value, onChange, onClear, error, setError })
 }
 
 // ─── Reusable 12-hour Time Picker component with custom dropdown opening BELOW input ───
-const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError }) => {
+export const timeToMinutes = (timeStr, periodStr) => {
+  if (!timeStr) return null;
+  let t = timeStr;
+  let p = periodStr;
+  if (timeStr.includes(' ')) {
+    const parts = timeStr.trim().split(/\s+/);
+    t = parts[0];
+    p = parts[1];
+  }
+  const [hStr, mStr] = t.split(':');
+  let h = parseInt(hStr, 10) || 0;
+  const m = parseInt(mStr, 10) || 0;
+  const isPM = (p || '').toUpperCase() === 'PM';
+  if (h === 12) {
+    h = isPM ? 12 : 0;
+  } else if (isPM) {
+    h += 12;
+  }
+  return h * 60 + m;
+};
+
+const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError, minTime }) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
 
@@ -385,6 +406,25 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
     }
   }, [parsedPeriod, value])
 
+  // Automatically enforce and clamp value if minTime is set and current value is earlier than minTime within the same period
+  useEffect(() => {
+    if (!minTime || !value) return
+    const minMins = timeToMinutes(minTime)
+    const curMins = timeToMinutes(value)
+    if (minMins === null || curMins === null) return
+
+    const minParts = String(minTime).trim().split(/\s+/)
+    const minPeriod = minParts.length >= 2 ? minParts[1].toUpperCase() : 'AM'
+    const curParts = String(value).trim().split(/\s+/)
+    const curPeriod = curParts.length >= 2 ? curParts[1].toUpperCase() : 'AM'
+
+    if (minPeriod === curPeriod && curMins < minMins) {
+      const validOption = timeOptions.find(t => (timeToMinutes(t, minPeriod) || 0) >= minMins)
+      const nextVal = validOption ? `${validOption} ${minPeriod}` : minTime
+      onChange(nextVal)
+    }
+  }, [minTime, value])
+
   const handleSelectTime = (selectedTime) => {
     const combined = `${selectedTime} ${selectedPeriod}`
     onChange(combined)
@@ -394,10 +434,24 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
 
   const handlePeriodToggle = (newPeriod) => {
     setSelectedPeriod(newPeriod)
-    if (isSelected && time) {
-      const combined = `${time} ${newPeriod}`
-      onChange(combined)
+    let targetTime = isSelected && time ? time : '06:00'
+
+    if (minTime) {
+      const minMins = timeToMinutes(minTime)
+      const minParts = String(minTime).trim().split(/\s+/)
+      const minPeriod = minParts.length >= 2 ? minParts[1].toUpperCase() : 'AM'
+
+      if (minMins !== null && newPeriod === minPeriod) {
+        const curMins = timeToMinutes(targetTime, newPeriod)
+        if (curMins === null || curMins < minMins) {
+          const validOption = timeOptions.find(t => (timeToMinutes(t, newPeriod) || 0) >= minMins)
+          targetTime = validOption || minParts[0]
+        }
+      }
     }
+
+    const combined = `${targetTime} ${newPeriod}`
+    onChange(combined)
     if (error && setError) setError('')
   }
 
@@ -405,6 +459,35 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
     '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
     '12:00', '12:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30'
   ]
+
+  const displayedTimeOptions = (() => {
+    if (!minTime) return timeOptions
+    const minMins = timeToMinutes(minTime)
+    if (minMins === null) return timeOptions
+
+    const minParts = String(minTime).trim().split(/\s+/)
+    const minPeriod = minParts.length >= 2 ? minParts[1].toUpperCase() : 'AM'
+
+    // When both opening and closing times share the same period (e.g. both AM or both PM)
+    if (selectedPeriod === minPeriod) {
+      return timeOptions.filter(t => {
+        const optionMins = timeToMinutes(t, selectedPeriod)
+        return optionMins !== null && optionMins >= minMins
+      })
+    }
+
+    // When opening time is AM (e.g. 07:00 AM) and closing time is PM (e.g. 11:00 PM) -> all PM options allowed
+    if (minPeriod === 'AM' && selectedPeriod === 'PM') {
+      return timeOptions
+    }
+
+    // When opening time is PM (e.g. 07:00 PM) and closing time is AM (overnight closing next morning) -> all AM options allowed
+    if (minPeriod === 'PM' && selectedPeriod === 'AM') {
+      return timeOptions
+    }
+
+    return timeOptions
+  })()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }} ref={dropdownRef}>
@@ -500,7 +583,7 @@ const TimePickerWithAMPM = ({ label, value, onChange, required, error, setError 
           flexDirection: 'column',
           gap: '2px'
         }}>
-          {timeOptions.map(t => {
+          {displayedTimeOptions.map(t => {
             const isSelected = t === time
             return (
               <div
@@ -828,6 +911,16 @@ export default function RestaurantsPage() {
       errors.confirmPassword = 'Passwords do not match'
     }
 
+    if (newRestState.openingTime && newRestState.closingTime) {
+      const openMins = timeToMinutes(newRestState.openingTime)
+      const closeMins = timeToMinutes(newRestState.closingTime)
+      const openPeriod = newRestState.openingTime.split(' ')[1] || 'AM'
+      const closePeriod = newRestState.closingTime.split(' ')[1] || 'AM'
+      if (openPeriod === closePeriod && closeMins !== null && openMins !== null && closeMins < openMins) {
+        errors.closingTime = `Closing time must be at or after opening time (${newRestState.openingTime})`
+      }
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
@@ -1019,6 +1112,16 @@ export default function RestaurantsPage() {
       errors.password = 'New Password is required'
     } else if (hasPassword && hasConfirmPassword && editFormState.password !== editFormState.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
+    }
+
+    if (editFormState.openingTime && editFormState.closingTime) {
+      const openMins = timeToMinutes(editFormState.openingTime)
+      const closeMins = timeToMinutes(editFormState.closingTime)
+      const openPeriod = editFormState.openingTime.split(' ')[1] || 'AM'
+      const closePeriod = editFormState.closingTime.split(' ')[1] || 'AM'
+      if (openPeriod === closePeriod && closeMins !== null && openMins !== null && closeMins < openMins) {
+        errors.closingTime = `Closing time must be at or after opening time (${editFormState.openingTime})`
+      }
     }
 
     if (Object.keys(errors).length > 0) {
@@ -1217,7 +1320,21 @@ export default function RestaurantsPage() {
                   <TimePickerWithAMPM
                     label="Opening Time"
                     value={newRestState.openingTime}
-                    onChange={(val) => setNewRestState({ ...newRestState, openingTime: val })}
+                    onChange={(val) => {
+                      setNewRestState(prev => {
+                        const nextState = { ...prev, openingTime: val }
+                        if (prev.closingTime) {
+                          const openMins = timeToMinutes(val)
+                          const closeMins = timeToMinutes(prev.closingTime)
+                          const openPeriod = val?.split(' ')[1] || 'AM'
+                          const closePeriod = prev.closingTime?.split(' ')[1] || 'AM'
+                          if (openPeriod === closePeriod && closeMins !== null && openMins !== null && closeMins < openMins) {
+                            nextState.closingTime = val
+                          }
+                        }
+                        return nextState
+                      })
+                    }}
                     required
                     error={formErrors.openingTime}
                     setError={(val) => setFormErrors({ ...formErrors, openingTime: val })}
@@ -1226,6 +1343,7 @@ export default function RestaurantsPage() {
                     label="Closing Time"
                     value={newRestState.closingTime}
                     onChange={(val) => setNewRestState({ ...newRestState, closingTime: val })}
+                    minTime={newRestState.openingTime}
                     required
                     error={formErrors.closingTime}
                     setError={(val) => setFormErrors({ ...formErrors, closingTime: val })}
@@ -2216,7 +2334,21 @@ export default function RestaurantsPage() {
                   <TimePickerWithAMPM
                     label="Opening Time"
                     value={editFormState.openingTime}
-                    onChange={(val) => setEditFormState({ ...editFormState, openingTime: val })}
+                    onChange={(val) => {
+                      setEditFormState(prev => {
+                        const nextState = { ...prev, openingTime: val }
+                        if (prev.closingTime) {
+                          const openMins = timeToMinutes(val)
+                          const closeMins = timeToMinutes(prev.closingTime)
+                          const openPeriod = val?.split(' ')[1] || 'AM'
+                          const closePeriod = prev.closingTime?.split(' ')[1] || 'AM'
+                          if (openPeriod === closePeriod && closeMins !== null && openMins !== null && closeMins < openMins) {
+                            nextState.closingTime = val
+                          }
+                        }
+                        return nextState
+                      })
+                    }}
                     required
                     error={formErrors.openingTime}
                     setError={(val) => setFormErrors({ ...formErrors, openingTime: val })}
@@ -2225,6 +2357,7 @@ export default function RestaurantsPage() {
                     label="Closing Time"
                     value={editFormState.closingTime}
                     onChange={(val) => setEditFormState({ ...editFormState, closingTime: val })}
+                    minTime={editFormState.openingTime}
                     required
                     error={formErrors.closingTime}
                     setError={(val) => setFormErrors({ ...formErrors, closingTime: val })}

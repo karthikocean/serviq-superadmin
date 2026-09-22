@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check, X } from 'lucide-react';
 
 /**
  * Reusable custom React dropdown component supporting both single-select and multi-select.
  * Works seamlessly with `options` array, `<option>` children, and both direct value or event onChange handlers.
+ * Renders popup via createPortal to prevent any clipping from overflow:hidden/auto parent containers.
  */
 export default function CustomSelect({
   options = [],
@@ -19,62 +21,9 @@ export default function CustomSelect({
   className = ''
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [openUpwards, setOpenUpwards] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef(null);
-
-  // Calculate position and handle boundary / collision detection
-  const checkPosition = () => {
-    if (!dropdownRef.current) return;
-    const rect = dropdownRef.current.getBoundingClientRect();
-    const count = parsedOptions.length || 5;
-    const estimatedHeight = Math.min(count * 38 + 12, 230);
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-
-    // Check if inside a modal / dialog / panel container
-    const modalEl = dropdownRef.current.closest('.animate-fade-in, [role="dialog"], .glass-card');
-    if (modalEl) {
-      const modalRect = modalEl.getBoundingClientRect();
-      const spaceBelowInModal = modalRect.bottom - rect.bottom;
-      const spaceAboveInModal = rect.top - modalRect.top;
-
-      // If opening downwards would overflow the modal bottom and there is space upwards inside modal or viewport
-      if (spaceBelowInModal < estimatedHeight + 10 && (spaceAboveInModal > spaceBelowInModal || spaceAbove > spaceBelow)) {
-        setOpenUpwards(true);
-        return;
-      }
-    }
-
-    if (spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow) {
-      setOpenUpwards(true);
-    } else {
-      setOpenUpwards(false);
-    }
-  };
-
-  // Close dropdown when clicking outside and recalculate collision on open, scroll, or resize
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      checkPosition();
-      window.addEventListener('resize', checkPosition);
-      window.addEventListener('scroll', checkPosition, true);
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('pointerdown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('pointerdown', handleClickOutside);
-      window.removeEventListener('resize', checkPosition);
-      window.removeEventListener('scroll', checkPosition, true);
-    };
-  }, [isOpen]);
+  const menuRef = useRef(null);
 
   // Parse options from either `options` prop or `<option>` children
   let parsedOptions = Array.isArray(options) && options.length > 0 ? options : [];
@@ -91,6 +40,67 @@ export default function CustomSelect({
         };
       });
   }
+
+  // Calculate position and handle boundary / collision detection with the viewport
+  const updatePosition = () => {
+    if (!dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const count = parsedOptions.length || 5;
+    const estimatedHeight = Math.min(count * 38 + 12, 230);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    const openUpwards = spaceBelow < estimatedHeight + 10 && spaceAbove > spaceBelow;
+
+    let left = rect.left;
+    const menuWidth = Math.max(rect.width, 120);
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = window.innerWidth - menuWidth - 10;
+    }
+    if (left < 10) left = 10;
+
+    const top = openUpwards
+      ? Math.max(10, rect.top - estimatedHeight - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - estimatedHeight - 10);
+
+    setCoords({
+      top,
+      left,
+      width: rect.width
+    });
+  };
+
+  // Close dropdown when clicking outside and recalculate position on scroll or resize
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updatePosition();
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(event.target) &&
+        menuRef.current && !menuRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside);
+    };
+  }, [isOpen, parsedOptions.length]);
 
   const handleSelect = (optionValue) => {
     if (disabled) return;
@@ -178,7 +188,6 @@ export default function CustomSelect({
                       border: 'none',
                       padding: 0,
                       color: '#F95E10',
-
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center'
@@ -204,12 +213,15 @@ export default function CustomSelect({
   return (
     <div
       className={className}
-      style={{ position: 'relative', width: '100%', userSelect: 'none', zIndex: isOpen ? 100 : 'auto', ...style }}
+      style={{ position: 'relative', width: '100%', userSelect: 'none', ...style }}
       ref={dropdownRef}
     >
       <div
         onClick={() => {
-          if (!disabled) setIsOpen(!isOpen);
+          if (!disabled) {
+            updatePosition();
+            setIsOpen(!isOpen);
+          }
         }}
         style={{
           padding: '9px 12px',
@@ -242,25 +254,26 @@ export default function CustomSelect({
         />
       </div>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
+          ref={menuRef}
           className="animate-fade-in"
           style={{
-            position: 'absolute',
-            top: openUpwards ? 'auto' : '100%',
-            bottom: openUpwards ? 'calc(100% + 4px)' : 'auto',
-            left: 0,
-            right: 0,
-            marginTop: openUpwards ? 0 : '4px',
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            minWidth: '140px',
             background: '#ffffff',
             border: '1px solid var(--border-color, #cbd5e1)',
             borderRadius: '10px',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
-            zIndex: 9999,
+            boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 6px 12px -2px rgba(0, 0, 0, 0.08)',
+            zIndex: 9999999,
             padding: '4px 0',
             maxHeight: '230px',
             overflowY: 'auto'
           }}
+          onClick={(e) => e.stopPropagation()}
         >
           {parsedOptions.length === 0 ? (
             <div style={{ padding: '10px 16px', color: 'var(--text-muted, #94a3b8)', fontSize: '0.8rem', textAlign: 'center' }}>
@@ -338,7 +351,8 @@ export default function CustomSelect({
               );
             })
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

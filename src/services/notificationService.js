@@ -15,11 +15,19 @@ export const getSuperAdminNotifications = async (type = "all") => {
  * Endpoint: GET /api/super-admin/notifications/system
  */
 export const getSystemNotifications = async (params = {}) => {
+  const cleanParams = {};
+  if (params && typeof params === 'object') {
+    if (params.page !== undefined) cleanParams.page = params.page;
+    if (params.limit !== undefined) cleanParams.limit = params.limit;
+    if (params.type && params.type !== 'All' && params.type !== 'all') cleanParams.type = params.type;
+    if (params.status && params.status !== 'All' && params.status !== 'all') cleanParams.status = params.status;
+  }
+
   try {
-    const response = await api.get("/notifications/system", { params });
+    const response = await api.get("/notifications/system", { params: cleanParams });
     return response.data;
   } catch (err) {
-    const response = await api.get("/notifications", { params });
+    const response = await api.get("/notifications", { params: cleanParams });
     return response.data;
   }
 };
@@ -51,7 +59,7 @@ export const getNotificationDetails = async (id) => {
  * General getter - handles both feed and system notifications.
  */
 export const getNotifications = async (params) => {
-  if (params && typeof params === "object" && (params.type || typeof params.type === "string")) {
+  if (params && typeof params === "object" && typeof params.type === "string" && !params.page && !params.limit) {
     return getSuperAdminNotifications(params.type);
   }
   return getSystemNotifications(params);

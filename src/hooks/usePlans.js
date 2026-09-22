@@ -17,6 +17,8 @@ export function usePlans() {
           ...p,
           id: p._id,
           name: p.planName,
+          branchLimit: p.maxBranches ?? p.branchLimit ?? p.branchesLimit ?? p.maxBranch ?? 3,
+          maxBranches: p.maxBranches ?? p.branchLimit ?? p.branchesLimit ?? p.maxBranch ?? 3,
         }));
         setPlans(mappedPlans);
       }
