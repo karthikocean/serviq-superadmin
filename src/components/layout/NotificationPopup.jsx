@@ -291,7 +291,7 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
         className="invisible-scrollbar"
         style={{
           maxHeight: '360px',
-          overflowY: 'auto',
+          ovemmmmmmmmmmmmmmmmmmrflowY: 'auto',
           background: 'var(--bg-card, #ffffff)',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none'
