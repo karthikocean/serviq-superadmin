@@ -17,49 +17,19 @@ import ManageAddonsMasterModal from '../../components/Payment/ManageAddonsMaster
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { useAuth } from '../../contexts/AuthContext'
 
-// Reusable validated select component matching ValidatedInput size and styling exactly
-const ValidatedSelectInput = ({ label, value, onChange, required, error, children, ...rest }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', width: '100%' }}>
-    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>
-      {label}{required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
-    </label>
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
-      <select
-        value={value}
-        onChange={onChange}
-        style={{
-          width: '100%',
-          height: '38px',
-          padding: '9px 32px 9px 12px',
-          border: `1.5px solid ${error ? '#ef4444' : 'var(--border-color)'}`,
-          background: error ? 'rgba(239,68,68,0.04)' : 'var(--bg-app)',
-          color: 'var(--text-main)',
-          borderRadius: '8px',
-          fontSize: '0.82rem',
-          outline: 'none',
-          boxSizing: 'border-box',
-          cursor: 'pointer',
-          appearance: 'none',
-          WebkitAppearance: 'none',
-          transition: 'border-color 0.15s'
-        }}
-        {...rest}
-      >
-        {children}
-      </select>
-      <ChevronDown
-        size={15}
-        style={{
-          position: 'absolute',
-          right: '12px',
-          color: 'var(--text-muted, #94a3b8)',
-          pointerEvents: 'none'
-        }}
-      />
-    </div>
-    {error && <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: '600' }}>{error}</span>}
-  </div>
-)
+const ValidatedSelectInput = ({ label, value, onChange, required, error, children, options = [], ...rest }) => (
+  <ValidatedSelect
+    label={label}
+    value={value}
+    onChange={onChange}
+    required={required}
+    error={error}
+    options={options}
+    {...rest}
+  >
+    {children}
+  </ValidatedSelect>
+);
 
 // Reusable validated input component
 const ValidatedInput = ({ label, type = 'text', value, onChange, placeholder, required, error, setError, allowOnlyNumbers = false, allowDecimal = false, ...rest }) => {
@@ -294,9 +264,13 @@ export default function PlansPage() {
     }
 
     const branchCount = parseInt(planFormState.branchLimit) || 3;
+    const isActive = planFormState.status === 'Active';
     const planData = {
       planName: planFormState.name,
+      name: planFormState.name,
+      title: planFormState.name,
       planDescription: planFormState.description,
+      description: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
       monthlyDiscount: 0, 
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
@@ -304,22 +278,34 @@ export default function PlansPage() {
       branchLimit: branchCount,
       maxBranch: branchCount,
       branchesLimit: branchCount,
+      branchesIncluded: branchCount,
+      allowedBranches: branchCount,
+      branches: branchCount,
+      maxBranchLimit: branchCount,
+      branchCapacity: branchCount,
+      slots: branchCount,
+      limitBranches: branchCount,
+      totalBranchesAllowed: branchCount,
+      totalBranches: branchCount,
       featuresIncluded: planFormState.featuresIncluded,
-      status: planFormState.status
+      status: planFormState.status || 'Active',
+      isActive: isActive,
+      active: isActive
     }
 
     try {
       const data = await createPlanApi(planData);
-      if (data.success) {
-        fetchPlans();
+      if (data && (data.success !== false && data.status !== 'error')) {
+        await fetchPlans();
         setEditingPlanId(null);
+        setShowAddPlanModal(false);
         showToast('success', `Subscription plan "${planFormState.name}" created successfully!`);
       } else {
-        alert(data.message || "Failed to create plan");
+        showToast('error', data?.message || "Failed to create plan");
       }
     } catch (error) {
       console.error("Error creating plan:", error);
-      alert(error.response?.data?.message || "An error occurred");
+      showToast('error', error.response?.data?.message || "An error occurred");
     }
   }
 
@@ -342,9 +328,13 @@ export default function PlansPage() {
     }
 
     const branchCount = parseInt(planFormState.branchLimit) || 3;
+    const isActive = planFormState.status === 'Active';
     const planData = {
       planName: planFormState.name,
+      name: planFormState.name,
+      title: planFormState.name,
       planDescription: planFormState.description,
+      description: planFormState.description,
       monthlyPrice: parseFloat(planFormState.monthlyPrice) || 0,
       monthlyDiscount: 0, 
       annualPrice: parseFloat(planFormState.annualPrice) || 0,
@@ -352,22 +342,34 @@ export default function PlansPage() {
       branchLimit: branchCount,
       maxBranch: branchCount,
       branchesLimit: branchCount,
+      branchesIncluded: branchCount,
+      allowedBranches: branchCount,
+      branches: branchCount,
+      maxBranchLimit: branchCount,
+      branchCapacity: branchCount,
+      slots: branchCount,
+      limitBranches: branchCount,
+      totalBranchesAllowed: branchCount,
+      totalBranches: branchCount,
       featuresIncluded: planFormState.featuresIncluded,
-      status: planFormState.status
+      status: planFormState.status || 'Active',
+      isActive: isActive,
+      active: isActive
     }
 
     try {
       const data = await updatePlanApi(editingPlanId, planData);
-      if (data.success) {
-        fetchPlans();
+      if (data && (data.success !== false && data.status !== 'error')) {
+        await fetchPlans();
         setEditingPlanId(null);
+        setShowAddPlanModal(false);
         showToast('success', `Subscription plan updated successfully!`);
       } else {
-        alert(data.message || "Failed to update plan");
+        showToast('error', data?.message || "Failed to update plan");
       }
     } catch (error) {
       console.error("Error updating plan:", error);
-      alert(error.response?.data?.message || "An error occurred");
+      showToast('error', error.response?.data?.message || "An error occurred");
     }
   }
 

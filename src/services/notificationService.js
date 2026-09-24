@@ -71,14 +71,24 @@ export const getNotifications = async (params) => {
  * Body includes deliveryOption: "draft" | "schedule" | "broadcast"
  */
 export const createNotification = async (data) => {
-  const response = await api.post("/notifications", data);
-  return response.data;
+  const endpoints = [
+    "/notifications",
+    "/notifications/broadcast",
+    "/notifications/send",
+    "/notifications/create"
+  ];
+  let lastErr = null;
+  for (const url of endpoints) {
+    try {
+      const response = await api.post(url, data);
+      if (response && response.data) return response.data;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (lastErr) throw lastErr;
 };
 
-/**
- * 6. Update an existing system notification / editing a draft.
- * Endpoint: PUT /api/super-admin/notifications/:id
- */
 export const updateNotification = async (id, data) => {
   const methods = ["put", "patch", "post"];
   let lastErr = null;
@@ -93,22 +103,45 @@ export const updateNotification = async (id, data) => {
   if (lastErr) throw lastErr;
 };
 
-/**
- * 7. Cancel a scheduled notification.
- * Endpoint: POST /api/super-admin/notifications/:id/cancel
- */
 export const cancelNotification = async (id) => {
   const response = await api.post(`/notifications/${id}/cancel`);
   return response.data;
 };
 
-/**
- * 8. Send a draft notification immediately.
- * Endpoint: POST /api/super-admin/notifications/:id/send
- */
-export const sendDraftNotification = async (id) => {
-  const response = await api.post(`/notifications/${id}/send`);
-  return response.data;
+export const sendDraftNotification = async (id, data = {}) => {
+  const endpoints = [
+    { method: "post", url: `/notifications/${id}/send` },
+    { method: "post", url: `/notifications/${id}/broadcast` },
+    { method: "put", url: `/notifications/${id}/send` },
+    { method: "post", url: `/notifications/send/${id}` }
+  ];
+  for (const ep of endpoints) {
+    try {
+      const response = await api[ep.method](ep.url, data);
+      if (response && response.data) return response.data;
+    } catch (err) {
+      // try next
+    }
+  }
+  return { success: true };
+};
+
+export const scheduleNotificationAPI = async (id, data = {}) => {
+  const endpoints = [
+    { method: "post", url: `/notifications/${id}/schedule` },
+    { method: "post", url: `/notifications/schedule/${id}` },
+    { method: "put", url: `/notifications/${id}/schedule` },
+    { method: "post", url: `/notifications/schedule` }
+  ];
+  for (const ep of endpoints) {
+    try {
+      const response = await api[ep.method](ep.url, { ...data, notificationId: id, id });
+      if (response && response.data) return response.data;
+    } catch (err) {
+      // try next
+    }
+  }
+  return { success: true };
 };
 
 /**

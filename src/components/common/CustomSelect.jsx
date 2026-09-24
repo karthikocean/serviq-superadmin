@@ -121,17 +121,13 @@ export default function CustomSelect({
 
   const triggerChange = (selectedVal) => {
     if (typeof onChange === 'function') {
+      const rawVal = (typeof selectedVal === 'object' && selectedVal !== null && 'target' in selectedVal) ? selectedVal.target.value : selectedVal;
       const syntheticEvent = {
-        target: { name: name || '', value: selectedVal },
-        currentTarget: { name: name || '', value: selectedVal },
-        value: selectedVal
+        target: { name: name || 'select', value: rawVal },
+        currentTarget: { name: name || 'select', value: rawVal },
+        value: rawVal
       };
-
-      try {
-        onChange(syntheticEvent);
-      } catch (err) {
-        onChange(selectedVal);
-      }
+      onChange(syntheticEvent, rawVal);
     }
   };
 
@@ -257,7 +253,7 @@ export default function CustomSelect({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={menuRef}
-          className="animate-fade-in"
+          className="animate-fade-in custom-select-invisible-menu"
           style={{
             position: 'fixed',
             top: `${coords.top}px`,
@@ -271,10 +267,19 @@ export default function CustomSelect({
             zIndex: 9999999,
             padding: '4px 0',
             maxHeight: '230px',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          <style>{`
+            .custom-select-invisible-menu::-webkit-scrollbar {
+              display: none !important;
+              width: 0 !important;
+              height: 0 !important;
+            }
+          `}</style>
           {parsedOptions.length === 0 ? (
             <div style={{ padding: '10px 16px', color: 'var(--text-muted, #94a3b8)', fontSize: '0.8rem', textAlign: 'center' }}>
               No options available

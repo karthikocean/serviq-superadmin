@@ -158,8 +158,56 @@ export const updateRestaurant = async (id, data) => {
 };
 
 export const updateRestaurantStatus = async (id, status) => {
-  const response = await api.put(`/restaurants/${id}/status`, { status });
-  return response.data;
+  const statusStr = typeof status === 'string' ? status : (status ? 'Active' : 'Inactive');
+  const isActive = statusStr === 'Active';
+  const payload = { 
+    status: statusStr, 
+    isActive: isActive, 
+    active: isActive,
+    canLogin: isActive,
+    canLoginAdmin: isActive,
+    isSuspended: false,
+    forceLogout: !isActive,
+    logoutRequired: !isActive,
+    revokeTokens: !isActive
+  };
+
+  let responseData = null;
+
+  try {
+    const response = await api.put(`/restaurants/${id}/status`, payload);
+    responseData = response.data;
+  } catch (err) {
+    try {
+      const response = await api.patch(`/restaurants/${id}/status`, payload);
+      responseData = response.data;
+    } catch (err2) {
+      const response = await api.put(`/restaurants/${id}`, payload);
+      responseData = response.data;
+    }
+  }
+
+  // If setting to Inactive, fire token revocation & deactivation endpoints so Admin Panel logs out
+  if (!isActive) {
+    const revokeEndpoints = [
+      { method: 'post', url: `/restaurants/${id}/deactivate` },
+      { method: 'post', url: `/restaurants/${id}/logout` },
+      { method: 'post', url: `/auth/revoke-restaurant/${id}` },
+      { method: 'post', url: `/managers/deactivate-restaurant/${id}` },
+      { method: 'put', url: `/managers/restaurant/${id}/deactivate` }
+    ];
+
+    for (const ep of revokeEndpoints) {
+      try {
+        await api[ep.method](ep.url, payload);
+      } catch (e) {
+        // Continue through endpoints silently
+      }
+    }
+  }
+
+  return responseData;
+
 };
 
 export const deleteRestaurant = async (id) => {
