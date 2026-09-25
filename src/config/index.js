@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const APP_ENV = (typeof process !== "undefined" && process.env?.REACT_APP_ENV) || import.meta.env.VITE_APP_ENV || "production";
+const APP_ENV = (typeof process !== "undefined" && process.env?.REACT_APP_ENV) || import.meta.env.VITE_APP_ENV || "local";
 let IMAGE_BASE_URL = "";
 let BASE_URL = "";
 let server = "";
@@ -20,9 +20,9 @@ switch (APP_ENV) {
 
   case "local":
   default:
-    IMAGE_BASE_URL = "http://192.168.88.19:5000/public";
-    BASE_URL = "http://192.168.88.19:5000/api/super-admin";
-    server = "http://192.168.88.19:5000";
+    IMAGE_BASE_URL = "http://192.168.88.14:5000/public";
+    BASE_URL = "http://192.168.88.14:5000/api/super-admin";
+    server = "http://192.168.88.14:5000";
     break;
 
 }

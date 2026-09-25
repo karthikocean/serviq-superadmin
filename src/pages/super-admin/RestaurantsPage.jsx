@@ -20,7 +20,7 @@ import {
   Upload,
   CreditCard,
 } from 'lucide-react'
-import { getPlans, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage, deleteImage } from '../../services/api'
+import { getPlans, getRestaurantById, createRestaurant, updateRestaurant as updateRestaurantApi, updateRestaurantStatus as updateRestaurantStatusApi, deleteRestaurant as deleteRestaurantApi, uploadImage, deleteImage } from '../../services/api'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import { ValidatedSelect } from '../../components/common/CustomSelect'
 import { formatDate } from '../../utils/dateFormat'
@@ -645,12 +645,10 @@ export default function RestaurantsPage() {
           const plansList = response.data.results || response.data;
           const activePlans = plansList.filter(p => p.isActive || p.status === 'Active');
           setPlans(activePlans);
-          if (!newRestState.planId) {
-            setNewRestState(prev => ({
-              ...prev,
-              planId: activePlans.length > 0 ? activePlans[0]._id : ''
-            }))
-          }
+          setNewRestState(prev => prev.planId ? prev : ({
+            ...prev,
+            planId: activePlans.length > 0 ? activePlans[0]._id : ''
+          }))
         }
       } catch (e) {
         console.error("Failed to load plans", e)
@@ -658,12 +656,11 @@ export default function RestaurantsPage() {
     }
     loadPlans()
   }, [])
-
-  // mock for compatibility
-  const onUpdateRestaurantDetails = (d) => { /* Update active restaurant logic */ }
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingRestId, setEditingRestId] = useState(null)
   const [viewingRestId, setViewingRestId] = useState(null)
+  const [viewedRestDetails, setViewedRestDetails] = useState(null)
+  const [isViewingLoading, setIsViewingLoading] = useState(false)
   const [viewingSubscriptionRest, setViewingSubscriptionRest] = useState(null)
   const [editFormState, setEditFormState] = useState(null)
   const [formErrors, setFormErrors] = useState({})
@@ -674,14 +671,21 @@ export default function RestaurantsPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredRestaurants = restaurants.filter(r => {
-    const term = searchTerm.toLowerCase()
-    return !term ||
-      (r.name && r.name.toLowerCase().includes(term)) ||
-      (r.ownerName && r.ownerName.toLowerCase().includes(term)) ||
-      (r.id && r.id.toLowerCase().includes(term)) ||
-      (r.email && r.email.toLowerCase().includes(term))
-  })
+  // Debounced server-side search API call (350ms)
+  const isInitialSearchMount = useRef(true)
+  useEffect(() => {
+    if (isInitialSearchMount.current) {
+      isInitialSearchMount.current = false
+      return
+    }
+    const timer = setTimeout(() => {
+      fetchRestaurants(searchTerm)
+      setCurrentPage(0)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchTerm, fetchRestaurants])
+
+  const filteredRestaurants = restaurants
 
   const paginatedRestaurants = filteredRestaurants.slice(
     currentPage * entriesPerPage,
@@ -1910,7 +1914,46 @@ export default function RestaurantsPage() {
                               {canView && (
                                 <button
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-muted)', transition: 'color 0.2s', display: 'flex', alignItems: 'center' }}
-                                  onClick={(e) => { e.stopPropagation(); setEditingRestId(null); setViewingRestId(rest.id); }}
+                                  onClick={async (e) => { 
+                                    e.stopPropagation(); 
+                                    setEditingRestId(null); 
+                                    setViewingRestId(rest.id); 
+                                    setIsViewingLoading(true);
+                                    try {
+                                      const data = await getRestaurantById(rest._id || rest.id);
+                                      const rawData = data.restaurant || data.data || data;
+                                      const mappedData = {
+                                        ...rest,
+                                        ...rawData,
+                                        name: rawData.restaurantName || rawData.name || rest.name,
+                                        legalName: rawData.legalName || rawData.businessName || rawData.restaurantName || rawData.name || rest.legalName || rest.name,
+                                        ownerName: rawData.ownerName || rawData.adminName || rawData.owner?.name || rest.ownerName,
+                                        email: rawData.email || rawData.adminEmail || rawData.owner?.email || rest.email,
+                                        mobileNumber: rawData.mobileNumber || rawData.phone || rawData.adminPhone || rest.mobileNumber,
+                                        openingTime: rawData.openingTime || rest.openingTime,
+                                        closingTime: rawData.closingTime || rest.closingTime,
+                                        status: rawData.status || (rawData.isActive ? 'Active' : 'Inactive') || rest.status,
+                                        website: rawData.website || rawData.domain || rest.website,
+                                        address: rawData.address || rawData.locationAddress || rawData.registeredAddress || rest.address,
+                                        city: rawData.city || rest.city,
+                                        state: rawData.state || rest.state,
+                                        country: rawData.country || rest.country,
+                                        pan: rawData.pan || rest.pan,
+                                        license: rawData.fssai || rawData.license || rest.license,
+                                        gstin: rawData.gstin || rest.gstin,
+                                        subscriptionPlan: rawData.subscriptionPlan || rawData.planName || rest.subscriptionPlan,
+                                        billingCycle: rawData.billingCycle || rest.billingCycle,
+                                        createdDate: rawData.createdAt ? rawData.createdAt.split('T')[0] : (rawData.createdDate || rest.createdDate),
+                                      };
+                                      setViewedRestDetails(mappedData);
+                                    } catch (err) {
+                                      console.error("Failed to fetch restaurant details:", err);
+                                      showToast('error', 'Failed to fetch restaurant details from server.');
+                                      setViewedRestDetails(rest); // fallback
+                                    } finally {
+                                      setIsViewingLoading(false);
+                                    }
+                                  }}
                                   title="View Branch Showcase"
                                   onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
                                   onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -1965,8 +2008,17 @@ export default function RestaurantsPage() {
           )}
 
           {viewingRestId && (() => {
-            const viewedRest = restaurants.find(r => r.id === viewingRestId)
+            const viewedRest = viewedRestDetails || restaurants.find(r => r.id === viewingRestId)
             if (!viewedRest) return null
+            
+            if (isViewingLoading) {
+              return (
+                <div className="glass-card animate-fade-in" style={{ padding: '40px', textAlign: 'center', background: 'var(--bg-card)', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                  <p style={{ color: 'var(--text-muted)', fontWeight: '600' }}>Loading restaurant details from server...</p>
+                </div>
+              )
+            }
+            
             return (
               <div className="glass-card animate-fade-in" style={{
                 background: 'var(--bg-card)',
@@ -1989,7 +2041,7 @@ export default function RestaurantsPage() {
                   </div>
                   <button
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
-                    onClick={() => setViewingRestId(null)}
+                    onClick={() => { setViewingRestId(null); setViewedRestDetails(null); }}
                   >
                     <X style={{ width: '16px', height: '16px' }} />
                   </button>
@@ -2097,10 +2149,6 @@ export default function RestaurantsPage() {
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock style={{ width: '12px', height: '12px' }} />{viewedRest.openingTime} - {viewedRest.closingTime}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Subscription Plan</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}><Gem style={{ width: '12px', height: '12px' }} />{viewedRest.subscriptionPlan || 'Free Plan'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Created Date</span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar style={{ width: '12px', height: '12px' }} />{viewedRest.createdDate || '—'}</span>
                       </div>
@@ -2110,17 +2158,35 @@ export default function RestaurantsPage() {
                           {viewedRest.currency === 'INR' ? 'Indian Rupee (₹)' : viewedRest.currency === 'USD' ? 'US Dollar ($)' : 'Euro (€)'}
                         </span>
                       </div>
-                      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                          className="btn-black"
-                          style={{ padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}
-                          onClick={() => setViewingRestId(null)}
-                        >
-                          Close Showcase
-                        </button>
+                    </div>
+                  </div>
+
+                  {/* Subscription Information */}
+                  <div style={{ padding: '14px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Subscription Information
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Subscription Plan</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }}><Gem style={{ width: '12px', height: '12px' }} />{viewedRest.subscriptionPlan || 'Free Plan'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>Billing Cycle</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '700' }}>{viewedRest.billingCycle || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
+
+                  <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          className="btn-black"
+                          style={{ padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}
+                          onClick={() => { setViewingRestId(null); setViewedRestDetails(null); }}
+                        >
+                          Close
+                        </button>
+                      </div>
                 </div>
               </div>
             )

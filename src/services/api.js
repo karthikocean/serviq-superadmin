@@ -142,9 +142,29 @@ export const deleteUploadedFile = async (filePath) => {
 export const deleteImage = deleteUploadedFile;
 export const deleteFile = deleteUploadedFile;
 
-export const getRestaurants = async (page = 0, limit = 10) => {
-  const response = await api.get(`/restaurants?page=${page}&limit=${limit}`);
+export const getRestaurants = async (page = 0, limit = 10, search = "") => {
+  const query = new URLSearchParams({ page, limit });
+  if (search && String(search).trim()) {
+    query.append("search", String(search).trim());
+    query.append("searchTerm", String(search).trim());
+  }
+  const response = await api.get(`/restaurants?${query.toString()}`);
   return response.data;
+};
+
+export const getRestaurantById = async (id) => {
+  try {
+    const response = await api.get(`/restaurants/${id}`);
+    return response.data;
+  } catch (err) {
+    if (err.response && err.response.status === 404) {
+      // Fallback: search in the paginated list if GET /:id is missing
+      const res = await getRestaurants(0, 100, id);
+      const found = (res.results || res.data || []).find(r => r._id === id || r.restaurantId === id);
+      if (found) return { data: found };
+    }
+    throw err;
+  }
 };
 
 export const createRestaurant = async (data) => {

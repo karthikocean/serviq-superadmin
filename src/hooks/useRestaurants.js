@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getRestaurants, createRestaurant, updateRestaurant, deleteRestaurant, getAllSubscriptionsAPI } from '../services/api';
 
 export function useRestaurant() {
@@ -7,11 +7,11 @@ export function useRestaurant() {
   const [restaurantAdmins, setRestaurantAdmins] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchRestaurants = async () => {
+  const fetchRestaurants = useCallback(async (searchTerm = '') => {
     setIsLoading(true);
     try {
       const [response, subsResponse] = await Promise.all([
-        getRestaurants(0, 100),
+        getRestaurants(0, 100, searchTerm),
         getAllSubscriptionsAPI(0, 100).catch(() => ({ data: [] }))
       ]);
 
@@ -87,7 +87,7 @@ export function useRestaurant() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchRestaurants();
