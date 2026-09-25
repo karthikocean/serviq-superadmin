@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, Plus, Search, Edit2, Trash2, Eye, X, ArrowLeft } from 'lucide-react';
+import { Tag, Plus, Search, Edit2, Trash2, Eye, X, ArrowLeft, AlertCircle, CheckCircle2, Lock, Unlock } from 'lucide-react';
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination';
 import CustomSelect from '../../components/common/CustomSelect';
 import { getCouponsApi, createCouponApi, updateCouponApi, deleteCouponApi } from '../../services/couponService';
@@ -35,6 +35,43 @@ export default function CouponsPage() {
   };
 
   const [formData, setFormData] = useState(defaultFormState);
+  const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast((current) => (current?.message === message ? null : current));
+    }, 4000);
+  };
+
+  const cleanErrorMessage = (err, defaultMsg = "An error occurred") => {
+    if (!err) return defaultMsg;
+    let rawStr = "";
+    if (typeof err === "string") {
+      rawStr = err;
+    } else if (typeof err === "object") {
+      rawStr = err.response?.data?.message || err.response?.data?.error || err.message || JSON.stringify(err);
+    }
+    if (!rawStr || typeof rawStr !== "string") return defaultMsg;
+    
+    if (rawStr.includes("<") && rawStr.includes(">")) {
+      try {
+        const doc = new DOMParser().parseFromString(rawStr, "text/html");
+        const text = doc.body.textContent || doc.body.innerText || "";
+        if (text.trim()) {
+          const firstLine = text.trim().split("\n").map(s => s.trim()).filter(Boolean)[0] || defaultMsg;
+          return firstLine.length > 150 ? firstLine.slice(0, 150) + "..." : firstLine;
+        }
+      } catch (e) {
+        const stripped = rawStr.replace(/<[^>]*>?/gm, "").trim();
+        if (stripped) return stripped.length > 150 ? stripped.slice(0, 150) + "..." : stripped;
+      }
+    }
+    return rawStr;
+  };
+
+  const [isServerPaginated, setIsServerPaginated] = useState(false);
 
   const fetchCoupons = async () => {
     try {
@@ -49,14 +86,22 @@ export default function CouponsPage() {
           plans: c.plans || []
         }));
         setCoupons(formattedData);
-        setTotalPages(data.totalPages || 1);
-        const count = data.pagination?.totalItems 
+        
+        const rawCount = data.pagination?.totalItems 
           ?? data.total 
           ?? data.totalCount 
+          ?? data.totalItems
           ?? data.count 
-          ?? data.totalRecords
-          ?? (Array.isArray(data.data) ? data.data.length : list.length);
-        setTotalItems(Number(count) || (list.length > 0 ? list.length : 0));
+          ?? data.totalRecords;
+
+        const total = rawCount !== undefined && rawCount !== null ? Number(rawCount) : (list.length > 0 ? list.length : 0);
+        setTotalItems(total);
+
+        const serverPaginated = data.totalPages !== undefined || (rawCount !== undefined && Number(rawCount) > list.length);
+        setIsServerPaginated(serverPaginated);
+
+        const pages = data.totalPages || Math.ceil(total / itemsPerPage) || 1;
+        setTotalPages(pages);
       }
     } catch (error) {
       console.error("Error fetching coupons:", error);
@@ -119,7 +164,35 @@ export default function CouponsPage() {
     e.preventDefault();
     if (!validateForm()) return;
     try {
-      const payload = { ...formData };
+      const rawPlans = Array.isArray(formData.plans) 
+        ? formData.plans 
+        : typeof formData.plans === 'object' && formData.plans !== null && formData.plans.target 
+          ? formData.plans.target.value 
+          : [];
+
+      const cleanPlans = (Array.isArray(rawPlans) ? rawPlans : [])
+        .map(p => typeof p === 'object' && p !== null ? (p._id || p.value || p) : p)
+        .filter(Boolean);
+
+      const rawType = typeof formData.type === 'object' && formData.type !== null && formData.type.target
+        ? formData.type.target.value
+        : formData.type;
+
+      const payload = {
+        code: formData.code?.trim().toUpperCase(),
+        name: formData.name?.trim(),
+        description: formData.description?.trim(),
+        type: rawType,
+        value: Number(formData.value) || 0,
+        maxDiscount: formData.maxDiscount !== '' && formData.maxDiscount !== null ? Number(formData.maxDiscount) : undefined,
+        minAmount: formData.minAmount !== '' && formData.minAmount !== null ? Number(formData.minAmount) : 0,
+        plans: cleanPlans,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        limit: formData.limit !== '' && formData.limit !== null ? Number(formData.limit) : undefined,
+        usagePerRest: formData.usagePerRest !== '' && formData.usagePerRest !== null ? Number(formData.usagePerRest) : undefined,
+        status: formData.status || 'Active'
+      };
       
       let data;
       if (editingCouponId) {
@@ -129,32 +202,62 @@ export default function CouponsPage() {
       }
       
       if (data.success) {
+        showToast("success", editingCouponId ? "Coupon updated successfully!" : "Coupon created successfully!");
         fetchCoupons();
         setShowAddModal(false);
         setEditingCouponId(null);
         setFormData(defaultFormState);
       } else {
-        alert(data.message || "Failed to save coupon");
+        showToast("error", cleanErrorMessage(data.message, "Failed to save coupon"));
       }
     } catch (error) {
       console.error("Error saving coupon:", error);
-      alert(error.response?.data?.message || "An error occurred");
+      showToast("error", cleanErrorMessage(error, "Failed to save coupon"));
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this coupon?")) {
-      try {
-        const data = await deleteCouponApi(id);
-        if (data.success) {
-          fetchCoupons();
-        } else {
-          alert(data.message || "Failed to delete coupon");
+  const handleDelete = (coupon) => {
+    const couponId = typeof coupon === 'object' && coupon !== null ? coupon.id : coupon;
+    const couponCode = typeof coupon === 'object' && coupon !== null ? coupon.code : '';
+    setConfirmModal({
+      title: "Are you sure you want to delete?",
+      message: couponCode ? `Are you sure you want to delete coupon "${couponCode}"? This action cannot be undone.` : "Are you sure you want to delete this coupon? This action cannot be undone.",
+      onConfirm: async () => {
+        try {
+          const data = await deleteCouponApi(couponId);
+          if (data.success) {
+            showToast("success", "Coupon deleted successfully!");
+            fetchCoupons();
+          } else {
+            showToast("error", cleanErrorMessage(data.message, "Failed to delete coupon"));
+          }
+        } catch (error) {
+          console.error("Error deleting coupon:", error);
+          showToast("error", cleanErrorMessage(error, "Failed to delete coupon"));
         }
-      } catch (error) {
-        console.error("Error deleting coupon:", error);
-        alert(error.response?.data?.message || "Failed to delete coupon");
       }
+    });
+  };
+
+  const handleToggleCouponStatus = async (coupon) => {
+    const couponId = coupon.id || coupon._id;
+    const nextStatus = coupon.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      const payload = {
+        code: coupon.code,
+        discountType: coupon.discountType || 'PERCENTAGE',
+        discountValue: Number(coupon.discountValue || 0),
+        status: nextStatus,
+        isActive: nextStatus === 'Active'
+      };
+      const data = await updateCouponApi(couponId, payload);
+      if (data && data.success !== false) {
+        showToast(nextStatus === 'Active' ? 'success' : 'error', `Coupon "${coupon.code}" status updated to ${nextStatus.toUpperCase()}!`);
+        fetchCoupons();
+      }
+    } catch (error) {
+      console.error("Error updating coupon status:", error);
+      showToast("error", cleanErrorMessage(error, "Failed to update status"));
     }
   };
 
@@ -170,6 +273,19 @@ export default function CouponsPage() {
   };
 
   const activeCoupon = viewingCouponId ? coupons.find(c => c.id === viewingCouponId) : null;
+
+  const filteredCoupons = searchQuery && !isServerPaginated
+    ? coupons.filter(c => 
+        (c.code && c.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.name && c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : coupons;
+
+  const currentCount = isServerPaginated ? totalItems : filteredCoupons.length;
+
+  const displayCoupons = isServerPaginated 
+    ? coupons 
+    : filteredCoupons.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
 
   return (
     <div style={{ width: '100%' }}>
@@ -252,7 +368,11 @@ export default function CouponsPage() {
                       <CustomSelect 
                         options={['Percentage', 'Fixed Amount']}
                         value={formData.type}
-                        onChange={(val) => { handleChange({ target: { name: 'type', value: val }}); if(errors.type) setErrors(p=>({...p, type: ''})); }}
+                        onChange={(val) => { 
+                          const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val;
+                          setFormData(p => ({ ...p, type: selected })); 
+                          if(errors.type) setErrors(p=>({...p, type: ''})); 
+                        }}
                         placeholder="Select Type..."
                       />
                     </div>
@@ -311,7 +431,12 @@ export default function CouponsPage() {
                     <CustomSelect 
                       options={availablePlans}
                       value={formData.plans}
-                      onChange={(val) => { setFormData(p => ({ ...p, plans: val })); if(errors.plans) setErrors(p=>({...p, plans: ''})); }}
+                      onChange={(val) => { 
+                        const selected = typeof val === 'object' && val !== null && val.target ? val.target.value : val;
+                        const plansArray = Array.isArray(selected) ? selected : [selected].filter(Boolean);
+                        setFormData(p => ({ ...p, plans: plansArray })); 
+                        if(errors.plans) setErrors(p=>({...p, plans: ''})); 
+                      }}
                       isMulti={true}
                       placeholder="Select Applicable Plans..."
                     />
@@ -496,8 +621,8 @@ export default function CouponsPage() {
                   <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700' }}>APPLICABLE PLANS</p>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
                     {activeCoupon?.plans?.map(p => {
-                       const planName = typeof p === 'object' ? p.planName : p;
-                       const planId = typeof p === 'object' ? p._id : p;
+                       const planId = typeof p === 'object' && p !== null ? p._id : p;
+                       const planName = typeof p === 'object' && p !== null ? (p.planName || p.name || p.label || p._id) : (availablePlans.find(ap => ap.value === p)?.label || p);
                        return <span key={planId} style={{ padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-app)', border: '1px solid var(--border-color)', fontSize: '0.75rem', fontWeight: '600' }}>{planName}</span>
                     })}
                   </div>
@@ -588,7 +713,7 @@ export default function CouponsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {coupons.map((coupon) => (
+                  {displayCoupons.map((coupon) => (
                     <tr key={coupon.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '14px 18px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -606,8 +731,8 @@ export default function CouponsPage() {
                         {coupon.plans && coupon.plans.length > 0 ? (
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {coupon.plans.map(p => {
-                              const planName = typeof p === 'object' ? p.planName : p;
-                              const planId = typeof p === 'object' ? p._id : p;
+                              const planId = typeof p === 'object' && p !== null ? p._id : p;
+                              const planName = typeof p === 'object' && p !== null ? (p.planName || p.name || p.label || p._id) : (availablePlans.find(ap => ap.value === p)?.label || p);
                               return <span key={planId} style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(249, 94, 16, 0.1)', color: '#F95E10', fontWeight: '700' }}>{planName}</span>
                             })}
                           </div>
@@ -638,12 +763,17 @@ export default function CouponsPage() {
                             </button>
                           )}
                           {canEdit && (
-                            <button onClick={() => handleEdit(coupon)} style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px' }}>
+                            <button onClick={() => handleToggleCouponStatus(coupon)} title={coupon.status === 'Active' ? "Deactivate Coupon" : "Activate Coupon"} style={{ background: 'transparent', border: 'none', color: coupon.status === 'Active' ? '#10b981' : '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                              {coupon.status === 'Active' ? <Unlock size={16} /> : <Lock size={16} />}
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => handleEdit(coupon)} title="Edit Coupon" style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '4px' }}>
                               <Edit2 size={16} />
                             </button>
                           )}
                           {canDelete && (
-                            <button onClick={() => handleDelete(coupon.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                            <button onClick={() => handleDelete(coupon)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
                               <Trash2 size={16} />
                             </button>
                           )}
@@ -654,7 +784,7 @@ export default function CouponsPage() {
                       </td>
                     </tr>
                   ))}
-                  {coupons.length === 0 && (
+                  {displayCoupons.length === 0 && (
                     <tr>
                       <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         No coupons found.
@@ -667,12 +797,153 @@ export default function CouponsPage() {
 
             <TableBottomPagination
               currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems !== undefined && totalItems > 0 ? totalItems : coupons.length}
+              totalPages={Math.max(1, Math.ceil(currentCount / itemsPerPage))}
+              totalEntries={currentCount}
+              totalItems={currentCount}
+              entriesPerPage={itemsPerPage}
               itemsPerPage={itemsPerPage}
               onPageChange={(page) => setCurrentPage(page)}
             />
 
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification Banner */}
+      {toast && (
+        <div
+          className="animate-fade-in"
+          style={{
+            position: 'fixed',
+            top: '24px',
+            right: '24px',
+            zIndex: 9999999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '14px 20px',
+            borderRadius: '12px',
+            background: toast.type === 'error' ? '#fef2f2' : '#f0fdf4',
+            border: `1.5px solid ${toast.type === 'error' ? '#fca5a5' : '#86efac'}`,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+            color: toast.type === 'error' ? '#991b1b' : '#166534',
+            fontSize: '0.88rem',
+            fontWeight: '600',
+            maxWidth: '450px'
+          }}
+        >
+          <div style={{ flexShrink: 0 }}>
+            {toast.type === 'error' ? <AlertCircle size={20} color="#dc2626" /> : <CheckCircle2 size={20} color="#16a34a" />}
+          </div>
+          <div style={{ flex: 1, wordBreak: 'break-word' }}>{toast.message}</div>
+          <button
+            onClick={() => setToast(null)}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: '2px', display: 'flex' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal Overlay */}
+      {confirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(9, 13, 22, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 999999,
+            padding: '20px'
+          }}
+          onClick={() => setConfirmModal(null)}
+        >
+          <div
+            className="animate-fade-in"
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              padding: '36px 32px 28px',
+              width: '90%',
+              maxWidth: '420px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#fee2e2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '20px'
+            }}>
+              <Trash2 style={{ width: '28px', height: '28px', color: '#ef4444' }} />
+            </div>
+
+            <h3 style={{ margin: '0 0 10px', fontSize: '1.2rem', fontWeight: '800', color: '#0f172a' }}>
+              {confirmModal.title || 'Are you sure you want to delete?'}
+            </h3>
+
+            <p style={{ margin: '0 0 28px', fontSize: '0.88rem', color: '#64748b', lineHeight: '1.5', maxWidth: '340px' }}>
+              {confirmModal.message}
+            </p>
+
+            <div style={{ display: 'flex', gap: '14px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  fontWeight: '700',
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)',
+                  transition: 'all 0.15s'
+                }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

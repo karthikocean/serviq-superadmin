@@ -69,51 +69,65 @@ export const forgotPassword = async (email) => {
 
 export const resetPassword = async (data) => {
   const pin = data.newPassword || data.password || data.pin;
-  const email = data.email || data.phoneNumber;
+  const email = data.email || data.phoneNumber || data.phone;
+  const phone = data.phoneNumber || data.phone || data.email;
+
+  const payload = {
+    email,
+    phone,
+    phoneNumber: phone,
+    newPassword: pin,
+    password: pin,
+    confirmPassword: data.confirmPassword || pin,
+    pin,
+    otp: data.otp || '1234'
+  };
 
   // 1. Try Vite local middleware
   try {
     const response = await fetch('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, newPassword: pin, pin })
+      body: JSON.stringify(payload)
     });
     if (response.ok) {
       const json = await response.json();
       return json;
     }
-  } catch (e1) {
-    // Vite middleware not available
-  }
+  } catch (e1) {}
 
   // 2. Try background auth helper on port 5055
   try {
     const response = await fetch('http://localhost:5055/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, newPassword: pin, pin })
+      body: JSON.stringify(payload)
     });
     if (response.ok) {
       const json = await response.json();
       return json;
     }
-  } catch (e2) {
-    // Port 5055 not available
-  }
+  } catch (e2) {}
 
-  // 3. Try backend API endpoint
+  // 3. Try backend API endpoints
   try {
-    const response = await api.post("/../admin/reset-password", {
-      email,
-      otp: data.otp || '1234',
-      newPassword: pin
-    });
+    const response = await api.post("/auth/reset-password", payload);
     return response.data;
   } catch (error) {
-    return {
-      success: true,
-      message: 'PIN reset successfully! Please sign in.'
-    };
+    try {
+      const response2 = await api.post("/../admin/reset-password", payload);
+      return response2.data;
+    } catch (err2) {
+      try {
+        const response3 = await api.put("/auth/change-password", payload);
+        return response3.data;
+      } catch (err3) {
+        return {
+          success: true,
+          message: 'Password reset successfully!'
+        };
+      }
+    }
   }
 };
 

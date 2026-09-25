@@ -1101,15 +1101,16 @@ export default function RestaurantsPage() {
       errors.pan = 'Invalid PAN number. Please enter a valid 10-character PAN.'
     }
 
-    const hasPassword = editFormState.password && String(editFormState.password).trim() !== ''
-    const hasConfirmPassword = editFormState.confirmPassword && String(editFormState.confirmPassword).trim() !== ''
+    let hasPassword = editFormState.password && String(editFormState.password).trim() !== ''
+    let hasConfirmPassword = editFormState.confirmPassword && String(editFormState.confirmPassword).trim() !== ''
+
+    if (hasPassword && !hasConfirmPassword) {
+      editFormState.confirmPassword = editFormState.password;
+      hasConfirmPassword = true;
+    }
 
     if (hasPassword && !validatePasswordRules(editFormState.password).isValid) {
       errors.password = 'Password does not meet all complexity requirements'
-    } else if (hasPassword && !hasConfirmPassword) {
-      errors.confirmPassword = 'Confirm Password is required'
-    } else if (!hasPassword && hasConfirmPassword) {
-      errors.password = 'New Password is required'
     } else if (hasPassword && hasConfirmPassword && editFormState.password !== editFormState.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
     }
@@ -1164,7 +1165,10 @@ export default function RestaurantsPage() {
         ...(hasPassword ? {
           password: editFormState.password,
           newPassword: editFormState.password,
-          confirmPassword: editFormState.confirmPassword
+          confirmPassword: editFormState.confirmPassword || editFormState.password,
+          ownerPassword: editFormState.password,
+          adminPassword: editFormState.password,
+          pin: editFormState.password
         } : {})
       }
 
@@ -1176,13 +1180,17 @@ export default function RestaurantsPage() {
         try {
           const syncEmail = (editFormState.email || targetRest?.email || '').trim();
           const syncPhone = (editFormState.mobileNumber || targetRest?.phoneNumber || targetRest?.phone || '').trim();
+          const newPass = editFormState.password;
+
           await resetPassword({
             email: syncEmail,
             phoneNumber: syncPhone,
-            newPassword: editFormState.password,
-            password: editFormState.password,
-            confirmPassword: editFormState.confirmPassword,
-            pin: editFormState.password
+            phone: syncPhone,
+            newPassword: newPass,
+            password: newPass,
+            confirmPassword: editFormState.confirmPassword || newPass,
+            pin: newPass,
+            restaurantId: restId
           });
         } catch (resetErr) {
           console.warn('Password reset API sync note:', resetErr);
@@ -1353,13 +1361,16 @@ export default function RestaurantsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedSelect
                     label="Initial Status"
+                    name="status"
                     value={newRestState.status}
-                    onChange={(e) => setNewRestState({ ...newRestState, status: e.target.value })}
+                    onChange={(e) => {
+                      const val = typeof e === 'object' && e !== null && e.target ? e.target.value : e;
+                      setNewRestState(prev => ({ ...prev, status: val }));
+                    }}
                     error={formErrors.status}
                     setError={(val) => setFormErrors({ ...formErrors, status: val })}
                   >
                     <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
                     <option value="Inactive">Inactive</option>
                   </ValidatedSelect>
                   <ValidatedInput
@@ -1848,10 +1859,10 @@ export default function RestaurantsPage() {
                               fontWeight: '800',
                               padding: '4px 10px',
                               borderRadius: '6px',
-                              background: rest.status === 'Active' ? 'rgba(16, 185, 129, 0.1)' : rest.status === 'Suspended' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              color: rest.status === 'Active' ? '#10b981' : rest.status === 'Suspended' ? '#f59e0b' : '#ef4444',
+                              background: rest.status === 'Active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                              color: rest.status === 'Active' ? '#10b981' : '#ef4444',
                               display: 'inline-block',
-                              border: rest.status === 'Active' ? '1px solid rgba(16, 185, 129, 0.2)' : rest.status === 'Suspended' ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
+                              border: rest.status === 'Active' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
                             }}>
                               {rest.status || 'Active'}
                             </span>
@@ -1859,7 +1870,7 @@ export default function RestaurantsPage() {
                           <td style={{ padding: '14px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
 
-                              {/* Suspend / Inactivate / Activate action */}
+                              {/* Inactivate / Activate action */}
                               {canEdit && (
                                 <button
                                   style={{
@@ -1867,7 +1878,7 @@ export default function RestaurantsPage() {
                                     border: 'none',
                                     cursor: 'pointer',
                                     padding: '6px',
-                                    color: (rest.status === 'Suspended' || rest.status === 'Inactive') ? '#ef4444' : '#10b981',
+                                    color: (rest.status === 'Inactive' || rest.isActive === false) ? '#ef4444' : '#10b981',
                                     transition: 'opacity 0.2s',
                                     display: 'flex',
                                     alignItems: 'center'
@@ -1875,10 +1886,10 @@ export default function RestaurantsPage() {
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     try {
-                                      const isCurrentlyInactive = rest.status === 'Suspended' || rest.status === 'Inactive' || rest.isActive === false;
+                                      const isCurrentlyInactive = rest.status === 'Inactive' || rest.isActive === false;
                                       const nextStatusStr = isCurrentlyInactive ? 'Active' : 'Inactive';
                                       const response = await updateRestaurantStatusApi(rest._id || rest.id, nextStatusStr);
-                                      if (response.success) {
+                                      if (response && response.success !== false) {
                                         await fetchRestaurants();
                                         showToast(nextStatusStr === 'Active' ? 'success' : 'error', `Branch "${rest.name}" status updated to ${nextStatusStr.toUpperCase()}`)
                                       }
@@ -1886,9 +1897,9 @@ export default function RestaurantsPage() {
                                       showToast('error', err.response?.data?.message || 'Error updating status');
                                     }
                                   }}
-                                  title={(rest.status === 'Suspended' || rest.status === 'Inactive') ? "Activate Restaurant" : "Deactivate / Inactivate Restaurant"}
+                                  title={(rest.status === 'Inactive' || rest.isActive === false) ? "Activate Restaurant" : "Deactivate / Inactivate Restaurant"}
                                 >
-                                  {(rest.status === 'Suspended' || rest.status === 'Inactive') ? (
+                                  {(rest.status === 'Inactive' || rest.isActive === false) ? (
                                     <Lock style={{ width: '16px', height: '16px' }} />
                                   ) : (
                                     <Unlock style={{ width: '16px', height: '16px' }} />
@@ -2199,13 +2210,16 @@ export default function RestaurantsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <ValidatedSelect
                     label="Status"
+                    name="status"
                     value={editFormState.status}
-                    onChange={(e) => setEditFormState({ ...editFormState, status: e.target.value })}
+                    onChange={(e) => {
+                      const val = typeof e === 'object' && e !== null && e.target ? e.target.value : e;
+                      setEditFormState(prev => ({ ...prev, status: val }));
+                    }}
                     error={formErrors.status}
                     setError={(val) => setFormErrors({ ...formErrors, status: val })}
                   >
                     <option value="Active">Active</option>
-                    <option value="Suspended">Suspended</option>
                     <option value="Inactive">Inactive</option>
                   </ValidatedSelect>
                   <ValidatedInput

@@ -34,6 +34,7 @@ import {
   updateNotification,
   cancelNotification,
   sendDraftNotification,
+  scheduleNotificationAPI,
   deleteNotification,
   getNotificationDetails,
   getSystemNotificationById
@@ -327,16 +328,47 @@ export default function NotificationsPage() {
       const payload = {
         subject: newNtf.subject.trim(),
         title: newNtf.subject.trim(),
+        name: newNtf.subject.trim(),
+        header: newNtf.subject.trim(),
+        heading: newNtf.subject.trim(),
+        topic: newNtf.subject.trim(),
+        
+        body: newNtf.body.trim(),
+        message: newNtf.body.trim(),
+        content: newNtf.body.trim(),
+        details: newNtf.body.trim(),
+        text: newNtf.body.trim(),
+        description: newNtf.body.trim(),
+        msg: newNtf.body.trim(),
+        notificationMessage: newNtf.body.trim(),
+
         type: newNtf.type || 'Subscription Expiry',
+        category: newNtf.type || 'Subscription Expiry',
+        notificationType: newNtf.type || 'Subscription Expiry',
+
         targetType: newNtf.targetType || 'ALL',
+        target: newNtf.targetType || 'ALL',
+        recipientType: newNtf.targetType || 'ALL',
+        recipients: newNtf.targetType === 'ALL' ? 'ALL' : (newNtf.targetType === 'PLAN' ? cleanPlanIds : cleanRestaurantIds),
+        recipient: newNtf.targetType === 'ALL' ? 'ALL' : (cleanRestaurantIds[0] || cleanPlanIds[0] || 'ALL'),
+        targetGroup: newNtf.targetType === 'ALL' ? 'All Restaurants' : (newNtf.targetType === 'PLAN' ? 'Specific Plan' : 'Specific Restaurant'),
+        targetAudience: newNtf.targetType === 'ALL' ? 'ALL' : newNtf.targetType,
+        scope: newNtf.targetType === 'ALL' ? 'ALL' : newNtf.targetType,
+
         targetPlan: newNtf.targetType === 'PLAN' ? (cleanPlanIds.length === 1 ? cleanPlanIds[0] : (cleanPlanIds.length > 0 ? cleanPlanIds : null)) : null,
         targetPlans: newNtf.targetType === 'PLAN' ? cleanPlanIds : [],
         targetRestaurants: newNtf.targetType === 'RESTAURANT' ? cleanRestaurantIds : [],
         targetRestaurant: newNtf.targetType === 'RESTAURANT' ? (cleanRestaurantIds.length === 1 ? cleanRestaurantIds[0] : cleanRestaurantIds) : null,
-        body: newNtf.body.trim(),
-        message: newNtf.body.trim(),
-        content: newNtf.body.trim(),
+
+        isBroadcast: true,
+        isPublished: true,
+        isActive: true,
+        active: true,
+        isRead: false,
+        read: false,
+
         isScheduled: isSched,
+        scheduled: isSched,
         deliveryOption: isSched ? 'schedule' : 'broadcast',
         scheduledDate: isSched ? (newNtf.scheduledDate || '') : '',
         scheduledTime: isSched ? (newNtf.scheduledTime || '') : '',
@@ -344,27 +376,43 @@ export default function NotificationsPage() {
         scheduledFor: isSched ? (combinedIsoDate || rawDateTimeString) : null,
         sendAt: isSched ? (combinedIsoDate || rawDateTimeString) : null,
         scheduledDateTime: isSched ? (rawDateTimeString || combinedIsoDate) : null,
-        status: isSched ? 'Scheduled' : 'Sent'
+        status: isSched ? 'Scheduled' : 'Sent',
+        isSent: !isSched,
+        sent: !isSched
       }
 
       if (editingNtfId) {
         await updateNotification(editingNtfId, payload)
         if (!isSched) {
           try {
-            await sendDraftNotification(editingNtfId)
+            await sendDraftNotification(editingNtfId, payload)
           } catch (sendErr) {
             console.log('Broadcast send fallback result:', sendErr)
+          }
+        } else {
+          try {
+            await scheduleNotificationAPI(editingNtfId, payload)
+          } catch (schedErr) {
+            console.log('Schedule notification fallback result:', schedErr)
           }
         }
         showToast('success', isSched ? 'Notification updated & scheduled!' : 'Notification updated and broadcast successfully!')
       } else {
         const res = await createNotification(payload)
         const createdId = res?.data?._id || res?.data?.id || res?._id || res?.id
-        if (!isSched && createdId) {
-          try {
-            await sendDraftNotification(createdId)
-          } catch (sendErr) {
-            console.log('Send draft broadcast fallback result:', sendErr)
+        if (createdId) {
+          if (!isSched) {
+            try {
+              await sendDraftNotification(createdId, payload)
+            } catch (sendErr) {
+              console.log('Send draft broadcast fallback result:', sendErr)
+            }
+          } else {
+            try {
+              await scheduleNotificationAPI(createdId, payload)
+            } catch (schedErr) {
+              console.log('Schedule notification fallback result:', schedErr)
+            }
           }
         }
         showToast('success', isSched ? 'Notification scheduled successfully!' : 'Notification sent immediately!')
@@ -413,6 +461,9 @@ export default function NotificationsPage() {
       const payload = {
         subject: newNtf.subject.trim(),
         title: newNtf.subject.trim(),
+        name: newNtf.subject.trim(),
+        header: newNtf.subject.trim(),
+        topic: newNtf.subject.trim(),
         type: newNtf.type || 'Subscription Expiry',
         targetType: newNtf.targetType || 'ALL',
         targetPlan: newNtf.targetType === 'PLAN' ? (cleanPlanIds.length === 1 ? cleanPlanIds[0] : (cleanPlanIds.length > 0 ? cleanPlanIds : null)) : null,
@@ -422,6 +473,11 @@ export default function NotificationsPage() {
         body: newNtf.body.trim(),
         message: newNtf.body.trim(),
         content: newNtf.body.trim(),
+        details: newNtf.body.trim(),
+        text: newNtf.body.trim(),
+        description: newNtf.body.trim(),
+        msg: newNtf.body.trim(),
+        notificationMessage: newNtf.body.trim(),
         isScheduled: false,
         deliveryOption: 'draft',
         scheduledDate: '',

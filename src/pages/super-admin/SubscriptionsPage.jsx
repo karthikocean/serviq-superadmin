@@ -465,13 +465,28 @@ export default function SubscriptionsPage() {
 
     if (!editingSubscriptionRest) {
       try {
+        const selectedPlanObj = plans.find(p => p.name === formState.planName || p._id === formState.planId);
+        const planBranchCount = parseInt(selectedPlanObj?.branchLimit || selectedPlanObj?.maxBranches || 3);
+        const extraBranchesCount = Number(formState.extraBranches) || 0;
+        const totalBranchLimit = planBranchCount + extraBranchesCount;
+
         const payload = {
           restaurant: selectedRest._id, // Sending the MongoDB ObjectId
-          plan: plans.find(p => p.name === formState.planName)?._id,
+          restaurantId: selectedRest.id || selectedRest._id,
+          plan: selectedPlanObj?._id || plans.find(p => p.name === formState.planName)?._id,
+          planId: selectedPlanObj?._id || plans.find(p => p.name === formState.planName)?._id,
           billingCycle: formState.billingCycle,
           startDate: formState.startDate,
           status: 'Active',
-          extraBranches: formState.extraBranches,
+          isActive: true,
+          extraBranches: extraBranchesCount,
+          maxBranches: totalBranchLimit,
+          branchLimit: totalBranchLimit,
+          maxBranch: totalBranchLimit,
+          branchesLimit: totalBranchLimit,
+          branchesIncluded: planBranchCount,
+          allowedBranches: totalBranchLimit,
+          slots: totalBranchLimit,
           paymentMethod: formState.paymentMethod,
           referenceId: formState.referenceId,
           notes: formState.notes,

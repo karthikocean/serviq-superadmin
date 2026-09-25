@@ -160,8 +160,13 @@ export default function RolesPage() {
     try {
       await updateRole(roleId, {
         roleName: target.name,
-        isActive: nextStatus === 'Active'
+        isActive: nextStatus === 'Active',
+        status: nextStatus
       })
+      setSystemRoles(prev => prev.map(r => r.id === roleId ? { ...r, status: nextStatus, isActive: nextStatus === 'Active' } : r))
+      if (typeof fetchRoles === 'function') {
+        fetchRoles()
+      }
       if (nextStatus === 'Disabled') {
         showToast('error', `Role "${target.name}" status changed to DISABLED`)
       } else {

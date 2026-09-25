@@ -11,8 +11,17 @@ export const createPlanApi = async (planData) => {
 };
 
 export const updatePlanApi = async (id, planData) => {
-  const response = await api.put(`/plans/${id}`, planData);
-  return response.data;
+  const methods = ['put', 'patch', 'post'];
+  let lastErr = null;
+  for (const method of methods) {
+    try {
+      const response = await api[method](`/plans/${id}`, planData);
+      if (response && response.data) return response.data;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (lastErr) throw lastErr;
 };
 
 export const deletePlanApi = async (id) => {

@@ -30,10 +30,8 @@ export function useRestaurant() {
 
           const rawStatus = (r.status || '').toLowerCase();
           let formattedStatus = 'Active';
-          if (rawStatus === 'inactive' || r.isActive === false) {
+          if (rawStatus === 'inactive' || rawStatus === 'suspended' || r.isActive === false) {
             formattedStatus = 'Inactive';
-          } else if (rawStatus === 'suspended') {
-            formattedStatus = 'Suspended';
           } else if (r.status) {
             formattedStatus = r.status.charAt(0).toUpperCase() + r.status.slice(1).toLowerCase();
           }

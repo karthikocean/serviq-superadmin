@@ -385,16 +385,24 @@ export default function UsersPage() {
   const handleToggleAdminStatus = async (adminId) => {
     const target = restaurantAdmins.find(a => a.id === adminId)
     if (!target) return
-    const nextStatus = target.status === 'Active' ? false : true
+    const isCurrentlyActive = target.status === 'Active' || target.isActive === true
+    const nextActive = !isCurrentlyActive
+    const nextStatusStr = nextActive ? 'Active' : 'Disabled'
     try {
-      const res = await updateManager(adminId, { isActive: nextStatus, canLoginAdmin: nextStatus })
-      if (res.success) {
-        showToast('success', `User status changed successfully!`)
+      const res = await updateManager(adminId, { 
+        isActive: nextActive, 
+        active: nextActive, 
+        canLoginAdmin: nextActive,
+        status: nextStatusStr 
+      })
+      if (res && res.success !== false) {
+        showToast(nextActive ? 'success' : 'error', `User status updated to ${nextStatusStr.toUpperCase()}!`)
+        setRestaurantAdmins(prev => prev.map(a => a.id === adminId ? { ...a, status: nextStatusStr, isActive: nextActive } : a))
         fetchPlatformAdmins()
       }
     } catch (err) {
       console.error(err)
-      showToast('error', 'Failed to change status.')
+      showToast('error', 'Failed to change user status.')
     }
   }
 
