@@ -44,12 +44,18 @@ export function AuthProvider({ children }) {
       sessionStorage.removeItem('superadmin_token');
       sessionStorage.removeItem('superadmin_user');
       sessionStorage.removeItem('superadmin_roleName');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('userToken');
+      sessionStorage.removeItem('user');
       setRole(ROLES.LOGIN);
       setIsSuperAdmin(false);
       setUser(null);
       setPermissions({});
       setIsSuperOwner(false);
       setProfileLoading(false);
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }, []);
 
@@ -62,6 +68,14 @@ export function AuthProvider({ children }) {
       const res = await getProfile();
       if (res?.success && res?.data) {
         const adminData = res.data;
+        const rest = adminData.restaurant || res.restaurant;
+        const isRestInactive = rest && (rest.status === 'Inactive' || rest.isActive === false || rest.canLogin === false);
+        const isUserInactive = adminData.isActive === false || adminData.canLoginAdmin === false || adminData.status === 'Inactive' || adminData.status === 'Disabled';
+
+        if (isRestInactive || isUserInactive) {
+          await logout();
+          return;
+        }
 
         setUser({
           id: adminData._id,
@@ -88,7 +102,8 @@ export function AuthProvider({ children }) {
     } catch (error) {
       const status = error?.response?.status;
       const code = error?.response?.data?.code;
-      if (status === 403 || code === 'USER_INACTIVE' || code === 'ROLE_INACTIVE') {
+      const msg = String(error?.response?.data?.message || '').toLowerCase();
+      if (status === 403 || code === 'USER_INACTIVE' || code === 'ROLE_INACTIVE' || code === 'RESTAURANT_INACTIVE' || code === 'RESTAURANT_DEACTIVATED' || msg.includes('deactivat') || msg.includes('inactive')) {
         await logout();
       } else if (status === 401) {
         await logout();
@@ -121,6 +136,21 @@ export function AuthProvider({ children }) {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
+  }, [refreshProfile]);
+
+  // ─── Periodic account / restaurant active status heartbeat (every 10s) ───────
+  useEffect(() => {
+    const token = sessionStorage.getItem('superadmin_token') || sessionStorage.getItem('token') || sessionStorage.getItem('userToken');
+    if (!token) return;
+
+    const interval = setInterval(() => {
+      const activeToken = sessionStorage.getItem('superadmin_token') || sessionStorage.getItem('token') || sessionStorage.getItem('userToken');
+      if (activeToken) {
+        refreshProfile();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [refreshProfile]);
 
   // ─── Login ─────────────────────────────────────────────────────────────────

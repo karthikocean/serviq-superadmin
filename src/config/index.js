@@ -20,9 +20,9 @@ switch (APP_ENV) {
 
   case "local":
   default:
-    IMAGE_BASE_URL = "http://192.168.88.19:5000/public";
-    BASE_URL = "http://192.168.88.19:5000/api/super-admin";
-    server = "http://192.168.88.19:5000";
+    IMAGE_BASE_URL = "http://192.168.88.14:5000/public";
+    BASE_URL = "http://192.168.88.14:5000/api/super-admin";
+    server = "http://192.168.88.14:5000";
     break;
 
 }
@@ -84,9 +84,11 @@ apiClient.interceptors.response.use(
     const status = error.response?.status;
     const code = error.response?.data?.code;
     const isUnauthorized = status === 401;
+    const msg = String(error.response?.data?.message || "").toLowerCase();
     const isDeactivated =
-      status === 403 &&
-      (code === "USER_INACTIVE" || code === "ROLE_INACTIVE");
+      (status === 403 &&
+        (code === "USER_INACTIVE" || code === "ROLE_INACTIVE" || code === "RESTAURANT_INACTIVE" || code === "RESTAURANT_DEACTIVATED")) ||
+      msg.includes("deactivat") || msg.includes("inactive");
 
     if (
       (isUnauthorized || isDeactivated) &&

@@ -153,7 +153,36 @@ export const createRestaurant = async (data) => {
 };
 
 export const updateRestaurant = async (id, data) => {
-  const response = await api.put(`/restaurants/${id}`, data);
+  let payload = { ...data };
+  if (data.status !== undefined || data.isActive !== undefined) {
+    const statusStr = data.status || (data.isActive ? 'Active' : 'Inactive');
+    const isActive = statusStr === 'Active' && data.isActive !== false;
+    payload = {
+      ...payload,
+      status: statusStr,
+      isActive: isActive,
+      active: isActive,
+      canLogin: isActive,
+      canLoginAdmin: isActive,
+      isSuspended: false,
+      forceLogout: !isActive,
+      logoutRequired: !isActive,
+      revokeTokens: !isActive
+    };
+  }
+  const response = await api.put(`/restaurants/${id}`, payload);
+  if (payload.status === 'Inactive' || payload.isActive === false) {
+    const revokeEndpoints = [
+      { method: 'post', url: `/restaurants/${id}/deactivate` },
+      { method: 'post', url: `/restaurants/${id}/logout` },
+      { method: 'post', url: `/auth/revoke-restaurant/${id}` },
+      { method: 'post', url: `/managers/deactivate-restaurant/${id}` },
+      { method: 'put', url: `/managers/restaurant/${id}/deactivate` }
+    ];
+    for (const ep of revokeEndpoints) {
+      try { await api[ep.method](ep.url, payload); } catch (e) {}
+    }
+  }
   return response.data;
 };
 

@@ -3,13 +3,46 @@ import api from "./api";
 export const login = async (credentials, showToast) => {
   try {
     const response = await api.post("/auth/login", credentials);
-    if (showToast) showToast('success', 'Logged in successfully!');
-    return response.data;
-  } catch (error) {
-    if (showToast) {
-      showToast('error', error.response?.data?.message || 'Login failed. Please check credentials.');
+    const resData = response.data;
+    const userData = resData?.data?.admin || resData?.data?.user || resData?.admin || resData?.user;
+    const rest = resData?.data?.restaurant || resData?.restaurant || userData?.restaurant;
+    
+    // Check if the restaurant or user returned is inactive
+    const isRestInactive = rest && (rest.status === 'Inactive' || rest.isActive === false || rest.status === 'inactive' || rest.canLogin === false);
+    const isUserInactive = userData && (userData.isActive === false || userData.canLoginAdmin === false || userData.status === 'Inactive' || userData.status === 'Disabled');
+
+    if (isRestInactive || isUserInactive) {
+      const deactiveMsg = "Your restaurant account has been deactivated. Please contact the Super Admin.";
+      if (showToast) showToast('error', deactiveMsg);
+      return { error: true, message: deactiveMsg, isInactive: true };
     }
-    return { error: true };
+
+    if (showToast) showToast('success', 'Logged in successfully!');
+    return resData;
+  } catch (error) {
+    const errorData = error.response?.data;
+    const status = error.response?.status;
+    const code = errorData?.code;
+    const serverMsg = errorData?.message || '';
+
+    const isInactiveError =
+      code === 'RESTAURANT_INACTIVE' ||
+      code === 'RESTAURANT_DEACTIVATED' ||
+      code === 'ACCOUNT_INACTIVE' ||
+      code === 'USER_INACTIVE' ||
+      status === 403 ||
+      serverMsg.toLowerCase().includes('deactivat') ||
+      serverMsg.toLowerCase().includes('inactive') ||
+      serverMsg.toLowerCase().includes('suspended');
+
+    const displayMsg = isInactiveError
+      ? 'Your restaurant account has been deactivated. Please contact the Super Admin.'
+      : (serverMsg || 'Login failed. Please check credentials.');
+
+    if (showToast) {
+      showToast('error', displayMsg);
+    }
+    return { error: true, message: displayMsg, data: errorData, isInactive: isInactiveError };
   }
 };
 
