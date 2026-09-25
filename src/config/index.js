@@ -7,7 +7,7 @@ let server = "";
 
 switch (APP_ENV) {
   case "dev":
-    IMAGE_BASE_URL = "http://192.168.1.16:5000/public";
+    IMAGE_BASE_URL = "http://192.168.1.13:5000/public";
     BASE_URL = "http://192.168.1.16:5000/api/super-admin";
     server = "http://192.168.1.16:5000";
     break;
