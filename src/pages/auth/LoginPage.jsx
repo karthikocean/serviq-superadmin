@@ -240,6 +240,18 @@ export default function Login({ onLogin, darkMode, onToggleDarkMode, showToast }
     
     if (response.data && response.data.token) {
       const userData = response.data.admin || response.data.user;
+      const restData = response.data.restaurant || userData?.restaurant;
+      const isRestInactive = restData && (restData.status === 'Inactive' || restData.isActive === false || restData.canLogin === false);
+      const isUserInactive = userData && (userData.isActive === false || userData.canLoginAdmin === false || userData.status === 'Inactive' || userData.status === 'Disabled');
+
+      if (isRestInactive || isUserInactive) {
+        const deactiveMsg = "Your restaurant account has been deactivated. Please contact the Super Admin.";
+        if (showToast) showToast('error', deactiveMsg);
+        sessionStorage.removeItem("superadmin_token");
+        sessionStorage.removeItem("superadmin_user");
+        sessionStorage.removeItem("superadmin_roleName");
+        return;
+      }
       sessionStorage.setItem("superadmin_token", response.data.token);
       sessionStorage.setItem("superadmin_user", JSON.stringify(userData));
       if (userData?.role?.roleName) {
