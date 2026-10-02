@@ -20,14 +20,30 @@ import {
   Send,
   Check,
   ExternalLink,
-  Users
+  Users,
+  Zap,
+  Building,
+  Mail,
+  MapPin,
+  Calendar,
+  Paperclip,
+  Loader2,
+  FileText
 } from 'lucide-react'
 
 import { useRestaurant } from '../../hooks/useRestaurants'
 import { useNotification } from '../../contexts/NotificationContext'
 import { TableTopControls, TableBottomPagination } from '../../components/common/TablePagination'
 import CustomSelect, { ValidatedSelect } from '../../components/common/CustomSelect'
-import { getTickets, createTicket, updateTicketStatus, assignTicket, replyToTicket, updateTicket } from '../../services/ticketService'
+import {
+  getTickets,
+  getTicketById,
+  createTicket,
+  updateTicketStatus,
+  assignTicket,
+  replyToTicket,
+  updateTicket
+} from '../../services/ticketService'
 import { getManagers } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { ROUTES } from '../../constants/routes'
@@ -392,6 +408,7 @@ export default function TicketsPage() {
 
   // Modals & Forms State
   const [selectedTicket, setSelectedTicket] = useState(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
   const [resolveTicketData, setResolveTicketData] = useState(null)
   const [resolveStatus, setResolveStatus] = useState('In Progress')
   const [resolveReply, setResolveReply] = useState('')
@@ -481,7 +498,7 @@ export default function TicketsPage() {
   const fetchTickets = async () => {
     try {
       const data = await getTickets({
-        page: currentPage,
+        page: currentPage + 1,
         limit: entriesPerPage,
         searchTerm,
         statusFilter,
@@ -494,16 +511,17 @@ export default function TicketsPage() {
         status: normalizeTicketStatus(t.status)
       }))
       setTickets(list)
-      const count = data?.pagination?.totalItems 
-        ?? data?.total 
-        ?? data?.totalCount 
-        ?? data?.count 
-        ?? data?.totalRecords
-        ?? (Array.isArray(data?.data) ? data.data.length : list.length)
+      const count =
+        data?.total ??
+        data?.totalRecords ??
+        data?.totalItems ??
+        data?.pagination?.totalItems ??
+        data?.count ??
+        (Array.isArray(data?.data) ? data.data.length : list.length)
       setTotalRecords(Number(count) || (list.length > 0 ? list.length : 0))
     } catch (error) {
       console.error(error)
-      showToast('error', 'Failed to fetch tickets')
+      showToast('error', error?.response?.data?.message || 'Failed to fetch tickets')
     }
   }
 
@@ -511,13 +529,32 @@ export default function TicketsPage() {
     fetchTickets()
   }, [currentPage, entriesPerPage, searchTerm, statusFilter, priorityFilter, categoryFilter])
 
-
+  // View ticket details and fetch full info by ID
+  const handleViewTicket = async (ticket) => {
+    setSelectedTicket(ticket)
+    setLoadingDetails(true)
+    try {
+      const res = await getTicketById(ticket._id)
+      const fullData = res?.data || res
+      if (fullData && typeof fullData === 'object') {
+        setSelectedTicket(prev => ({
+          ...prev,
+          ...fullData,
+          status: normalizeTicketStatus(fullData.status || prev?.status)
+        }))
+      }
+    } catch (err) {
+      console.warn('Failed to fetch full ticket details:', err)
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
 
   const handleOpenResolveModal = (ticket) => {
     const norm = normalizeTicketStatus(ticket.status)
     setResolveTicketData({ ...ticket, status: norm })
     setResolveStatus('Resolved')
-    setResolveReply('')
+    setResolveReply(ticket.resolution || ticket.resolutionMessage || '')
   }
 
   const handleResolveSubmit = async (e) => {
@@ -549,6 +586,7 @@ export default function TicketsPage() {
       const fullPayload = {
         status: resolveStatus,
         ticketStatus: resolveStatus,
+        resolution: trimmedReply || (resolveStatus === 'Resolved' ? 'Issue marked as resolved by Super Admin' : ''),
         resolutionMessage: trimmedReply || (resolveStatus === 'Resolved' ? 'Issue marked as resolved by Super Admin' : ''),
         resolutionNote: trimmedReply || (resolveStatus === 'Resolved' ? 'Issue marked as resolved by Super Admin' : ''),
         adminResponse: trimmedReply,
@@ -566,8 +604,7 @@ export default function TicketsPage() {
           message: trimmedReply,
           response: trimmedReply,
           text: trimmedReply,
-          comment: trimmedReply,
-          resolution: trimmedReply
+          comment: trimmedReply
         } : {})
       }
 
@@ -608,7 +645,10 @@ export default function TicketsPage() {
 
   const handleQuickResolve = async (ticketId) => {
     try {
-      await updateTicketStatus(ticketId, 'Resolved')
+      await updateTicketStatus(ticketId, 'Resolved', {
+        resolution: 'Issue marked as resolved by Super Admin',
+        resolvedAt: new Date().toISOString()
+      })
       showToast('success', `Ticket has been marked as RESOLVED.`)
       fetchTickets()
       if (selectedTicket && selectedTicket._id === ticketId) {
@@ -631,14 +671,27 @@ export default function TicketsPage() {
 
   const handleAssignTicket = async (ticketId, agentName) => {
     try {
-      await assignTicket(ticketId, agentName)
+      const staffMember = supportStaff.find(
+        s => (typeof s === 'string' ? s : s?.name)?.toLowerCase() === String(agentName).toLowerCase()
+      )
+      const extraData = staffMember?.id ? { assignedUserId: staffMember.id } : {}
+
+      // Immediate optimistic update
+      setTickets(prev =>
+        prev.map(t => (t._id === ticketId ? { ...t, assignedUser: agentName } : t))
+      )
+      if (selectedTicket && selectedTicket._id === ticketId) {
+        setSelectedTicket(prev => (prev ? { ...prev, assignedUser: agentName } : null))
+      }
+
+      await assignTicket(ticketId, agentName, extraData)
       showToast('success', `Ticket successfully assigned to ${agentName}`)
       fetchTickets()
     } catch (error) {
-      showToast('error', 'Failed to assign ticket')
+      showToast('error', error?.response?.data?.message || 'Failed to assign ticket')
+      fetchTickets()
     }
   }
-
 
   const getAssignedDisplayName = (t) => {
     const raw = t?.assignedUser || t?.assignedTo
@@ -749,6 +802,24 @@ export default function TicketsPage() {
                 <>
                   <span>Resolve / Process Ticket</span>
                   <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>#{resolveTicketData.ticketNumber}</span>
+                  {resolveTicketData.isEscalated && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '0.7rem',
+                      fontWeight: '800',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      color: '#ef4444',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      textTransform: 'uppercase'
+                    }}>
+                      <Zap style={{ width: '10px', height: '10px', fill: '#ef4444' }} />
+                      Escalated
+                    </span>
+                  )}
                 </>
               ) : (
                 'Support Ticket Management'
@@ -792,6 +863,23 @@ export default function TicketsPage() {
                     </h4>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {resolveTicketData.isEscalated && (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: '800',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.25)'
+                      }}>
+                        <Zap style={{ width: '12px', height: '12px', fill: '#ef4444' }} />
+                        Escalated to Super Admin
+                      </span>
+                    )}
                     <span style={{
                       padding: '4px 10px',
                       borderRadius: '6px',
@@ -819,11 +907,31 @@ export default function TicketsPage() {
                   </div>
                 </div>
 
+                {/* Escalation Warning in Resolve Form if applicable */}
+                {resolveTicketData.isEscalated && (
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.05)',
+                    border: '1.5px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-main)'
+                  }}>
+                    <strong style={{ color: '#ef4444' }}>⚡ Escalation Reason: </strong>
+                    <span>{resolveTicketData.escalationReason || 'Escalated by restaurant management for core support intervention.'}</span>
+                  </div>
+                )}
+
                 {/* Info Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
                   <div>
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Restaurant</span>
-                    <strong style={{ fontSize: '0.88rem', color: 'var(--text-main)' }}>{resolveTicketData.restaurantName}</strong>
+                    <strong style={{ fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                      {resolveTicketData.restaurantName || resolveTicketData.restaurantId?.restaurantName || 'N/A'}
+                    </strong>
+                    {resolveTicketData.branchName && (
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Branch: {resolveTicketData.branchName}</span>
+                    )}
                   </div>
                   <div>
                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Category / Topic</span>
@@ -1127,21 +1235,57 @@ export default function TicketsPage() {
                     paginatedTickets.map((ticket) => {
                       const priorityStyle = getPriorityStyle(ticket.priority)
                       const statusStyle = getStatusStyle(ticket.status)
-                      const isUnassigned = isTicketUnassigned(ticket)
 
                       return (
                         <tr key={ticket._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '800', fontFamily: 'monospace', verticalAlign: 'middle' }}>
-                            {ticket.ticketNumber}
-                          </td>
-                          <td style={{ padding: '14px 18px', verticalAlign: 'middle' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>{ticket.restaurantName}</span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ID: {restaurants.find(r => r.name === ticket.restaurantName)?.id || 'N/A'}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{ticket.ticketNumber}</span>
+                              {ticket.isEscalated && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '2px 7px',
+                                    borderRadius: '10px',
+                                    fontSize: '0.64rem',
+                                    fontWeight: '800',
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    color: '#ef4444',
+                                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                                    letterSpacing: '0.3px',
+                                    textTransform: 'uppercase'
+                                  }}
+                                  title={ticket.escalationReason || 'Escalated to Super Admin'}
+                                >
+                                  <Zap style={{ width: '9px', height: '9px', fill: '#ef4444' }} />
+                                  Escalated
+                                </span>
+                              )}
                             </div>
                           </td>
-                          <td style={{ padding: '14px 18px', fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '500', verticalAlign: 'middle', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {ticket.subject}
+                          <td style={{ padding: '14px 18px', verticalAlign: 'middle' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                                {ticket.restaurantName || ticket.restaurantId?.restaurantName || 'N/A'}
+                              </span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                {ticket.branchName ? `Branch: ${ticket.branchName}` : (ticket.restaurantId?.email || 'General Support')}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 18px', verticalAlign: 'middle', maxWidth: '280px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '600', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                {ticket.subject}
+                              </span>
+                              {ticket.creatorRole && (
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                  Raised by: {ticket.createdByName || ticket.creatorRole}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: '14px 18px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle' }}>
                             {ticket.category}
@@ -1182,7 +1326,7 @@ export default function TicketsPage() {
                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
                               {canView && (
                                 <button
-                                  onClick={() => setSelectedTicket(ticket)}
+                                  onClick={() => handleViewTicket(ticket)}
                                   className="btn-outline"
                                   style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '6px', cursor: 'pointer' }}
                                 >
@@ -1259,7 +1403,7 @@ export default function TicketsPage() {
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(9, 13, 22, 0.45)',
+          background: 'rgba(9, 13, 22, 0.55)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           display: 'flex',
@@ -1270,112 +1414,299 @@ export default function TicketsPage() {
           boxSizing: 'border-box'
         }} onClick={() => setSelectedTicket(null)}>
           <div className="animate-fade-in" style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
+            background: 'var(--bg-card, #ffffff)',
+            border: '1px solid var(--border-color, #e2e8f0)',
             borderRadius: '16px',
             padding: '24px',
             width: '100%',
-            maxWidth: '520px',
-            maxHeight: 'min(90vh, 580px)',
+            maxWidth: '620px',
+            maxHeight: 'min(90vh, 720px)',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 20px 40px -8px rgba(0,0,0,0.24), 0 8px 16px -4px rgba(0,0,0,0.12)',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
             position: 'relative',
             boxSizing: 'border-box',
             overflow: 'hidden',
             margin: 'auto'
           }} onClick={(e) => e.stopPropagation()}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px', flexShrink: 0 }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexShrink: 0 }}>
               <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'hsl(var(--primary-hue), 95%, 52%)', textTransform: 'uppercase' }}>Ticket Details</span>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: '900', color: 'var(--text-main)', margin: '3px 0 0 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: '800', color: 'hsl(var(--primary-hue), 95%, 52%)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Ticket Details
+                  </span>
+                  {loadingDetails && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      <Loader2 style={{ width: '11px', height: '11px', animation: 'spin 1s linear infinite' }} />
+                      Syncing...
+                    </span>
+                  )}
+                </div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '900', color: 'var(--text-main)', margin: '4px 0 0 0', fontFamily: 'monospace' }}>
                   {selectedTicket.ticketNumber}
                 </h3>
               </div>
-              <span style={{
-                fontSize: '0.68rem',
-                fontWeight: '800',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                background: getStatusStyle(selectedTicket.status).bg,
-                color: getStatusStyle(selectedTicket.status).text,
-                textTransform: 'uppercase'
-              }}>{selectedTicket.status}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {selectedTicket.isEscalated && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 9px',
+                    borderRadius: '6px',
+                    fontSize: '0.7rem',
+                    fontWeight: '800',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    textTransform: 'uppercase'
+                  }}>
+                    <Zap style={{ width: '10px', height: '10px', fill: '#ef4444' }} />
+                    Escalated
+                  </span>
+                )}
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: '800',
+                  padding: '4px 9px',
+                  borderRadius: '6px',
+                  background: getStatusStyle(selectedTicket.status).bg,
+                  color: getStatusStyle(selectedTicket.status).text,
+                  textTransform: 'uppercase'
+                }}>
+                  {selectedTicket.status}
+                </span>
+              </div>
             </div>
 
+            {/* Modal Scrollable Body */}
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px',
+              gap: '14px',
               borderTop: '1px solid var(--border-color)',
-              paddingTop: '12px',
+              paddingTop: '14px',
               overflowY: 'auto',
               flex: 1,
               minHeight: 0,
-              paddingRight: '2px'
+              paddingRight: '4px'
             }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Restaurant Name</span>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.restaurantName}</span>
+
+              {/* Escalation Warning Box if ticket is escalated */}
+              {selectedTicket.isEscalated && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.05)',
+                  border: '1.5px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontWeight: '800', fontSize: '0.78rem' }}>
+                    <Zap style={{ width: '14px', height: '14px', fill: '#ef4444' }} />
+                    <span>Escalated to Super Admin</span>
+                    {selectedTicket.escalatedAt && (
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '500', marginLeft: 'auto' }}>
+                        {new Date(selectedTicket.escalatedAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  {selectedTicket.escalationReason && (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: '1.45', background: 'rgba(255,255,255,0.7)', padding: '8px 10px', borderRadius: '6px' }}>
+                      <strong style={{ color: '#b91c1c' }}>Reason: </strong>
+                      {selectedTicket.escalationReason}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '16px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    {selectedTicket.creatorRole && (
+                      <span><strong>Source:</strong> {selectedTicket.creatorRole}</span>
+                    )}
+                    {selectedTicket.ticketRaisedTo && (
+                      <span><strong>Target:</strong> {selectedTicket.ticketRaisedTo}</span>
+                    )}
+                  </div>
                 </div>
+              )}
+
+              {/* Restaurant & Branch Details Card */}
+              <div style={{
+                background: 'var(--bg-app)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '10px'
+              }}>
                 <div>
-                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Category / Topic</span>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.category}</span>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>
+                    Restaurant Name
+                  </span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '800' }}>
+                    {selectedTicket.restaurantName || selectedTicket.restaurantId?.restaurantName || 'N/A'}
+                  </span>
                 </div>
+
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>
+                    Branch / Location
+                  </span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>
+                    {selectedTicket.branchName || 'Main / Company'}
+                  </span>
+                </div>
+
+                {selectedTicket.restaurantId?.email && (
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>
+                      Contact Email
+                    </span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '500' }}>
+                      {selectedTicket.restaurantId.email}
+                    </span>
+                  </div>
+                )}
+
+                {selectedTicket.restaurantId?.address && (
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>
+                      Restaurant Address
+                    </span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '500' }}>
+                      {selectedTicket.restaurantId.address}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {/* Ticket Meta Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
                 <div>
-                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Assigned Support Agent</span>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Category</span>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.category || 'General'}</span>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Priority</span>
+                  <span style={{ fontSize: '0.82rem', color: getPriorityStyle(selectedTicket.priority).text, fontWeight: '800' }}>{selectedTicket.priority}</span>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Assigned Agent</span>
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '700' }}>{getAssignedDisplayName(selectedTicket)}</span>
                 </div>
                 <div>
-                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Priority Urgency</span>
-                  <span style={{ fontSize: '0.82rem', color: getPriorityStyle(selectedTicket.priority).text, fontWeight: '700' }}>{selectedTicket.priority}</span>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Created Date</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '500' }}>
+                    {selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleDateString() : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Subject & Description */}
+              <div>
+                <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '3px' }}>
+                  Subject
+                </span>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: '800' }}>
+                  {selectedTicket.subject}
                 </div>
               </div>
 
               <div>
-                <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Subject brief</span>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '700' }}>{selectedTicket.subject}</span>
-              </div>
-
-              <div>
-                <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>Full Issue Description</span>
+                <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Issue Description
+                </span>
                 <div style={{
-                  padding: '10px 12px',
+                  padding: '12px 14px',
                   background: 'var(--bg-app)',
                   borderRadius: '8px',
                   border: '1px solid var(--border-color)',
-                  fontSize: '0.8rem',
+                  fontSize: '0.82rem',
                   color: 'var(--text-main)',
-                  lineHeight: '1.45',
-                  marginTop: '4px',
+                  lineHeight: '1.5',
                   whiteSpace: 'pre-wrap'
                 }}>
-                  {selectedTicket.description}
+                  {selectedTicket.description || 'No description provided.'}
                 </div>
               </div>
 
-              {/* Support Responses List */}
-              {((Array.isArray(selectedTicket.responses) && selectedTicket.responses.length > 0) || (Array.isArray(selectedTicket.replies) && selectedTicket.replies.length > 0)) && (
+              {/* Attachment preview / link if available */}
+              {selectedTicket.attachmentUrl && (
                 <div>
                   <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    💬 Support Responses ({((selectedTicket.responses || selectedTicket.replies) || []).length})
+                    Attachment
                   </span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
+                  <a
+                    href={selectedTicket.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 12px',
+                      background: 'var(--bg-app)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      color: '#2563eb',
+                      fontWeight: '700',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <Paperclip style={{ width: '13px', height: '13px' }} />
+                    <span>View Attached File / Image</span>
+                    <ExternalLink style={{ width: '11px', height: '11px' }} />
+                  </a>
+                </div>
+              )}
+
+              {/* Resolution details if resolved */}
+              {(selectedTicket.resolution || selectedTicket.resolutionMessage) && (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.06)',
+                  border: '1.5px solid rgba(16, 185, 129, 0.25)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#10b981', fontWeight: '800', fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <CheckCircle style={{ width: '14px', height: '14px' }} />
+                      <span>Resolution Record</span>
+                    </div>
+                    {selectedTicket.resolvedAt && (
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '500' }}>
+                        {new Date(selectedTicket.resolvedAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.45', whiteSpace: 'pre-wrap' }}>
+                    {selectedTicket.resolution || selectedTicket.resolutionMessage}
+                  </div>
+                </div>
+              )}
+
+              {/* Thread / Activity history */}
+              {((Array.isArray(selectedTicket.responses) && selectedTicket.responses.length > 0) || (Array.isArray(selectedTicket.replies) && selectedTicket.replies.length > 0)) && (
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    💬 Communication Thread ({((selectedTicket.responses || selectedTicket.replies) || []).length})
+                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '160px', overflowY: 'auto' }}>
                     {((selectedTicket.responses || selectedTicket.replies) || []).map((resp, idx) => (
                       <div key={idx} style={{
-                        padding: '8px 10px',
+                        padding: '8px 12px',
                         background: 'var(--bg-app)',
                         borderRadius: '8px',
                         border: '1px solid var(--border-color)',
-                        fontSize: '0.78rem'
+                        fontSize: '0.8rem'
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                           <strong style={{ color: resp.senderRole === 'super_admin' ? 'hsl(var(--primary-hue), 95%, 52%)' : 'var(--text-main)' }}>
                             {resp.sender || resp.senderName || (resp.senderRole === 'super_admin' ? 'Super Admin' : 'Admin / User')}
                           </strong>
@@ -1390,51 +1721,73 @@ export default function TicketsPage() {
                 </div>
               )}
 
-              {/* Resolution Note if present and no responses array */}
-              {selectedTicket.resolutionMessage && (!selectedTicket.responses || selectedTicket.responses.length === 0) && (
-                <div>
-                  <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    Resolution Message / Reply
-                  </span>
-                  <div style={{
-                    padding: '8px 10px',
-                    background: 'rgba(16, 185, 129, 0.06)',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(16, 185, 129, 0.2)',
-                    fontSize: '0.78rem',
-                    color: 'var(--text-main)',
-                    lineHeight: '1.4',
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {selectedTicket.resolutionMessage}
-                  </div>
-                </div>
-              )}
+            </div>
 
-              {/* View only close button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => setSelectedTicket(null)}
-                  style={{
-                    width: '100%',
-                    padding: '9px',
-                    borderRadius: '8px',
-                    border: '1.5px solid var(--border-color)',
-                    background: '#ffffff',
-                    color: 'var(--text-main)',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    fontSize: '0.82rem',
-                    textAlign: 'center'
-                  }}
-                >
-                  Close Details
-                </button>
+            {/* Modal Footer Actions */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '16px',
+              paddingTop: '12px',
+              borderTop: '1px solid var(--border-color)',
+              flexShrink: 0,
+              flexWrap: 'wrap',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {canEdit && (
+                  <TicketAssignDropdown
+                    ticket={selectedTicket}
+                    canEdit={canEdit}
+                    supportStaff={supportStaff}
+                    onAssign={handleAssignTicket}
+                  />
+                )}
+                {canEdit && selectedTicket.status !== 'Resolved' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = selectedTicket
+                      setSelectedTicket(null)
+                      handleOpenResolveModal(t)
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      background: '#10b981',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '0.76rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <CheckCircle style={{ width: '12px', height: '12px' }} />
+                    <span>Resolve Ticket</span>
+                  </button>
+                )}
               </div>
 
+              <button
+                type="button"
+                onClick={() => setSelectedTicket(null)}
+                className="btn-outline"
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: '700'
+                }}
+              >
+                Close
+              </button>
             </div>
+
           </div>
         </div>,
         document.body
