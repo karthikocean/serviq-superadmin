@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LifeBuoy,
   Plus,
@@ -389,6 +389,7 @@ const TicketAssignDropdown = ({ ticket, canEdit, supportStaff, onAssign }) => {
 
 export default function TicketsPage() {
   const { user } = useAuth()
+  const location = useLocation()
   const [tickets, setTickets] = useState([])
   const [totalRecords, setTotalRecords] = useState(0)
   const { restaurants } = useRestaurant()
@@ -498,7 +499,7 @@ export default function TicketsPage() {
   const fetchTickets = async () => {
     try {
       const data = await getTickets({
-        page: currentPage + 1,
+        page: currentPage,
         limit: entriesPerPage,
         searchTerm,
         statusFilter,
@@ -528,6 +529,71 @@ export default function TicketsPage() {
   useEffect(() => {
     fetchTickets()
   }, [currentPage, entriesPerPage, searchTerm, statusFilter, priorityFilter, categoryFilter])
+
+  // Automatic refresh on tab focus & notification updates
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchTickets()
+    }
+    const handleNotifUpdate = () => {
+      fetchTickets()
+    }
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('serviq_notifications_updated', handleNotifUpdate)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('serviq_notifications_updated', handleNotifUpdate)
+    }
+  }, [currentPage, entriesPerPage, searchTerm, statusFilter, priorityFilter, categoryFilter])
+
+  // Handle direct navigation or click from notification popup
+  useEffect(() => {
+    const handleTargetTicket = async (target) => {
+      if (!target) return
+      const targetId = target._id || target.id || target.ticketId
+      const targetNo = target.ticketNumber || (typeof target.title === 'string' && target.title.startsWith('TKT-') ? target.title.split(' ')[0] : '')
+
+      if (targetNo) {
+        setSearchTerm(targetNo)
+        setCurrentPage(0)
+      }
+
+      if (targetId) {
+        handleViewTicket({ _id: targetId, ticketNumber: targetNo, ...target })
+      } else if (targetNo) {
+        try {
+          const res = await getTickets({ searchTerm: targetNo, page: 0, limit: 10 })
+          const list = Array.isArray(res?.data) ? res.data : []
+          const found = list.find(t => t.ticketNumber === targetNo) || list[0]
+          if (found) {
+            handleViewTicket(found)
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    if (location.state?.ticketId || location.state?.ticketNumber || location.state?.ticket) {
+      handleTargetTicket(location.state.ticket || {
+        _id: location.state.ticketId,
+        ticketNumber: location.state.ticketNumber
+      })
+    }
+
+    const onOpenTicket = (e) => {
+      if (e.detail) {
+        handleTargetTicket(e.detail.ticket || {
+          _id: e.detail.ticketId,
+          ticketNumber: e.detail.ticketNumber
+        })
+        fetchTickets()
+      }
+    }
+
+    window.addEventListener('serviq_open_ticket', onOpenTicket)
+    return () => window.removeEventListener('serviq_open_ticket', onOpenTicket)
+  }, [location.state])
 
   // View ticket details and fetch full info by ID
   const handleViewTicket = async (ticket) => {
@@ -708,7 +774,7 @@ export default function TicketsPage() {
     return !displayName || displayName.toLowerCase() === 'unassigned' || displayName === 'null' || displayName === 'undefined'
   }
 
-  const paginatedTickets = tickets.filter(t => t.status !== 'Closed')
+  const paginatedTickets = tickets
 
   // Statistics
   const totalTicketsCount = totalRecords || tickets.length
@@ -1148,12 +1214,10 @@ export default function TicketsPage() {
                   <input
                     type="text"
                     value={searchTerm}
-                    onKeyDown={(e) => {
-                      if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
-                        e.preventDefault();
-                      }
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setCurrentPage(0)
                     }}
-                    onChange={(e) => setSearchTerm(e.target.value.replace(/\s+/g, ''))}
                     placeholder="Search ticket number, subject, restaurant..."
                     style={{
                       width: '100%',
@@ -1176,7 +1240,10 @@ export default function TicketsPage() {
                     <CustomSelect
                       options={['All', ...statuses].map(s => ({ value: s, label: s === 'All' ? 'All Statuses' : s }))}
                       value={statusFilter}
-                      onChange={(val) => setStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                      onChange={(val) => {
+                        setStatusFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)
+                        setCurrentPage(0)
+                      }}
                     />
                   </div>
 
@@ -1184,7 +1251,10 @@ export default function TicketsPage() {
                     <CustomSelect
                       options={['All', ...priorities].map(p => ({ value: p, label: p === 'All' ? 'All Priorities' : p }))}
                       value={priorityFilter}
-                      onChange={(val) => setPriorityFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                      onChange={(val) => {
+                        setPriorityFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)
+                        setCurrentPage(0)
+                      }}
                     />
                   </div>
 
@@ -1192,7 +1262,10 @@ export default function TicketsPage() {
                     <CustomSelect
                       options={['All', ...categories].map(c => ({ value: c, label: c === 'All' ? 'All Categories' : c }))}
                       value={categoryFilter}
-                      onChange={(val) => setCategoryFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)}
+                      onChange={(val) => {
+                        setCategoryFilter(typeof val === 'object' && val !== null && val.target ? val.target.value : val)
+                        setCurrentPage(0)
+                      }}
                     />
                   </div>
 

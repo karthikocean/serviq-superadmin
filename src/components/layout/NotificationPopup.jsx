@@ -132,7 +132,22 @@ export default function NotificationPopup({ isOpen, onClose, anchorRef }) {
 
     const isTicket = item.source === 'TICKET' || item.type === 'Tickets' || item.category === 'Tickets' || Boolean(item.ticketNumber);
     if (isTicket) {
-      navigate(ROUTES.SUPER_ADMIN.TICKETS);
+      const ticketId = item.ticketId || item._id || item.id;
+      const ticketNumber = item.ticketNumber || (item.title && item.title.startsWith('TKT-') ? item.title.split(' ')[0] : '');
+      navigate(ROUTES.SUPER_ADMIN.TICKETS, {
+        state: {
+          ticketId,
+          ticketNumber,
+          ticket: item
+        }
+      });
+      window.dispatchEvent(new CustomEvent('serviq_open_ticket', {
+        detail: {
+          ticketId,
+          ticketNumber,
+          ticket: item
+        }
+      }));
     } else {
       navigate(ROUTES.SUPER_ADMIN.NOTIFICATIONS);
     }

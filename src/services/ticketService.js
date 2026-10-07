@@ -7,37 +7,35 @@ import api from "./api";
 export const getTickets = async (params = {}) => {
   const cleanParams = {};
 
-  if (params.page !== undefined) {
-    cleanParams.page = params.page;
-  }
+  cleanParams.page = params.page !== undefined ? Number(params.page) : 0;
   if (params.limit !== undefined) {
-    cleanParams.limit = params.limit;
+    cleanParams.limit = Number(params.limit);
   }
 
-  // Search query
+  // Search query (support both search and searchTerm expected by backend)
   const searchVal = params.searchTerm || params.search || params.query || "";
   if (searchVal) {
     cleanParams.search = searchVal;
     cleanParams.searchTerm = searchVal;
   }
 
-  // Filter options
-  if (params.status && params.status !== "All") {
-    cleanParams.status = params.status;
-  } else if (params.statusFilter && params.statusFilter !== "All") {
-    cleanParams.status = params.statusFilter;
+  // Filter options (support both status and statusFilter keys)
+  const statusVal = params.statusFilter || params.status;
+  if (statusVal && statusVal !== "All" && statusVal !== "All Statuses") {
+    cleanParams.status = statusVal;
+    cleanParams.statusFilter = statusVal;
   }
 
-  if (params.priority && params.priority !== "All") {
-    cleanParams.priority = params.priority;
-  } else if (params.priorityFilter && params.priorityFilter !== "All") {
-    cleanParams.priority = params.priorityFilter;
+  const priorityVal = params.priorityFilter || params.priority;
+  if (priorityVal && priorityVal !== "All" && priorityVal !== "All Priorities") {
+    cleanParams.priority = priorityVal;
+    cleanParams.priorityFilter = priorityVal;
   }
 
-  if (params.category && params.category !== "All") {
-    cleanParams.category = params.category;
-  } else if (params.categoryFilter && params.categoryFilter !== "All") {
-    cleanParams.category = params.categoryFilter;
+  const categoryVal = params.categoryFilter || params.category;
+  if (categoryVal && categoryVal !== "All" && categoryVal !== "All Categories") {
+    cleanParams.category = categoryVal;
+    cleanParams.categoryFilter = categoryVal;
   }
 
   const response = await api.get("/tickets", { params: cleanParams });
